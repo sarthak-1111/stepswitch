@@ -43,6 +43,39 @@ MIGRATIONS: list[str] = [
         prefill_tps REAL, decode_tps REAL, ttft_ms REAL, details TEXT NOT NULL
     );
     """,
+    # 2: Phase 2 tables: tasks, events (trajectories), decisions and the ledger
+    """
+    CREATE TABLE tasks (
+        id TEXT PRIMARY KEY,
+        created REAL NOT NULL, updated REAL NOT NULL,
+        status TEXT NOT NULL, stop_reason TEXT,
+        track TEXT NOT NULL, instruction TEXT NOT NULL,
+        spec TEXT NOT NULL, result TEXT
+    );
+    CREATE TABLE events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id TEXT NOT NULL, ts REAL NOT NULL, seq INTEGER NOT NULL,
+        type TEXT NOT NULL, step INTEGER, data TEXT NOT NULL
+    );
+    CREATE INDEX events_task ON events(task_id, seq);
+    CREATE TABLE decisions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id TEXT NOT NULL, step INTEGER NOT NULL, ts REAL NOT NULL,
+        step_type TEXT NOT NULL, chosen TEXT, switched INTEGER NOT NULL,
+        reason TEXT NOT NULL, data TEXT NOT NULL
+    );
+    CREATE INDEX decisions_task ON decisions(task_id, step);
+    CREATE TABLE ledger (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id TEXT NOT NULL, step INTEGER NOT NULL, ts REAL NOT NULL,
+        step_type TEXT NOT NULL, endpoint TEXT NOT NULL, model TEXT NOT NULL,
+        input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL,
+        cached_input_tokens INTEGER NOT NULL, reasoning_tokens INTEGER NOT NULL,
+        wall_seconds REAL NOT NULL, gpu_seconds REAL NOT NULL,
+        usage_source TEXT NOT NULL, data TEXT NOT NULL
+    );
+    CREATE INDEX ledger_task ON ledger(task_id, step);
+    """,
 ]
 
 
