@@ -1,0 +1,118 @@
+"""Trajectory recording (SPEC §11, ARCHITECTURE §10).
+
+Every run gets a directory `.stepswitch/runs/<task id>/` with `events.jsonl`: one JSON object
+per line, each with `seq`, `ts`, `type` and the event's fields. Events are also stored in the
+`events` table of the project state database, which the dashboard reads. Large payloads (raw
+tool outputs, diffs) go to the content-addressed blob store `.stepswitch/blobs/<aa>/<sha256>`
+and events refer to them by hash.
+
+Event types written by the built-in agent: task_start, classify, decision, switch, step, tool,
+gates, escalation, review, model_error, budget, task_end.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import threading
+import time
+from collections.abc import Callable, Iterator
+from pathlib import Path
+from typing import Any
+
+from stepswitch import paths
+from stepswitch.state import StateDB
+
+EVENTS_FILE = "events.jsonl"
+
+
+def runs_dir(root: Path) -> Path:
+    return paths.state_dir(root) / "runs"
+
+
+def blobs_dir(root: Path) -> Path:
+    return paths.state_dir(root) / "blobs"
+
+
+def put_blob(root: Path, data: bytes | str) -> str:
+    """Store `data` by its sha256 and return the hash."""
+    raw = data.encode("utf-8") if isinstance(data, str) else data
+    digest = hashlib.sha256(raw).hexdigest()
+    target = blobs_dir(root) / digest[:2] / digest
+    if not target.is_file():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        partial = target.with_name(target.name + ".part")
+        partial.write_bytes(raw)
+        partial.replace(target)
+    return digest
+
+
+def get_blob(root: Path, digest: str) -> bytes:
+    return (blobs_dir(root) / digest[:2] / digest).read_bytes()
+
+
+class Trajectory:
+    """Appends events for one task to its run directory and the state database."""
+
+    def __init__(
+        self,
+        root: Path,
+        task_id: str,
+        *,
+        db: StateDB | None = None,
+        clock: Callable[[], float] = time.time,
+    ) -> None:
+        self.root = root
+        self.task_id = task_id
+        self.db = db
+        self.clock = clock
+        self.run_dir = runs_dir(root) / task_id
+        self.run_dir.mkdir(parents=True, exist_ok=True)
+        self.path = self.run_dir / EVENTS_FILE
+        self.seq = 0
+        self._lock = threading.Lock()
+        self.listeners: list[Callable[[dict[str, Any]], None]] = []
+
+    def emit(self, type_: str, *, step: int | None = None, **data: Any) -> dict[str, Any]:
+        with self._lock:
+            self.seq += 1
+            event = {"seq": self.seq, "ts": round(self.clock(), 3), "type": type_}
+            if step is not None:
+                event["step"] = step
+            event.update(data)
+            line = json.dumps(event, sort_keys=False, default=str, ensure_ascii=False)
+            with self.path.open("a", encoding="utf-8", newline="\n") as handle:
+                handle.write(line + "\n")
+            if self.db is not None:
+                self.db.execute(
+                    "INSERT INTO events (task_id, ts, seq, type, step, data)"
+                    " VALUES (?, ?, ?, ?, ?, ?)",
+                    (self.task_id, event["ts"], self.seq, type_, step, line),
+                )
+        for listener in list(self.listeners):
+            listener(event)
+        return event
+
+    def blob(self, data: bytes | str) -> str:
+        return put_blob(self.root, data)
+
+    def write_file(self, name: str, text: str) -> Path:
+        path = self.run_dir / name
+        path.write_text(text, encoding="utf-8", newline="\n")
+        return path
+
+
+def iter_events(run_dir: Path) -> Iterator[dict[str, Any]]:
+    path = Path(run_dir) / EVENTS_FILE
+    if not path.is_file():
+        return
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if line:
+                yield json.loads(line)
+
+
+def read_events(run_dir: Path) -> list[dict[str, Any]]:
+    """All events of a run, in order."""
+    return list(iter_events(run_dir))
