@@ -154,6 +154,7 @@ def test_ledger_matches_server_usage_within_one_percent(tmp_path: Path) -> None:
             "runs": [{k: v for k, v in r.items() if k != "task_id"} for r in runs],
             "comparisons": comparisons,
             "max_relative_error": worst,
+            "max_relative_error_percent": round(worst * 100, 4) if worst is not None else None,
             "threshold": limit,
         },
     )

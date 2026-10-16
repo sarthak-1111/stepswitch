@@ -65,6 +65,10 @@ claims:
       - tests/claims/test_c001_cpu_only_8gb.py::test_toy_task_runs_in_cpu_only_8gb_container
     thresholds: {memory_limit_gb: 8, memory_swap_limit_gb: 8, gpu_devices_visible: 0, final_status: done}
     evidence: [claims/evidence/C-001.json]
+    readme_numbers:
+      - {key: sections.container.peak_memory_gb, label: peak memory, unit: GiB, digits: 2}
+      - {key: sections.container.steps, label: steps}
+      - {key: sections.container.budget.wall_seconds, label: wall time, unit: s}
     status: passing
 
   - id: C-002
@@ -142,6 +146,8 @@ claims:
           - tests/claims/test_c005_matrix.py::test_compatibility_matrix_generated_from_probe_results
     thresholds: {min_families: 4, fallback_final_status: done}
     evidence: [claims/evidence/C-005.json]
+    readme_numbers:
+      - {key: sections.matrix.families_passing_count, label: model families passing the probe suite}
     status: pending
 
   - id: C-006
@@ -352,6 +358,11 @@ claims:
       - tests/claims/test_c019_token_accounting.py::test_ledger_matches_server_usage_within_one_percent
     thresholds: {max_relative_error: 0.01}
     evidence: [claims/evidence/C-019.json]
+    readme_numbers:
+      - key: sections.accounting.max_relative_error_percent
+        label: largest difference from the server counters
+        unit: "%"
+        digits: 2
     status: pending
 
   - id: C-020

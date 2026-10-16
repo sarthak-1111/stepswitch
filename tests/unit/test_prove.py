@@ -104,6 +104,32 @@ def test_render_section_lists_only_passing_claims_and_passes_the_lint() -> None:
     assert not integrity.lint_readme_numbers(section, registry)
 
 
+def test_render_section_shows_numbers_from_evidence(tmp_path: Path) -> None:
+    integrity = importlib.import_module("tests.claims.test_integrity")
+    registry = claims_module.load(ROOT)
+    for claim in registry["claims"]:
+        claim["status"] = "pending"
+    claim = registry["claims"][0]  # C-001
+    claim["status"] = "passing"
+    claim["readme_numbers"] = [
+        {"key": "sections.run.peak_gb", "label": "peak memory", "unit": "GiB", "digits": 2},
+        {"key": "sections.run.tokens", "label": "tokens", "digits": 0},
+        {"key": "sections.run.missing", "label": "not recorded"},
+    ]
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+    data = {"sections": {"run": {"peak_gb": 6.428, "tokens": 29840}}}
+    (evidence_dir / "C-001.json").write_text(json.dumps(data), encoding="utf-8")
+    section = render_readme.render_claims_section(registry, evidence_dir)
+    assert "peak memory <!-- num:C-001:sections.run.peak_gb -->6.43<!-- /num --> GiB" in section
+    assert "tokens <!-- num:C-001:sections.run.tokens -->29,840<!-- /num -->)" in section
+    assert "not recorded" not in section
+    assert not integrity.lint_readme_numbers(section, registry, evidence_dir)
+    data["sections"]["run"]["peak_gb"] = 7.1
+    (evidence_dir / "C-001.json").write_text(json.dumps(data), encoding="utf-8")
+    assert integrity.lint_readme_numbers(section, registry, evidence_dir)
+
+
 MINI_TESTS = """
 import pytest
 

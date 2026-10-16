@@ -47,7 +47,7 @@ REQUIRED_FIELDS = (
     "evidence",
     "status",
 )
-OPTIONAL_FIELDS = ("tests", "parts", "narrowed_by")
+OPTIONAL_FIELDS = ("tests", "parts", "narrowed_by", "readme_numbers")
 SPEC_CLAIM_IDS = [f"C-{n:03d}" for n in range(1, 21)]
 
 CLAIM_SPAN_RE = re.compile(r"<!--\s*claim:(C-\d{3})\s*-->(.*?)<!--\s*/claim\s*-->", re.S)
@@ -262,7 +262,7 @@ def lint_readme_numbers(
     return lint_number_markers(text, evidence_dir) + lint_hand_typed_numbers(text, registry)
 
 
-def _readme_renderer() -> Callable[[Registry], str] | None:
+def _readme_renderer() -> Callable[..., str] | None:
     """The generator behind `ssw prove --render-readme`, once it exists (Phase 1)."""
     try:
         module = importlib.import_module("stepswitch.prove.render_readme")
@@ -326,6 +326,11 @@ def test_registry_schema(registry: Registry) -> None:
             assert min(part["phase"] for part in claim["parts"]) == claim["phase"]
         if "narrowed_by" in claim:
             assert (ROOT / claim["narrowed_by"]).is_file(), f"{cid}: narrowing ADR missing"
+        for number in claim.get("readme_numbers", []):
+            assert set(number) <= {"key", "label", "unit", "digits"}, f"{cid}: {number}"
+            assert re.fullmatch(r"[A-Za-z0-9_.]+", number["key"]), f"{cid}: number key"
+            assert number["label"].strip() and not re.search(r"\d", number["label"]), cid
+            assert number.get("digits", 0) in range(5), f"{cid}: digits"
 
 
 def test_registry_holds_every_spec_claim_with_spec_wording(registry: Registry) -> None:
@@ -419,7 +424,8 @@ def test_readme_claims_section_is_generated_from_passing_claims(registry: Regist
         # Before `ssw prove --render-readme` exists nothing can be generated, so nothing is listed.
         assert not listed, "claims listed in README before the renderer exists"
     else:
-        assert section.group(0) == renderer(registry), "run `ssw prove --render-readme`"
+        rendered = renderer(registry, EVIDENCE_DIR)
+        assert section.group(0) == rendered, "run `ssw prove --render-readme`"
 
 
 # --------------------------------------------------------------------------------------------
