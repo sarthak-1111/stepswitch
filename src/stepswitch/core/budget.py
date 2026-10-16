@@ -2,7 +2,8 @@
 
 Budgets are checked at every step boundary. A step that has started is allowed to finish, so a
 run overruns a budget by at most one step; hitting a budget ends the run with status `stopped`
-and a reason naming the budget, never silently.
+and a reason naming the budget, never silently. A cancel request (the dashboard's cancel button,
+SPEC §17) is read at the same points and stops the run with the reason `cancelled`.
 """
 
 from __future__ import annotations
@@ -22,6 +23,8 @@ class BudgetTracker:
     gpu_seconds: float = 0.0
     escalations: int = 0
     started: float = field(default=0.0)
+    # True once someone asked the task to stop.
+    cancelled: Callable[[], bool] | None = None
 
     def __post_init__(self) -> None:
         self.started = self.clock()
@@ -38,7 +41,9 @@ class BudgetTracker:
         return self.clock() - self.started
 
     def exceeded(self) -> StopReason | None:
-        """The first budget that is used up, checked in a fixed order."""
+        """The first budget that is used up, checked in a fixed order after a cancel request."""
+        if self.cancelled is not None and self.cancelled():
+            return "cancelled"
         limits = self.budgets
         if limits.tokens is not None and self.tokens >= limits.tokens:
             return "budget_tokens"

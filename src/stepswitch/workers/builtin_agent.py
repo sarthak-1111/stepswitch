@@ -470,6 +470,9 @@ class AgentLoop:
 
     def _limit(self) -> LoopOutcome | None:
         reason = self.budget.exceeded()
+        if reason == "cancelled":
+            self.trajectory.emit("cancelled", step=self.step)
+            return LoopOutcome("stopped", reason, detail="cancelled on request")
         if reason is not None:
             self.trajectory.emit("budget", step=self.step, reason=reason, **self.budget.snapshot())
             return LoopOutcome("stopped", reason, detail=f"{reason.removeprefix('budget_')} budget")

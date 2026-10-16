@@ -517,6 +517,12 @@ class ServerManager:
             raise EngineError("some servers did not stop: " + "; ".join(failures))
         return count
 
+    def records(self) -> list[ServerInfo]:
+        """Recorded servers as the runtime file has them, without checking that they run."""
+        with self._state():
+            records = self._read()
+        return sorted(records.values(), key=lambda info: info.model)
+
     def status(self) -> list[ServerInfo]:
         """Recorded servers that still exist; records of dead processes are dropped."""
         with self._state():

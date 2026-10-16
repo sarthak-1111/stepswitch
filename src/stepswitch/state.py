@@ -76,6 +76,12 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX ledger_task ON ledger(task_id, step);
     """,
+    # 3: Phase 4: cancel requests, from the dashboard or another process (SPEC §17), and the
+    # index the dashboard's live feed reads task changes through
+    """
+    CREATE TABLE cancellations (task_id TEXT PRIMARY KEY, ts REAL NOT NULL);
+    CREATE INDEX tasks_updated ON tasks(updated);
+    """,
 ]
 
 
@@ -220,6 +226,17 @@ class StateDB:
             " details) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (time.time(), endpoint, model, prefill_tps, decode_tps, ttft_ms, json.dumps(details)),
         )
+
+    def request_cancel(self, task_id: str) -> None:
+        """Ask the task to stop; the process running it reads this at each step boundary."""
+        self.execute(
+            "INSERT OR IGNORE INTO cancellations (task_id, ts) VALUES (?, ?)",
+            (task_id, time.time()),
+        )
+
+    def cancel_requested(self, task_id: str) -> bool:
+        rows = self.query("SELECT 1 FROM cancellations WHERE task_id = ?", (task_id,))
+        return bool(rows)
 
 
 def open_project_state(root: Path) -> StateDB:

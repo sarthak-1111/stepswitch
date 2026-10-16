@@ -97,24 +97,28 @@ def _save_cache(path: Path, data: dict[str, dict[str, Any]]) -> None:
     path.write_text(json.dumps(data, indent=1, sort_keys=True), encoding="utf-8", newline="\n")
 
 
+def queue_task(db: StateDB, task_id: str, spec: TaskSpec) -> None:
+    """Record the task as queued; a row the dashboard queued earlier keeps its creation time."""
+    now = time.time()
+    db.execute(
+        "INSERT INTO tasks (id, created, updated, status, stop_reason, track, instruction,"
+        " spec, result) VALUES (?, ?, ?, 'queued', NULL, ?, ?, ?, NULL)"
+        " ON CONFLICT(id) DO UPDATE SET updated = excluded.updated, status = 'queued',"
+        " stop_reason = NULL, track = excluded.track, instruction = excluded.instruction,"
+        " spec = excluded.spec",
+        (task_id, now, now, spec.track, spec.instruction, spec.model_dump_json()),
+    )
+
+
+class _Cancelled(Exception):
+    """A cancel request arrived before the task started."""
+
+
 class _TaskRow:
     def __init__(self, db: StateDB, task_id: str, spec: TaskSpec) -> None:
         self.db = db
         self.task_id = task_id
-        now = time.time()
-        self.db.execute(
-            "INSERT INTO tasks (id, created, updated, status, stop_reason, track, instruction,"
-            " spec, result) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, NULL)",
-            (
-                task_id,
-                now,
-                now,
-                "queued",
-                spec.track,
-                spec.instruction,
-                spec.model_dump_json(),
-            ),
-        )
+        queue_task(db, task_id, spec)
 
     def update(
         self, status: str, *, stop_reason: str | None = None, result: str | None = None
@@ -213,7 +217,9 @@ def run_task(
     trajectory = Trajectory(root, task_id, db=db)
     ledger = Ledger(db, task_id)
     row = _TaskRow(db, task_id, spec)
-    budget = BudgetTracker(_budgets(spec, config), clock=clock)
+    budget = BudgetTracker(
+        _budgets(spec, config), clock=clock, cancelled=lambda: db.cancel_requested(task_id)
+    )
     offline = spec.offline or config.offline
     trajectory.emit("task_start", task_id=task_id, spec=json.loads(spec.model_dump_json()))
     say(f"Task {task_id}")
@@ -224,6 +230,8 @@ def run_task(
     agent: AgentLoop | None = None
     toolbox: Any = None
     try:
+        if db.cancel_requested(task_id):
+            raise _Cancelled
         worktree = pool.acquire(task_id, include_uncommitted=spec.include_uncommitted)
         workdir = Path(worktree.path)
         trajectory.emit("worktree", path=str(workdir), base=worktree.base_commit)
@@ -313,6 +321,9 @@ def run_task(
         row.update("running")
         trajectory.emit("status", status="running")
         outcome = agent.run()
+    except _Cancelled:
+        trajectory.emit("cancelled", step=0)
+        outcome = LoopOutcome("stopped", "cancelled", detail="cancelled before it started")
     except RuleError as exc:
         outcome = LoopOutcome("failed", "error", detail=f"policy rules: {exc}")
     except Exception as exc:  # noqa: BLE001 - every failure ends with a recorded status
