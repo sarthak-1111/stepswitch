@@ -232,8 +232,10 @@ def run(
         for node, note in entry["notes"].items():
             echo(f"      {node.rsplit('::', 1)[-1]}: {note}")
     if write:
-        (root / REPORT_JSON).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-        (root / REPORT_MD).write_text(_markdown(report), encoding="utf-8")
+        (root / REPORT_JSON).write_text(
+            json.dumps(report, indent=2) + "\n", encoding="utf-8", newline="\n"
+        )
+        (root / REPORT_MD).write_text(_markdown(report), encoding="utf-8", newline="\n")
         current = {claim["id"]: claim.get("status") for claim in registry["claims"]}
         updates = {
             cid: entry["status"]

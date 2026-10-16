@@ -2176,6 +2176,6 @@ def export(profile: dict[str, Any], path: Path, *, hardware: dict[str, Any]) -> 
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(
-        json.dumps(cleaned, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        json.dumps(cleaned, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n"
     )
     return destination

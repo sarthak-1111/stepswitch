@@ -120,5 +120,7 @@ def write(claim_id: str, section: str, data: dict[str, Any], *, command: str | N
         "sections": sections,
     }
     EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(evidence, indent=2, default=str) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(evidence, indent=2, default=str) + "\n", encoding="utf-8", newline="\n"
+    )
     return path
