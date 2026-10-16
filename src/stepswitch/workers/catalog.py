@@ -158,6 +158,18 @@ def model_facts(
     )
 
 
+def _table_tool_parser(table: Mapping[str, Any]) -> tuple[str | None, tuple[str, ...]]:
+    """A `[models."<name>"] tool_parser` override, when it names a catalog syntax."""
+    from stepswitch.compat.toolcall import parsers
+
+    value = table.get("tool_parser")
+    if value is None:
+        return None, ()
+    if isinstance(value, str) and value in parsers.PARSERS:
+        return value, (f"tool calls parsed from text ({value}, configured)",)
+    return None, (f"unknown tool parser {value!r} ignored",)
+
+
 def _host_has_gpu(config: Config) -> bool:
     host = config.host or {}
     detected = host.get("detected") or {}
@@ -283,6 +295,7 @@ class Catalog:
                     profile=_latest_profile(db, endpoint.name, model),
                     calibration=_latest_calibration(db, endpoint.name, model),
                 )
+                parser, parser_notes = _table_tool_parser(table)
                 spec = WorkerSpec(
                     id=f"{endpoint.name}/{model}",
                     endpoint=endpoint.name,
@@ -293,12 +306,13 @@ class Catalog:
                     local=endpoint.is_local(),
                     roles=facts.roles,
                     tool_protocol=facts.tool_protocol,
+                    tool_parser=parser or endpoint.tool_parser,
                     context=facts.context,
                     prefill_tps=facts.prefill_tps,
                     decode_tps=facts.decode_tps,
                     gpu=gpu_host and endpoint.is_local() and facts.tier != "cpu",
                     registry_id=facts.registry_id,
-                    notes=facts.notes,
+                    notes=facts.notes + parser_notes,
                 )
                 factory = _endpoint_factory(endpoint, spec, egress, task_id, timeout)
                 workers.append(Worker(spec, factory=factory))
@@ -325,6 +339,7 @@ class Catalog:
                 context = (
                     min(c for c in (facts.context, ctx) if c) if facts.context or ctx else None
                 )
+                parser, parser_notes = _table_tool_parser(table)
                 spec = WorkerSpec(
                     id=f"managed/{entry.id}",
                     endpoint="managed",
@@ -335,15 +350,27 @@ class Catalog:
                     local=True,
                     roles=facts.roles,
                     tool_protocol=facts.tool_protocol,
+                    # llama.cpp serves installed registry models (the manager prefers it).
+                    tool_parser=parser or entry.text_tool_parser("llamacpp"),
                     context=context,
                     prefill_tps=facts.prefill_tps,
                     decode_tps=facts.decode_tps,
                     gpu=False,
                     registry_id=entry.id,
-                    notes=facts.notes,
+                    notes=facts.notes + parser_notes,
                     pin_only=pin_only,
                 )
-                factory = _managed_factory(config, root, spec, manager, egress, task_id, timeout)
+                factory = _managed_factory(
+                    config,
+                    root,
+                    spec,
+                    manager,
+                    egress,
+                    task_id,
+                    timeout,
+                    entry=entry,
+                    pinned=parser,
+                )
                 workers.append(Worker(spec, factory=factory))
         if not workers:
             notes.append(
@@ -393,6 +420,7 @@ def _endpoint_factory(
         from stepswitch.compat.client import Endpoint, ModelClient
 
         target = Endpoint.from_config(endpoint, model=spec.model, fmt=spec.format)
+        target.options.tool_parser = spec.tool_parser
         client = ModelClient(
             target, egress=egress, purpose="model", task_id=task_id, timeout=timeout
         )
@@ -409,13 +437,21 @@ def _managed_factory(
     egress: Egress | None,
     task_id: str | None,
     timeout: float,
+    *,
+    entry: ModelEntry | None = None,
+    pinned: str | None = None,
 ) -> Callable[[], StepModel]:
+    """`pinned` is a tool parser set in the project's model table; otherwise the recipe of the
+    engine that actually serves the model decides (ADR 0022)."""
+
     def make() -> StepModel:
         from stepswitch.compat.client import Endpoint, ModelClient
+        from stepswitch.compat.codecs.base import CodecOptions
         from stepswitch.serve.manager import ServerManager
 
         servers = manager or ServerManager(root, config)
         info = servers.ensure(spec.model)
+        parser = pinned or (entry.text_tool_parser(info.engine) if entry else spec.tool_parser)
         target = Endpoint(
             name="managed",
             base_url=info.base_url,
@@ -423,6 +459,7 @@ def _managed_factory(
             model=info.engine_model or spec.model,
             headers=info.headers(),
             local=True,
+            options=CodecOptions(tool_parser=parser),
         )
         client = ModelClient(
             target, egress=egress, purpose="model", task_id=task_id, timeout=timeout

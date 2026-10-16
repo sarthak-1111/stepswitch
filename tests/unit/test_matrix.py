@@ -142,3 +142,30 @@ def test_cli_render_matrix_and_check(tmp_path: Path) -> None:
     assert wrote.exit_code == 0, wrote.output
     fresh = runner.invoke(app, ["-C", str(root), "probe", "--render-matrix", "--check"], env=env)
     assert fresh.exit_code == 0, fresh.output
+
+
+def test_render_names_the_parser_of_calls_read_from_text(tmp_path: Path) -> None:
+    native = {**PASSING, "native_tool_call": True, "fallback_tool_protocol": False}
+    root = make_root(
+        tmp_path,
+        {
+            "granite--llamacpp.json": result("granite", native, tool_parser="granite"),
+            "qwen--llamacpp.json": result("qwen", native),
+        },
+    )
+    loaded = {r.model: r for r in matrix.load_results(root)}
+    assert loaded["granite"].tool_parser == "granite"
+    assert loaded["qwen"].tool_parser is None
+    rows = {line.split(" | ")[0]: line for line in matrix.render(root).splitlines()}
+    assert "| passes | native, parsed from text (`granite`) |" in rows["| granite"]
+    assert "| passes | native |" in rows["| qwen"]
+
+
+def test_a_check_that_never_got_an_answer_shows_as_error(tmp_path: Path) -> None:
+    data = result("m", {**PASSING, "json_schema": False, "streaming": False})
+    data["checks"]["json_schema"]["error"] = "timeout talking to managed: timed out"
+    root = make_root(tmp_path, {"m--llamacpp.json": data})
+    loaded = matrix.load_results(root)[0]
+    assert (loaded.shown("json_schema"), loaded.shown("streaming")) == ("error", "no")
+    assert (loaded.shown("basic_chat"), loaded.shown("parallel_tool_calls")) == ("yes", "skipped")
+    assert "| JSON Schema output | error |" in matrix.render(root)

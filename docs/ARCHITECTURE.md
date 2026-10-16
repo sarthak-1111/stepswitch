@@ -138,7 +138,10 @@ Details and rationale: ADR 0003. Formats and their fields: docs/RESEARCH.md, "AP
   syntax catalog (harmony, JSON-in-tags, XML-style function/parameter tags, key/value-tag pairs,
   special-token sections and others listed in RESEARCH.md) parses raw text, also while
   streaming. The parser is selected by hub ID plus chat-template hash, with detection by
-  template markers for unknown templates.
+  template markers for unknown templates. On chat-completions endpoints it is set per endpoint
+  or model (`tool_parser`), or by the serving engine's registry recipe
+  (`tool_parsing = "client"`). Earlier calls then go back to the model written in its own
+  syntax (ADR 0022).
 - **Fallback tool protocol.** For models without native tool calling, tools are described in
   the prompt and the model must emit one JSON action object, constrained by grammar or JSON
   Schema where the endpoint supports it (starting after the reasoning block on reasoning

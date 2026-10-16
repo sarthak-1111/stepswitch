@@ -178,6 +178,7 @@ Tool-call syntaxes used by open-weight model families (tasks A06-A07).
 | LFM2 tokens + pythonic | LFM2, LFM2.5 | `<\|tool_call_start\|>[f(a=1)]<\|tool_call_end\|>` | `lfm2.cpp` / `lfm2` / `lfm2` / `lfm2` | JSON output can be requested in the system prompt |
 | OLMo 3 `function_calls` | Olmo 3 / 3.1 | `<function_calls>` + one pythonic call per line + `</function_calls>` | ? / `olmo3` / none / `olmo3` | accepts JSON and Python literals |
 | JSON in `<tool_call>` tags (Hermes style) | Granite 4.1, SmolLM3 (`xml_tools`), Falcon H1R, Trinity Mini | `<tool_call>{"name": "f", "arguments": {"k": "v"}}</tool_call>` | Hermes 2/3 native per docs / `hermes` (Granite 4.x: `granite4`) / `hermes` / ? | Granite 4.0 not re-verified |
+| Granite 3.x special-token list | Granite 3.0-3.3 | `<\|tool_call\|>[{"name": "f", "arguments": {"k": "v"}}]` (Granite 3.1 also writes the marker as plain `<tool_call>`) | not parsed by b11669 (live, 2026-10-16) / `granite` (marker matched by token id) / ? / ? | the marker is a special token and there is no closing marker; Granite-3.3-2B writes `arguments` before `name`; catalog syntax `granite` (ADR 0022) |
 | Qwen3-Coder-style XML | Granite 4.2, Nemotron 3 / 3.5, Trinity Large Thinking | `<tool_call><function=f><parameter=k>v</parameter></function></tool_call>` | `qwen3-coder.cpp` / `qwen3_coder` / `qwen3_coder` / ? (Ollama has `qwen3coder`; per-model use ?) | cross-family reuse; Nemotron and Trinity syntax inferred from parser names |
 | Command (melody) | Command A Reasoning, Command A+, North-Mini-Code | ? (not on cards) | `cohere2moe.cpp` / `cohere_command3`, `cohere_command4` / `cohere_command4` / built-in (publisher-named) | vLLM needs the `cohere_melody` package |
 | Apertus | Apertus v1 / v1.5 | `[{"f": {"k": "v"}}]` between tool prefix and suffix tokens | ? / `apertus` / `apertus2509` / ? | token names ?; no tool calls in thinking mode |
@@ -2938,3 +2939,44 @@ https://huggingface.co/docs/huggingface_hub/package_reference/environment_variab
 `HF_HUB_OFFLINE` accepts 1/ON/YES/TRUE, is read at import and limits the library to cached
 files; telemetry is off when `HF_HUB_DISABLE_TELEMETRY`, `DISABLE_TELEMETRY` or `DO_NOT_TRACK`
 is set.
+
+### Granite 3.3 tool calls on the llama.cpp server (live, b11669, checked 2026-10-16)
+
+Model: Granite-3.3-2B-Instruct Q4_K_M (registry `granite-3.3-2b-instruct`, template sha256
+`8a58e18a…`), on a private llama-server started with the registry arguments, the same build
+the probe used.
+
+- The GGUF chat template tells the model to "respond only with <|tool_call|> followed by a
+  JSON list of tools used". It contains `<|tool_call|>` twice and no `<tool_call>`, and it
+  renders only `role` and `content` for every message, so assistant `tool_calls` in a history
+  never reach the model.
+- `POST /v1/chat/completions` with `tools` and `tool_choice: "auto"` returns the content
+  `[{"arguments": {"city": "Paris"}, "name": "get_weather"}]`, no `tool_calls`, finish reason
+  `stop`.
+- `POST /completion` with the `/apply-template` prompt and `return_tokens: true` shows the first
+  generated token is 49154. `POST /tokenize` with `parse_special: true` maps `<|tool_call|>` to
+  that single token, and `/detokenize` renders it as `<|tool_call|>`. The model writes the
+  marker; the server leaves it out of the reply text, so its own Granite handling never sees it.
+- With `--special` the marker appears in the content (`<|tool_call|>[...]<|end_of_text|>`), but
+  the server still returns no `tool_calls`, and the end-of-text token leaks into the content.
+  It is no fix.
+- A named `tool_choice` (`{"type": "function", "function": {"name": "get_time"}}`) is ignored:
+  the reply is the get_weather list. The probe records "forced tool choice: no" for all four CI
+  models on this build.
+- Consequence (ADR 0022): the Granite recipe sets `tool_parsing = "client"`, and Stepswitch
+  parses the `granite` syntax from the reply text, bare arrays included.
+
+### vLLM Granite tool parser (main 07f3857f, checked 2026-10-16)
+
+Sources: `vllm/parser/granite.py`, `vllm/tool_parsers/granite_engine_tool_parser.py` and
+`tests/tool_parsers/test_granite_tool_parser.py` at commit
+07f3857fb93772fed64e06642cdb0b8c03e0b249 (https://github.com/vllm-project/vllm).
+
+- Markers: `<|tool_call|>` (Granite 3.0; a single special token, also matched by token id) and
+  `<tool_call>` (Granite 3.1, plain text).
+- After the marker comes a JSON array with no closing marker; any prose around it is content.
+  The parser is selected with `--tool-call-parser granite`.
+- The tests treat `[{"name": "func", "arguments": "not a dict"}]` without a marker as no call:
+  vLLM never reads bare arrays, because it sees the marker's token id. Stepswitch, reading text
+  over HTTP, reads a bare array only when the granite syntax is configured and the whole reply
+  is a strict call list (ADR 0022).

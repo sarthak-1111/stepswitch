@@ -87,6 +87,7 @@ from stepswitch.compat.ir import (
     ToolSpec,
     Usage,
 )
+from stepswitch.compat.toolcall import parsers
 from stepswitch.config import EndpointConfig
 
 T = TypeVar("T")
@@ -549,7 +550,12 @@ def _unexpected(response: Response, wanted: str) -> str:
 
 def _no_call(response: Response) -> str:
     text = response.message.text_content()
-    return f"no tool call; answered in text: {_preview(text)}" if text.strip() else "no tool call"
+    if not text.strip():
+        return "no tool call"
+    # A call written in a catalog syntax that the server did not parse (ADR 0022).
+    syntax = next((name for name in parsers.PARSERS if parsers.parse(text, name).calls), None)
+    hint = f" (a {syntax} call: try --tool-parser {syntax})" if syntax else ""
+    return f"no tool call; answered in text: {_preview(text)}{hint}"
 
 
 # --------------------------------------------------------------------------------------------
@@ -953,7 +959,7 @@ def resolve(
         if info.get("think_values"):
             codec_extra["think_values"] = list(info["think_values"])
     endpoint = Endpoint.from_config(config, model=chosen, fmt=public)
-    endpoint.options = CodecOptions(extra=dict(codec_extra))
+    endpoint.options = CodecOptions(tool_parser=config.tool_parser, extra=dict(codec_extra))
     return Target(
         config=config,
         endpoint=endpoint,
@@ -1176,7 +1182,10 @@ class _Battery:
         remaining = self._check_deadline - time.perf_counter()
         if remaining < 0.5:
             raise _CheckTimeout
-        options = CodecOptions(extra={**self.target.codec_extra, **(extra or {})})
+        options = CodecOptions(
+            tool_parser=self.target.endpoint.options.tool_parser,
+            extra={**self.target.codec_extra, **(extra or {})},
+        )
         endpoint = dataclasses.replace(self.target.endpoint, options=options)
         return ModelClient(
             endpoint,
@@ -2098,6 +2107,8 @@ def run(
         "format": target.format,
         "engine": engine_name,
         "engine_version": discovery.engine_version if discovery.engine == engine_name else None,
+        # Set when Stepswitch parses tool calls from the reply text (ADR 0022).
+        "tool_parser": target.endpoint.options.tool_parser,
         "scheme": _url_parts(config.url)[0] or None,
         "local": config.is_local(),
         "created": created,
@@ -2149,9 +2160,9 @@ def export(profile: dict[str, Any], path: Path, *, hardware: dict[str, Any]) -> 
     """Write a shareable probe result (SPEC §4.7) and return its path.
 
     The result is meant for public pull requests: it carries the model, its hash, the engine
-    and its version, the format, a compact hardware summary, the date, the checks, the
-    capabilities and the throughput. Of the endpoint it keeps only the scheme and whether it is
-    local.
+    and its version, the format, the tool parser Stepswitch used (if any), a compact hardware
+    summary, the date, the checks, the capabilities and the throughput. Of the endpoint it keeps
+    only the scheme and whether it is local.
     """
     created = str(profile.get("created") or "")
     date = created[:10] if re.match(r"^\d{4}-\d{2}-\d{2}", created) else None
@@ -2166,6 +2177,7 @@ def export(profile: dict[str, Any], path: Path, *, hardware: dict[str, Any]) -> 
         "engine": profile.get("engine"),
         "engine_version": profile.get("engine_version"),
         "format": profile.get("format"),
+        "tool_parser": profile.get("tool_parser"),
         "endpoint": {"scheme": profile.get("scheme"), "local": profile.get("local")},
         "quick": profile.get("quick"),
         "hardware": hardware_summary(hardware),

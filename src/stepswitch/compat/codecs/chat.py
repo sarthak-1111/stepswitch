@@ -27,6 +27,13 @@ last chunk whose `choices` is empty, before `data: [DONE]`.
 `Request.extensions["chat-completions"]` holds extra body fields sent verbatim; `decode_request`
 stores the fields it does not map there. Extensions for other formats are reported as dropped.
 
+`CodecOptions.tool_parser` names a catalog syntax (`stepswitch.compat.toolcall.parsers`) for a
+model whose server does not parse its tool calls (SPEC §4.4: "otherwise parse raw text";
+ADR 0022). Client side, when a request offers tools and the reply carries no `tool_calls`, the
+calls are parsed out of the reply text (streams buffer a possible call section until the end),
+and earlier assistant calls are sent back written in that syntax inside `content`, because
+templates for such models may not render a `tool_calls` field.
+
 Synthetic tool-call ids use the turn of the request this codec encoded last (the number of
 assistant messages in its history), so a codec instance serves one conversation at a time.
 """
@@ -82,6 +89,8 @@ from stepswitch.compat.ir import (
     synthetic_call_id,
 )
 from stepswitch.compat.stream import merge_usage
+from stepswitch.compat.toolcall import parsers
+from stepswitch.compat.toolcall.streaming import StreamingToolCallExtractor, extract_calls
 
 PATH = "/v1/chat/completions"
 FORMAT = "chat-completions"
@@ -517,7 +526,12 @@ class ChatCompletionsCodec(Codec):
 
     def __init__(self, options: CodecOptions | None = None) -> None:
         super().__init__(options)
+        syntax = self.options.tool_parser
+        if syntax is not None and syntax not in parsers.PARSERS:
+            known = ", ".join(parsers.PARSERS)
+            raise ValueError(f"unknown tool parser {syntax!r}; known: {known}")
         self._turn = 0
+        self._tools_offered = False
 
     def _lose(
         self, report: ConversionReport, where: str, detail: str, action: str = "dropped"
@@ -528,10 +542,15 @@ class ChatCompletionsCodec(Codec):
         value = self.options.extra.get("reasoning_field")
         return value if isinstance(value, str) and value else None
 
+    def _text_parser(self) -> str | None:
+        """The syntax to parse calls out of reply text with, for a request that offered tools."""
+        return self.options.tool_parser if self._tools_offered else None
+
     # ---- client side: requests ---------------------------------------------------------
 
     def encode_request(self, request: Request, report: ConversionReport) -> HttpCall:
         self._turn = assistant_turns(request)
+        self._tools_offered = bool(request.tools)
         body: dict[str, Any] = {
             "model": request.model,
             "messages": self._encode_messages(request, report),
@@ -735,6 +754,19 @@ class ChatCompletionsCodec(Codec):
                     reasoning.append(text)
             else:
                 self._lose(report, at, f"assistant messages cannot carry {part.type} parts")
+        syntax = self.options.tool_parser
+        if calls and syntax is not None:
+            # The model's own syntax, in the text its template renders (see the module notes).
+            written = parsers.render(
+                [
+                    parsers.ParsedCall(name=part.name, arguments=part.arguments)
+                    for part in message.content
+                    if isinstance(part, ToolCallPart)
+                ],
+                syntax,
+            )
+            texts = ["\n".join([*texts, written])]
+            calls = []
         out: dict[str, Any] = {"role": "assistant"}
         out["content"] = _text_content(texts) if texts else (None if calls else "")
         if refusals:
@@ -865,6 +897,19 @@ class ChatCompletionsCodec(Codec):
         if refusal:
             parts.append(RefusalPart(text=refusal))
         calls = self._decode_calls(as_list(message.get("tool_calls")), self._turn)
+        syntax = self._text_parser()
+        if not calls and syntax is not None:
+            text = "".join(part.text for part in parts if isinstance(part, TextPart))
+            remaining, calls = extract_calls(text, syntax, self._turn)
+            if calls:
+                kept: list[Part] = []
+                for part in parts:
+                    if not isinstance(part, TextPart):
+                        kept.append(part)
+                    elif remaining:  # the text left over takes the place of the first text part
+                        kept.append(TextPart(text=remaining))
+                        remaining = ""
+                parts = kept
         parts.extend(calls)
         reason, raw_reason = finish_from_wire(choice.get("finish_reason"), bool(calls))
         created = as_int(data.get("created"))
@@ -931,7 +976,10 @@ class ChatCompletionsCodec(Codec):
                 out.append(ReasoningDelta(text=reasoning))
             content = delta.get("content")
             if isinstance(content, str) and content:
-                out.append(TextDelta(text=content))
+                extractor = self._extractor(state)
+                out.extend(
+                    extractor.feed(content) if extractor is not None else [TextDelta(text=content)]
+                )
             refusal = delta.get("refusal")
             if isinstance(refusal, str) and refusal:
                 out.append(RefusalDelta(text=refusal))
@@ -947,6 +995,18 @@ class ChatCompletionsCodec(Codec):
 
     def finish_stream(self, state: StreamState) -> list[Delta]:
         return self._finish(state, done=False)
+
+    def _extractor(self, state: StreamState) -> StreamingToolCallExtractor | None:
+        syntax = self._text_parser()
+        if syntax is None:
+            return None
+        extractor = state.data.get("extractor")
+        if not isinstance(extractor, StreamingToolCallExtractor):
+            extractor = StreamingToolCallExtractor(
+                syntax, markers=parsers.CALL_MARKERS[syntax], turn=self._turn
+            )
+            state.data["extractor"] = extractor
+        return extractor
 
     @staticmethod
     def _fail(state: StreamState, error: ErrorDelta) -> list[Delta]:
@@ -1025,6 +1085,12 @@ class ChatCompletionsCodec(Codec):
         state.finished = True
         out: list[Delta] = []
         calls: list[_StreamCall] = state.data.get("calls", [])
+        extractor = state.data.get("extractor")
+        parsed = False
+        if isinstance(extractor, StreamingToolCallExtractor):
+            # Calls the server parsed win; then a held-back section is only text.
+            out.extend(extractor.finish(parse=not calls))
+            parsed = bool(extractor.calls)
         for call in calls:
             if not call.started:  # a call whose name never arrived is still reported
                 call.started = True
@@ -1043,7 +1109,7 @@ class ChatCompletionsCodec(Codec):
                 ErrorDelta(kind="invalid_response", message="stream ended before a finish reason")
             )
             return out
-        reason, raw_reason = finish_from_wire(raw, bool(calls))
+        reason, raw_reason = finish_from_wire(raw, bool(calls) or parsed)
         out.append(FinishDelta(reason=reason, raw=raw_reason))
         return out
 

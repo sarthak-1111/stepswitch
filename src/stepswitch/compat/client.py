@@ -59,6 +59,7 @@ class Endpoint:
             model=model or (config.models[0] if config.models else None),
             headers=headers,
             local=config.is_local(),
+            options=CodecOptions(tool_parser=getattr(config, "tool_parser", None)),
         )
 
 

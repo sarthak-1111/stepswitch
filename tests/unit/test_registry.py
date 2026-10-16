@@ -39,6 +39,26 @@ def test_packaged_entries_load_and_cover_the_cpu_tier() -> None:
         assert "llamacpp" in entry.engines
 
 
+def test_packaged_tool_syntaxes_are_in_the_parser_catalog() -> None:
+    from stepswitch.compat.toolcall import parsers
+
+    for entry in registry.load([REGISTRY_DIR]).values():
+        if entry.tool_syntax is not None:
+            assert entry.tool_syntax in parsers.PARSERS, entry.id
+        for name, recipe in entry.engines.items():
+            if recipe.tool_parsing == "client":  # Stepswitch parses calls from the text
+                assert entry.tool_calls == "native" and entry.tool_syntax, (entry.id, name)
+                assert entry.text_tool_parser(name) == entry.tool_syntax
+            else:
+                assert entry.text_tool_parser(name) is None
+
+
+def test_text_tool_parser_follows_the_engine_recipe() -> None:
+    entry = registry.load([REGISTRY_DIR])["granite-3.3-2b-instruct"]
+    assert entry.text_tool_parser("llamacpp") == "granite"
+    assert entry.text_tool_parser("vllm") is None  # no recipe: the engine's own parsing
+
+
 def test_default_cpu_set_fits_the_disk_cap_and_ram_budget() -> None:
     required = [e for e in registry.for_tier("t0", [REGISTRY_DIR]) if not e.optional]
     everything = registry.for_tier("cpu", [REGISTRY_DIR])

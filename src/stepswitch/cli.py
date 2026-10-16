@@ -498,15 +498,27 @@ def _probe_endpoint(
     quick: bool,
     export: Path | None = None,
     echo: Any = None,
+    tool_parser: str | None = None,
 ) -> dict[str, Any]:
     from stepswitch import paths
     from stepswitch import state as state_module
     from stepswitch.compat import probe
+    from stepswitch.compat.toolcall import parsers
 
     config = _resolve_endpoint(state, endpoint)
-    profile = probe.run(
-        config, model=model, fmt=fmt, quick=quick, egress=state.egress(), echo=echo or typer.echo
-    )
+    if tool_parser is not None:
+        if tool_parser not in parsers.PARSERS:
+            known = ", ".join(parsers.PARSERS)
+            raise ValueError(f"unknown tool parser {tool_parser!r}; known: {known}")
+        configured = config.tool_parser
+        config = config.model_copy(update={"tool_parser": tool_parser})
+    say = echo or typer.echo
+    profile = probe.run(config, model=model, fmt=fmt, quick=quick, egress=state.egress(), echo=say)
+    if tool_parser is not None and tool_parser != configured:
+        say(
+            f'Note: workers parse calls this way only with tool_parser = "{tool_parser}" on'
+            f" endpoint {config.name} or in its model's [models] table (ADR 0022)."
+        )
     if paths.state_dir(state.root).is_dir():
         db = state_module.open_project_state(state.root)
         db.save_probe(config.name, profile["model"], profile["format"], profile)
@@ -538,6 +550,14 @@ def cmd_probe(
         ),
     ] = None,
     json_out: Annotated[bool, typer.Option("--json", help="Print the profile as JSON.")] = False,
+    tool_parser: Annotated[
+        str | None,
+        typer.Option(
+            "--tool-parser",
+            help="Parse tool calls from the reply text with this catalog syntax (for servers"
+            " that do not parse the model's calls), as `tool_parser` in the config does.",
+        ),
+    ] = None,
     ci_set: Annotated[
         bool,
         typer.Option(
@@ -579,6 +599,7 @@ def cmd_probe(
             quick=quick,
             export=export,
             echo=(lambda _msg: None) if json_out else typer.echo,
+            tool_parser=tool_parser,
         )
     if json_out:
         _print_json(profile)

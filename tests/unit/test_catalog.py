@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pytest
 
+from stepswitch import paths
 from stepswitch.config import Config
 from stepswitch.registry import ModelEntry
 from stepswitch.state import open_project_state
@@ -146,6 +148,72 @@ def test_catalog_from_config_endpoints_profiles_and_calibration(tmp_path: Path) 
     assert catalog.find("big:70b") is catalog.get("lab/big:70b")
     assert catalog.find("lab") is None  # ambiguous
     assert catalog.classifier() is None
+
+
+TEXT_PARSED_ENTRY = """schema = 1
+
+[model]
+id = "tiny-tools"
+name = "Tiny-Tools"
+hub_id = "example/tiny-tools-GGUF"
+file = "tiny.gguf"
+sha256 = "{digest}"
+size_bytes = 4
+quant = "Q4_K_M"
+file_size_gb = 0.0
+ram_gb = 0.1
+context = 4096
+params_b = 0.5
+tool_calls = "native"
+tool_syntax = "granite"
+license = "apache-2.0"
+
+[engines.llamacpp]
+tool_parsing = "client"
+"""
+
+
+def test_tool_parser_comes_from_the_model_table_endpoint_or_recipe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(paths.HOME_ENV, str(tmp_path / "home"))
+    models = tmp_path / "models"
+    data = b"GGUF"
+    digest = hashlib.sha256(data).hexdigest()
+    paths.user_registry_dir().mkdir(parents=True)
+    entry_file = paths.user_registry_dir() / "tiny-tools.toml"
+    entry_file.write_text(TEXT_PARSED_ENTRY.format(digest=digest), encoding="utf-8")
+    folder = models / "example--tiny-tools-GGUF"
+    folder.mkdir(parents=True)
+    (folder / "tiny.gguf").write_bytes(data)
+    (folder / "tiny.gguf.sha256").write_text(f"{digest}  tiny.gguf\n", encoding="utf-8")
+    config = Config.model_validate(
+        {
+            "endpoints": [
+                {
+                    "name": "lab",
+                    "url": "http://127.0.0.1:9",
+                    "models": ["a", "b", "c"],
+                    "tool_parser": "hermes",
+                }
+            ],
+            "models": {"b": {"tool_parser": "granite"}, "c": {"tool_parser": "nope"}},
+            "storage": {"models_dir": str(models)},
+        }
+    )
+    catalog = Catalog.from_config(config, tmp_path)
+    specs = {s.id: s for s in catalog.specs()}
+    assert specs["lab/a"].tool_parser == "hermes"  # the endpoint's
+    assert specs["lab/b"].tool_parser == "granite"  # the model table wins
+    assert specs["lab/c"].tool_parser == "hermes"
+    assert "unknown tool parser 'nope' ignored" in specs["lab/c"].notes
+    managed = specs["managed/tiny-tools"]
+    assert (managed.tool_protocol, managed.tool_parser) == ("native", "granite")
+    assert managed.as_dict()["tool_parser"] == "granite"
+    worker = catalog.get("lab/b")
+    assert worker is not None
+    client = worker.get_model()
+    assert client.endpoint.options.tool_parser == "granite"  # type: ignore[attr-defined]
 
 
 def test_catalog_includes_installed_registry_models_only(tmp_path: Path) -> None:

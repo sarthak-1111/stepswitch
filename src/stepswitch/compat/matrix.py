@@ -9,8 +9,9 @@ been verified and nothing else (SPEC §4.8).
 
 A model passes the probe suite when the checks the built-in agent depends on pass: basic chat,
 system-prompt adherence, usage reporting and format detection, plus one way to call tools,
-natively or through the fallback protocol (ADR 0021). The other checks describe capabilities
-that the router reads; a "no" there is not a failure.
+natively or through the fallback protocol (ADR 0021). Native calls are parsed by the server, or
+by Stepswitch from the reply text when the result names a tool parser (ADR 0022). The other
+checks describe capabilities that the router reads; a "no" there is not a failure.
 """
 
 from __future__ import annotations
@@ -73,12 +74,20 @@ class ProbeResult:
     date: str | None
     quick: bool
     model_hash: str | None
+    tool_parser: str | None = None
     hardware: dict[str, Any] = field(default_factory=dict)
     checks: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def ok(self, check: str) -> bool | None:
         value = (self.checks.get(check) or {}).get("ok")
         return value if isinstance(value, bool) else None
+
+    def shown(self, check: str) -> str:
+        """The matrix cell: a failed check that never got an answer is "error", not "no"."""
+        ok = self.ok(check)
+        if ok is False and (self.checks.get(check) or {}).get("error"):
+            return "error"
+        return SHOWN[ok]
 
 
 @dataclass(frozen=True)
@@ -126,6 +135,7 @@ def load_result(path: Path) -> ProbeResult:
         date=data.get("date"),
         quick=bool(data.get("quick")),
         model_hash=data.get("model_hash"),
+        tool_parser=data["tool_parser"] if isinstance(data.get("tool_parser"), str) else None,
         hardware=dict(data.get("hardware") or {}),
         checks={k: dict(v) for k, v in data["checks"].items() if isinstance(v, dict)},
     )
@@ -148,6 +158,12 @@ def verdict(result: ProbeResult) -> Verdict:
     if result.quick:
         failed.append("full probe")
     return Verdict(passed=not failed, failed=failed, tool_path=tool_path)
+
+
+def _tool_text(outcome: Verdict, result: ProbeResult) -> str:
+    if outcome.tool_path == "native" and result.tool_parser:
+        return f"native, parsed from text (`{result.tool_parser}`)"
+    return outcome.tool_path or "none"
 
 
 def result_name(model: str, engine: str) -> str:
@@ -205,8 +221,10 @@ def render(root: Path) -> str:
         "",
         "A model passes the probe suite when basic chat, system-prompt adherence, usage reporting",
         "and format detection work, and it can call tools natively or through the fallback tool",
-        'protocol (ADR 0021). The other checks describe capabilities the router uses; a "no"',
-        "there is not a failure.",
+        "protocol (ADR 0021). Native calls are parsed by the server, or by Stepswitch from the",
+        "reply text in the model's own syntax where the Tool calls column names a parser",
+        '(ADR 0022). The other checks describe capabilities the router uses; a "no" there is not',
+        "a failure.",
         "",
         "## Models",
         "",
@@ -222,7 +240,7 @@ def render(root: Path) -> str:
         lines.append(
             f"| {result.model} | {entry.family if entry and entry.family else '-'}"
             f" | {_engine_text(result)} | {result.format or '-'} | {suite}"
-            f" | {outcome.tool_path or 'none'} | `{result.path.name}` | {result.date or '-'} |"
+            f" | {_tool_text(outcome, result)} | `{result.path.name}` | {result.date or '-'} |"
         )
     if results:
         lines += ["", "## Checks", ""]
@@ -230,10 +248,11 @@ def render(root: Path) -> str:
         lines.append("|---|" + "---|" * len(results))
         for check in probe.CHECKS:
             label = CHECK_LABELS.get(check, check)
-            lines.append(f"| {label} | " + " | ".join(SHOWN[r.ok(check)] for r in results) + " |")
+            lines.append(f"| {label} | " + " | ".join(r.shown(check) for r in results) + " |")
         lines += [
             "",
-            '"skipped" means the check did not apply or was not run.',
+            '"skipped" means the check did not apply or was not run; "error" means it could not',
+            "complete (a timeout or a failed request), so the capability is unknown.",
             "",
             "## Hardware",
             "",
@@ -272,9 +291,11 @@ def probe_ci_set(
     echo: Callable[[str], None] = print,
 ) -> list[Path]:
     """Probe every model of the CI model set on a managed server; write its result to
-    `probes/`. Each server is stopped after its probe."""
+    `probes/`. Each server is stopped after its probe. A model whose registry recipe has
+    Stepswitch parse its tool calls is probed that way, as its managed worker runs."""
     from stepswitch import config as config_module
     from stepswitch import doctor
+    from stepswitch import registry as registry_module
     from stepswitch.config import EndpointConfig
     from stepswitch.serve.manager import ServerManager
 
@@ -282,8 +303,10 @@ def probe_ci_set(
     ci_set = load_ci_set(root)
     hardware = doctor.collect(models_dir=config.models_dir(), egress=egress)
     manager = ServerManager(root, config)
+    entries = registry_module.load()
     written = []
     for model in models or ci_set.models:
+        entry = entries.get(model)
         info = manager.ensure(model, engine=ci_set.engine)
         try:
             endpoint = EndpointConfig(
@@ -295,6 +318,7 @@ def probe_ci_set(
                 api_key=info.api_key,
                 models=[info.engine_model or model],
                 local=True,
+                tool_parser=entry.text_tool_parser(ci_set.engine) if entry else None,
             )
             profile = probe.run(
                 endpoint, model=info.engine_model or model, egress=egress, echo=echo

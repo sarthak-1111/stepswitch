@@ -1159,3 +1159,107 @@ def test_other_bad_requests_stay_bad_requests() -> None:
     body = {"error": {"message": "unknown field `foo`", "type": "invalid_request_error"}}
     error = raises(lambda: client_for(FMT, serve_json(body, 400)).complete(text_request()))
     assert error.kind == "bad_request"
+
+
+# --------------------------------------------------------------------------------------------
+# Tool calls parsed from the reply text (CodecOptions.tool_parser, ADR 0022)
+# --------------------------------------------------------------------------------------------
+
+# The content llama.cpp b11669 returns for Granite-3.3-2B-Instruct (docs/RESEARCH.md).
+GRANITE_REPLY = '[{"arguments": {"city": "Paris"}, "name": "get_weather"}]'
+GRANITE = CodecOptions(tool_parser="granite")
+
+
+def test_calls_in_the_reply_text_are_parsed_with_the_configured_syntax() -> None:
+    body = completion_body({"role": "assistant", "content": GRANITE_REPLY}, "stop")
+    response = client_for(FMT, serve_json(body), options=GRANITE).complete(tool_request()).response
+    assert call_view(response) == [("get_weather", {"city": "Paris"})]
+    assert response.message.text_content() == ""
+    assert [(c.id, c.synthetic) for c in response.message.tool_calls()] == [("call_t0_0", True)]
+    assert (response.finish_reason, response.raw_finish_reason) == ("tool_calls", "stop")
+    # Without the option, or when the request offers no tools, the text stays text.
+    plain = client_for(FMT, serve_json(body)).complete(tool_request()).response
+    assert plain.message.tool_calls() == [] and plain.message.text_content() == GRANITE_REPLY
+    no_tools = client_for(FMT, serve_json(body), options=GRANITE).complete(text_request()).response
+    assert no_tools.message.tool_calls() == []
+    assert no_tools.message.text_content() == GRANITE_REPLY
+
+
+def test_calls_the_server_parsed_win_over_the_reply_text() -> None:
+    server_call = {
+        "id": "call_srv",
+        "type": "function",
+        "function": {"name": "get_time", "arguments": '{"city": "Oslo"}'},
+    }
+    body = completion_body(
+        {"role": "assistant", "content": GRANITE_REPLY, "tool_calls": [server_call]}, "tool_calls"
+    )
+    response = client_for(FMT, serve_json(body), options=GRANITE).complete(tool_request()).response
+    assert call_view(response) == [("get_time", {"city": "Oslo"})]
+    assert response.message.text_content() == GRANITE_REPLY
+
+
+def test_streamed_reply_text_is_parsed_when_the_stream_ends() -> None:
+    pieces = [GRANITE_REPLY[i : i + 9] for i in range(0, len(GRANITE_REPLY), 9)]
+    events: list[dict[str, Any] | str] = [
+        chunk({"role": "assistant", "content": ""}),
+        *[chunk({"content": piece}) for piece in pieces],
+        chunk({}, "stop"),
+        "[DONE]",
+    ]
+    deltas = list(client_for(FMT, serve_sse(events), options=GRANITE).stream(tool_request()))
+    assert not [d for d in deltas if isinstance(d, TextDelta)]
+    streamed = assemble(iter(deltas))
+    assert call_view(streamed) == [("get_weather", {"city": "Paris"})]
+    assert streamed.finish_reason == "tool_calls"
+    # Plain text is not held back.
+    events = [
+        chunk({"role": "assistant", "content": "Hello"}),
+        chunk({"content": " there"}),
+        chunk({}, "stop"),
+        "[DONE]",
+    ]
+    deltas = list(client_for(FMT, serve_sse(events), options=GRANITE).stream(tool_request()))
+    assert [d.text for d in deltas if isinstance(d, TextDelta)] == ["Hello", " there"]
+
+
+def test_streamed_server_calls_leave_held_text_as_text() -> None:
+    events: list[dict[str, Any] | str] = [
+        chunk({"role": "assistant", "content": "[1]"}),
+        chunk(
+            {
+                "tool_calls": [
+                    {
+                        "index": 0,
+                        "id": "call_srv",
+                        "type": "function",
+                        "function": {"name": "get_time", "arguments": '{"city": "Oslo"}'},
+                    }
+                ]
+            }
+        ),
+        chunk({}, "tool_calls"),
+        "[DONE]",
+    ]
+    streamed = assemble(client_for(FMT, serve_sse(events), options=GRANITE).stream(tool_request()))
+    assert call_view(streamed) == [("get_time", {"city": "Oslo"})]
+    assert streamed.message.text_content() == "[1]"
+
+
+def test_history_calls_are_written_back_in_the_models_syntax() -> None:
+    server = serve_json(completion_body({"role": "assistant", "content": "Done."}, "stop"))
+    client_for(FMT, server, options=GRANITE).complete(conversation_request())
+    messages = server.requests[0].body["messages"]
+    assistant = [m for m in messages if m["role"] == "assistant"]
+    assert "tool_calls" not in assistant[0]
+    assert assistant[0]["content"] == (
+        '<|tool_call|>[{"name": "get_weather", "arguments": {"city": "Paris"}}, '
+        '{"name": "get_time", "arguments": {"city": "Tokyo"}}]'
+    )
+    assert [m["role"] for m in messages].count("tool") == 2
+    assert assistant[1]["content"] == "Paris is 18 C and sunny; it is 21:04 in Tokyo."
+
+
+def test_unknown_tool_parser_is_refused() -> None:
+    with pytest.raises(ValueError, match="unknown tool parser 'nope'"):
+        ChatCompletionsCodec(CodecOptions(tool_parser="nope"))

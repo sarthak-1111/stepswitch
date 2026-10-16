@@ -134,6 +134,101 @@ def test_streaming_extractor_returns_unparsable_capture_as_text() -> None:
     )
 
 
+# What llama.cpp b11669 returns for Granite-3.3-2B-Instruct: the <|tool_call|> special token is
+# left out of the text, and the model writes "arguments" before "name" (docs/RESEARCH.md).
+GRANITE_BARE = (
+    '[{"arguments": {"city": "Paris"}, "name": "get_weather"}, '
+    '{"arguments": {"city": "Tokyo"}, "name": "get_time"}]'
+)
+
+
+def calls_of(result: parsers.ParseResult) -> list[tuple[str, object]]:
+    return [(c.name, json.loads(c.arguments)) for c in result.calls]
+
+
+def test_granite_parser_reads_the_marker_forms_and_keeps_text_around() -> None:
+    for marker in ("<|tool_call|>", "<tool_call>"):
+        text = f'Checking.\n{marker} [{{"name": "get_weather", "arguments": {{"city": "Paris"}}}}]'
+        result = parsers.parse_granite(text + "\nOne moment.")
+        assert calls_of(result) == [("get_weather", {"city": "Paris"})]
+        assert result.text == "Checking.\nOne moment."
+    marked = parsers.parse_granite('<|tool_call|>[{"name": "refresh"}]')
+    assert calls_of(marked) == [("refresh", {})]
+
+
+def test_granite_parser_reads_a_bare_call_list_only_when_it_is_the_whole_reply() -> None:
+    result = parsers.parse_granite(f"  {GRANITE_BARE}\n")
+    assert calls_of(result) == [("get_weather", {"city": "Paris"}), ("get_time", {"city": "Tokyo"})]
+    assert result.text == ""
+    for text in (
+        f"Here you go: {GRANITE_BARE}",  # text first: an answer that quotes a list
+        f"{GRANITE_BARE} done",  # text after the list
+        '[{"name": "get_weather", "arguments": {}, "id": 1}]',  # other keys
+        '[{"name": "func", "arguments": "not a dict"}]',
+        '[{"name": "func"}]',  # no arguments
+        "[]",
+        "[1, 2, 3]",
+        '[{"name": "", "arguments": {}}]',
+        "[not json",
+    ):
+        assert parsers.parse_granite(text).calls == [], text
+        assert parsers.parse_granite(text).text == text
+
+
+def test_auto_parse_never_reads_a_bare_list_as_calls() -> None:
+    assert parsers.parse(GRANITE_BARE, None).calls == []
+    assert len(parsers.parse("<|tool_call|>" + GRANITE_BARE, None).calls) == 2
+    assert len(parsers.parse(GRANITE_BARE, "granite").calls) == 2
+    # The hermes syntax keeps priority where both markers could apply.
+    hermes = '<tool_call>{"name": "f", "arguments": {"a": 1}}</tool_call>'
+    assert calls_of(parsers.parse(hermes, None)) == [("f", {"a": 1})]
+    assert parsers.detect("{{- '<|tool_call|>' }}") == "granite"
+
+
+@pytest.mark.parametrize("syntax", sorted(parsers.PARSERS))
+def test_rendered_calls_parse_back_in_every_syntax(syntax: str) -> None:
+    calls = [
+        parsers.ParsedCall(name="get_weather", arguments='{"city": "Paris", "days": 2}'),
+        parsers.ParsedCall(name="get_time", arguments='{"city": "Tokyo"}'),
+    ]
+    assert set(parsers.RENDERERS) == set(parsers.PARSERS)
+    parsed = parsers.parse(parsers.render(calls, syntax), syntax)
+    assert calls_of(parsed) == [(c.name, json.loads(c.arguments)) for c in calls]
+    assert parsed.text == ""
+
+
+@pytest.mark.parametrize("split", [1, 2, 3, 7, 50])
+def test_streaming_extractor_buffers_a_bare_granite_list(split: int) -> None:
+    text = "\n " + GRANITE_BARE
+    extractor = StreamingToolCallExtractor("granite", turn=1)
+    deltas = []
+    for start in range(0, len(text), split):
+        deltas += extractor.feed(text[start : start + split])
+    assert not [d for d in deltas if isinstance(d, TextDelta)]
+    deltas += extractor.finish()
+    assert not [d for d in deltas if isinstance(d, TextDelta)]
+    assert [d.name for d in deltas if isinstance(d, ToolCallStartDelta)] == [
+        "get_weather",
+        "get_time",
+    ]
+    assert [c.id for c in extractor.calls] == [synthetic_call_id(1, 0), synthetic_call_id(1, 1)]
+
+
+def test_streaming_extractor_passes_other_granite_replies_through() -> None:
+    extractor = StreamingToolCallExtractor("granite")
+    first = extractor.feed("  ")  # held: could still open a call list
+    assert first == []
+    shown = extractor.feed("Hello") + extractor.feed(" [1] there")
+    assert "".join(d.text for d in shown if isinstance(d, TextDelta)) == "  Hello [1] there"
+    listed = StreamingToolCallExtractor("granite")
+    out = listed.feed("[1, 2]") + listed.finish()
+    assert "".join(d.text for d in out if isinstance(d, TextDelta)) == "[1, 2]"
+    unparsed = StreamingToolCallExtractor("granite")
+    out = unparsed.feed(GRANITE_BARE) + unparsed.finish(parse=False)
+    assert "".join(d.text for d in out if isinstance(d, TextDelta)) == GRANITE_BARE
+    assert unparsed.calls == []
+
+
 # --------------------------------------------------------------------------------------------
 # Prompt rendering
 # --------------------------------------------------------------------------------------------
@@ -375,6 +470,14 @@ def test_endpoint_from_config_sets_auth_headers(monkeypatch: pytest.MonkeyPatch)
     ollama = EndpointConfig(name="o", url="http://127.0.0.1:11434", engine="ollama", models=["q"])
     resolved = Endpoint.from_config(ollama)
     assert (resolved.format, resolved.model, resolved.local) == ("ollama-native", "q", True)
+    assert resolved.options.tool_parser is None
+
+
+def test_endpoint_tool_parser_is_checked_and_reaches_the_codec() -> None:
+    config = EndpointConfig(name="l", url="http://127.0.0.1:1", tool_parser="granite")
+    assert Endpoint.from_config(config).options.tool_parser == "granite"
+    with pytest.raises(ValueError, match="unknown tool parser 'nope'; known: hermes"):
+        EndpointConfig(name="l", url="http://127.0.0.1:1", tool_parser="nope")
 
 
 def _chat_body(text: str) -> dict[str, object]:

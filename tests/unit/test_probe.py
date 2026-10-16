@@ -493,6 +493,22 @@ def test_scrubber_replaces_urls_and_secrets() -> None:
 # --------------------------------------------------------------------------------------------
 
 
+def test_calls_sent_back_as_text_pass_with_the_endpoints_tool_parser(tmp_path: Path) -> None:
+    profile, _lines = run_probe(ChatServer(calls_as_text=True), quick=True)
+    assert ok(profile, "native_tool_call") is False
+    detail = profile["checks"]["native_tool_call"]["detail"]
+    assert "answered in text" in detail and "(a granite call: try --tool-parser granite)" in detail
+    assert profile["tool_parser"] is None
+    config = chat_config(tool_parser="granite")
+    parsed, _lines = run_probe(ChatServer(calls_as_text=True), config, quick=True)
+    for name in ("native_tool_call", "parallel_tool_calls", "streamed_tool_args"):
+        assert ok(parsed, name) is True, name
+    assert ok(parsed, "tool_call_ids") is False  # Stepswitch made the ids up
+    assert parsed["tool_parser"] == "granite"
+    exported = probe.export(parsed, tmp_path / "result.json", hardware={})
+    assert json.loads(exported.read_text(encoding="utf-8"))["tool_parser"] == "granite"
+
+
 def test_export_content(tmp_path: Path) -> None:
     profile, _lines = run_probe(OllamaServer(), ollama_config(), quick=True)
     written = probe.export(profile, tmp_path / "probe.json", hardware={"ram_gb": 16})

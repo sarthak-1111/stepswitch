@@ -40,6 +40,9 @@ notes = "Chat model whose template has tool calling (<|tool_call|> followed by a
 [engines.llamacpp]
 min_version = "b11669"
 args = ["--ctx-size", "8192"]
+# llama.cpp b11669 leaves the <|tool_call|> special token out of the reply text and returns the
+# call list as plain content, so Stepswitch parses it (ADR 0022; docs/RESEARCH.md).
+tool_parsing = "client"
 
 [engines.ollama]
 name = "hf.co/ibm-granite/granite-3.3-2b-instruct-GGUF:granite-3.3-2b-instruct-Q4_K_M.gguf"

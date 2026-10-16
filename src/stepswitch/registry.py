@@ -24,6 +24,7 @@ TIER_ALIASES = {"t0": "cpu", "cpu": "cpu", "t1": "t1", "t2": "t2", "t3": "t3"}
 STAMP_SUFFIX = ".sha256"
 
 ToolCalls = Literal["native", "fallback", "none"]
+ToolParsing = Literal["server", "client"]
 CommercialUse = Literal["permitted", "conditional", "prohibited"]
 
 
@@ -40,6 +41,9 @@ class EngineRecipe(BaseModel):
     # Engine-side parser names (they differ per engine, ADR 0008).
     tool_parser: str | None = None
     reasoning_parser: str | None = None
+    # Who reads tool calls out of the model's output: the engine, or Stepswitch from the reply
+    # text with the entry's `tool_syntax`, where the engine's parser misses it (ADR 0022).
+    tool_parsing: ToolParsing = "server"
     notes: str | None = None
 
 
@@ -81,6 +85,13 @@ class ModelEntry(BaseModel):
     engines: dict[str, EngineRecipe] = Field(default_factory=dict)
     notes: str | None = None
     source_path: Path | None = Field(default=None, exclude=True)
+
+    def text_tool_parser(self, engine: str) -> str | None:
+        """The catalog syntax Stepswitch parses this model's tool calls with on `engine`."""
+        recipe = self.engines.get(engine)
+        if recipe is None or recipe.tool_parsing != "client":
+            return None
+        return self.tool_syntax
 
     # -- files -------------------------------------------------------------------------------
 

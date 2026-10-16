@@ -194,9 +194,13 @@ class ChatServer:
         reasoning_field: str = "reasoning_content",
         fail: frozenset[str] = frozenset(),
         key: str | None = None,
+        calls_as_text: bool = False,
     ) -> None:
         self.brain = brain or Brain()
         self.model_id = model_id
+        # Tool calls come back as a bare JSON list in the text, the way the llama.cpp server
+        # returns Granite-3.3 calls (docs/RESEARCH.md): no `tool_calls`, finish reason `stop`.
+        self.calls_as_text = calls_as_text
         self.meta = meta
         self.ids = ids
         self.stream_usage = stream_usage
@@ -252,6 +256,9 @@ class ChatServer:
         prompt = self.brain.prompt(messages, body.get("tools") or [])
         tokens, cached, truncated = self.brain.count(prompt)
         reply = self.brain.reply(messages, tools, forced, schema, truncated)
+        if self.calls_as_text and reply.calls:
+            listed = [{"arguments": args, "name": name} for name, args in reply.calls]
+            reply = Reply(text=json.dumps(listed), reasoning=reply.reasoning)
         reply, completion, cut = _limit(reply, int(body.get("max_tokens") or 10**6))
         usage = {
             "prompt_tokens": tokens,

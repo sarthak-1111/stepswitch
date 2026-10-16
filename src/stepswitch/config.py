@@ -12,7 +12,7 @@ import tomllib
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from stepswitch import paths
 from stepswitch.net import is_local_url
@@ -37,6 +37,18 @@ class EndpointConfig(BaseModel):
     auth_header: str | None = None
     models: list[str] = Field(default_factory=list)
     local: bool | None = None
+    # A tool-call syntax from the parser catalog, for a server that does not parse its models'
+    # tool calls: Stepswitch then parses them from the reply text (SPEC §4.4, ADR 0022).
+    tool_parser: str | None = None
+
+    @field_validator("tool_parser")
+    @classmethod
+    def _known_tool_parser(cls, value: str | None) -> str | None:
+        from stepswitch.compat.toolcall import parsers
+
+        if value is not None and value not in parsers.PARSERS:
+            raise ValueError(f"unknown tool parser {value!r}; known: {', '.join(parsers.PARSERS)}")
+        return value
 
     def is_local(self) -> bool:
         return self.local if self.local is not None else is_local_url(self.url)

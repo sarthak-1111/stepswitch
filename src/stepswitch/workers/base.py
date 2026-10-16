@@ -43,6 +43,9 @@ class WorkerSpec:
     local: bool = True
     roles: tuple[str, ...] = ()
     tool_protocol: ToolProtocol = "native"
+    # The catalog syntax Stepswitch parses native tool calls with, when the server does not
+    # (ADR 0022).
+    tool_parser: str | None = None
     context: int | None = None
     max_output_tokens: int | None = None
     prefill_tps: float | None = None
@@ -71,6 +74,7 @@ class WorkerSpec:
             "local": self.local,
             "roles": list(self.roles),
             "tool_protocol": self.tool_protocol,
+            "tool_parser": self.tool_parser,
             "context": self.context,
             "gpu": self.gpu,
             "pin_only": self.pin_only,
