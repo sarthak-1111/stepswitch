@@ -11,6 +11,8 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +51,17 @@ def ssw_env(**extra: str) -> dict[str, str]:
     env.update({"PYTHONUTF8": "1", "NO_COLOR": "1"})
     env.update(extra)
     return env
+
+
+@contextmanager
+def stopping_servers(repo: Path, env: dict[str, str]) -> Iterator[None]:
+    """Stop every model server the project at `repo` started, however the block ends.
+    Managed servers outlive `ssw run` by design (later runs reuse them), so a test that runs
+    real models in a scratch project must stop them itself."""
+    try:
+        yield
+    finally:
+        ssw(repo, "models", "stop", "--all", env=env, timeout=120)
 
 
 def ssw(repo: Path, *args: str, env: dict[str, str], timeout: float = 1800) -> Any:

@@ -24,7 +24,13 @@ from stepswitch import registry
 from stepswitch.ledger import task_rows
 from stepswitch.trajectory.record import read_events
 from tests.claims import evidence
-from tests.claims.local_models import installed, llamacpp_server, ssw, ssw_env
+from tests.claims.local_models import (
+    installed,
+    llamacpp_server,
+    ssw,
+    ssw_env,
+    stopping_servers,
+)
 from tests.claims.toy import TOY_INSTRUCTION, toy_repo
 
 pytestmark = [pytest.mark.claim("C-005")]
@@ -52,7 +58,10 @@ def test_model_without_native_tools_completes_task_via_fallback(tmp_path: Path) 
         local.read_text(encoding="utf-8") + f'\n[storage]\nmodels_dir = "{models.as_posix()}"\n',
         encoding="utf-8",
     )
-    run = ssw(repo, "run", TOY_INSTRUCTION, "--worker", WORKER, "--no-review", "--json", env=env)
+    with stopping_servers(repo, env):
+        run = ssw(
+            repo, "run", TOY_INSTRUCTION, "--worker", WORKER, "--no-review", "--json", env=env
+        )
     assert run.stdout.strip(), run.stderr
     result: dict[str, Any] = json.loads(run.stdout)
     events = read_events(Path(result["run_dir"]))

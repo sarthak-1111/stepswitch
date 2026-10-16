@@ -98,12 +98,23 @@ def scrub(node: Any, pairs: list[tuple[re.Pattern[str], str]] | None = None) -> 
     return node
 
 
+def output_dir() -> Path:
+    """Where `write` puts evidence. Under `ssw prove`, which sets the mode variable, that is the
+    committed `claims/evidence/`. Plain test runs write to a scratch directory instead, so they
+    never change committed evidence or put it out of step with the README numbers rendered
+    from it (ADR 0019)."""
+    if os.environ.get(MODE_ENV):
+        return EVIDENCE_DIR
+    return Path(tempfile.gettempdir()) / "stepswitch-evidence"
+
+
 def write(claim_id: str, section: str, data: dict[str, Any], *, command: str | None = None) -> Path:
     """Merge one test's section into the claim's evidence file and return its path."""
     entry = claim(claim_id)
     digest = source_digest(ROOT)
-    path = EVIDENCE_DIR / f"{claim_id}.json"
-    current = read(claim_id) or {}
+    directory = output_dir()
+    path = directory / f"{claim_id}.json"
+    current = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
     sections = current.get("sections", {}) if current.get("source_digest") == digest else {}
     sections[section] = scrub({"recorded": now(), **json.loads(json.dumps(data, default=str))})
     evidence = {
@@ -119,7 +130,7 @@ def write(claim_id: str, section: str, data: dict[str, Any], *, command: str | N
         "updated": now(),
         "sections": sections,
     }
-    EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
+    directory.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(evidence, indent=2, default=str) + "\n", encoding="utf-8", newline="\n"
     )
