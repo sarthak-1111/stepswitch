@@ -1,0 +1,86 @@
+{
+  "claim": "C-009",
+  "text": "Changes to protected constants fail verification unless explicitly allowed.",
+  "scope": "Protected zones declared in science.toml.",
+  "thresholds": {
+    "fails_without_allow": true,
+    "passes_with_allow": true
+  },
+  "command": "uv run ssw prove --claim C-009",
+  "mode": "quick",
+  "source_digest": "e575cfa2487243a4db0466d56b25219db8211f4e70fe3e5109909a8bf09b8804",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-16T07:53:17+00:00",
+  "sections": {
+    "without_allow": {
+      "recorded": "2026-10-16T07:53:16+00:00",
+      "unchanged_values_pass": true,
+      "python_constant_change": {
+        "passed": false,
+        "failed_gate": "protected",
+        "changes": [
+          {
+            "file": "toy/constants.py",
+            "name": "SPEED_OF_LIGHT",
+            "before": 299792458.0,
+            "after": 300000000.0,
+            "kind": "changed",
+            "allowed": false
+          }
+        ]
+      },
+      "allow_list_naming_another_constant": {
+        "passed": false
+      },
+      "python_and_json_changes": {
+        "passed": false,
+        "changes": [
+          {
+            "file": "toy/calibration.json",
+            "name": "gain",
+            "before": 1.5,
+            "after": 1.6,
+            "kind": "changed",
+            "allowed": false
+          },
+          {
+            "file": "toy/constants.py",
+            "name": "SPEED_OF_LIGHT",
+            "before": 299792458.0,
+            "after": 300000000.0,
+            "kind": "changed",
+            "allowed": false
+          }
+        ]
+      }
+    },
+    "with_allow": {
+      "recorded": "2026-10-16T07:53:17+00:00",
+      "allow_protected": [
+        "SPEED_OF_LIGHT"
+      ],
+      "passed": true,
+      "changes": [
+        {
+          "file": "toy/constants.py",
+          "name": "SPEED_OF_LIGHT",
+          "before": 299792458.0,
+          "after": 300000000.0,
+          "kind": "changed",
+          "allowed": true
+        }
+      ],
+      "qualified_name_passed": true
+    }
+  }
+}

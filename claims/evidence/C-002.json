@@ -1,0 +1,144 @@
+{
+  "claim": "C-002",
+  "text": "Switches models between steps inside a single task.",
+  "scope": "One task's recorded trajectory, with typed steps, served by at least two distinct endpoints; every switch event carries a logged reason and cost estimate.",
+  "thresholds": {
+    "min_distinct_endpoints": 2,
+    "switches_with_reason_and_cost": 1.0
+  },
+  "command": "uv run ssw prove --claim C-002",
+  "mode": "quick",
+  "source_digest": "e575cfa2487243a4db0466d56b25219db8211f4e70fe3e5109909a8bf09b8804",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-16T07:49:56+00:00",
+  "sections": {
+    "trajectory": {
+      "recorded": "2026-10-16T07:49:56+00:00",
+      "task_id": "t20261016-164951-c07ca0",
+      "status": "done",
+      "endpoints": [
+        "alpha",
+        "beta"
+      ],
+      "steps": [
+        {
+          "step": 1,
+          "step_type": "plan",
+          "endpoint": "alpha",
+          "model": "alpha-model",
+          "tool_calls": []
+        },
+        {
+          "step": 2,
+          "step_type": "navigate",
+          "endpoint": "beta",
+          "model": "beta-model",
+          "tool_calls": [
+            "grep"
+          ]
+        },
+        {
+          "step": 3,
+          "step_type": "read",
+          "endpoint": "beta",
+          "model": "beta-model",
+          "tool_calls": [
+            "read"
+          ]
+        },
+        {
+          "step": 4,
+          "step_type": "edit",
+          "endpoint": "beta",
+          "model": "beta-model",
+          "tool_calls": [
+            "edit"
+          ]
+        },
+        {
+          "step": 5,
+          "step_type": "run",
+          "endpoint": "beta",
+          "model": "beta-model",
+          "tool_calls": [
+            "test"
+          ]
+        },
+        {
+          "step": 6,
+          "step_type": "run",
+          "endpoint": "beta",
+          "model": "beta-model",
+          "tool_calls": [
+            "finish"
+          ]
+        },
+        {
+          "step": 7,
+          "step_type": "review",
+          "endpoint": "alpha",
+          "model": "alpha-model",
+          "tool_calls": []
+        },
+        {
+          "step": 8,
+          "step_type": "summarize",
+          "endpoint": "alpha",
+          "model": "alpha-model",
+          "tool_calls": []
+        }
+      ],
+      "switches": [
+        {
+          "seq": 10,
+          "ts": 1792136992.4,
+          "type": "switch",
+          "step": 2,
+          "step_type": "navigate",
+          "from": "alpha/alpha-model",
+          "to": "beta/beta-model",
+          "from_endpoint": "alpha",
+          "to_endpoint": "beta",
+          "reason": "switch alpha/alpha-model -> beta/beta-model for navigate: rule work-on-beta routes navigate steps elsewhere (rule work-on-beta); re-reading ~1103 uncached tokens costs ~0.7 s",
+          "cost": {
+            "seconds": 0.735,
+            "tokens": 1103.0
+          },
+          "expected_gain": 0.735
+        },
+        {
+          "seq": 26,
+          "ts": 1792136994.483,
+          "type": "switch",
+          "step": 7,
+          "step_type": "review",
+          "from": "beta/beta-model",
+          "to": "alpha/alpha-model",
+          "from_endpoint": "beta",
+          "to_endpoint": "alpha",
+          "reason": "switch beta/beta-model -> alpha/alpha-model for review: rule plan-and-review-on-alpha routes review steps elsewhere (rule plan-and-review-on-alpha); re-reading ~167 uncached tokens costs ~0.1 s",
+          "cost": {
+            "seconds": 0.111,
+            "tokens": 167.0
+          },
+          "expected_gain": 0.111
+        }
+      ],
+      "switches_with_reason_and_cost": 2,
+      "requests_served": {
+        "alpha": 3,
+        "beta": 5
+      }
+    }
+  }
+}

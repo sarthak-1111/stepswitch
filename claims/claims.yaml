@@ -65,7 +65,7 @@ claims:
       - tests/claims/test_c001_cpu_only_8gb.py::test_toy_task_runs_in_cpu_only_8gb_container
     thresholds: {memory_limit_gb: 8, memory_swap_limit_gb: 8, gpu_devices_visible: 0, final_status: done}
     evidence: [claims/evidence/C-001.json]
-    status: pending
+    status: passing
 
   - id: C-002
     text: "Switches models between steps inside a single task."
@@ -81,7 +81,7 @@ claims:
       - tests/claims/test_c002_step_switching.py::test_single_task_switches_endpoints_with_logged_reasons
     thresholds: {min_distinct_endpoints: 2, switches_with_reason_and_cost: 1.0}
     evidence: [claims/evidence/C-002.json]
-    status: pending
+    status: passing
 
   - id: C-003
     text: "Only switches models when the expected gain outweighs the cost of re-reading context."
@@ -191,7 +191,7 @@ claims:
       - tests/claims/test_c008_science_gate.py::test_mutations_above_tolerance_caught_below_not_flagged
     thresholds: {caught_above_tolerance: 1.0, flagged_below_tolerance: 0.0}
     evidence: [claims/evidence/C-008.json]
-    status: pending
+    status: passing
 
   - id: C-009
     text: "Changes to protected constants fail verification unless explicitly allowed."
@@ -206,7 +206,7 @@ claims:
       - tests/claims/test_c009_protected_constants.py::test_protected_change_passes_with_allow_flag
     thresholds: {fails_without_allow: true, passes_with_allow: true}
     evidence: [claims/evidence/C-009.json]
-    status: pending
+    status: passing
 
   - id: C-010
     text: "Handoff briefs validate against the HANDOFF v0.1 schema and stay under 1,500 tokens."
@@ -366,4 +366,4 @@ claims:
       - tests/claims/test_c020_budgets.py::test_tiny_budgets_stop_with_status_and_bounded_overrun
     thresholds: {max_overrun_steps: 1}
     evidence: [claims/evidence/C-020.json]
-    status: pending
+    status: passing

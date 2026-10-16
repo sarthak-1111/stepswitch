@@ -1,0 +1,72 @@
+{
+  "claim": "C-001",
+  "text": "Runs end to end on a CPU-only machine with 8 GB RAM.",
+  "scope": "A bundled toy task completed by `ssw run` with tiny-tier models, inside a Linux x86-64 container started with --memory=8g --memory-swap=8g and no GPU devices; evidence records the cgroup memory limits, peak memory and the absence of GPU device nodes (ADR 0011).",
+  "thresholds": {
+    "memory_limit_gb": 8,
+    "memory_swap_limit_gb": 8,
+    "gpu_devices_visible": 0,
+    "final_status": "done"
+  },
+  "command": "uv run ssw prove --claim C-001",
+  "mode": "quick",
+  "source_digest": "e575cfa2487243a4db0466d56b25219db8211f4e70fe3e5109909a8bf09b8804",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-16T07:49:49+00:00",
+  "sections": {
+    "container": {
+      "recorded": "2026-10-16T07:49:49+00:00",
+      "image": "python:3.12-slim",
+      "image_digests": [
+        "python@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1"
+      ],
+      "wheel": "stepswitch-0.1.0.dev0-py3-none-any.whl",
+      "model": "qwen3-4b-instruct-2507",
+      "tier_models": [
+        "qwen2.5-coder-1.5b",
+        "qwen3-4b-instruct-2507",
+        "qwen3-embedding-0.6b"
+      ],
+      "docker_flags": [
+        "--memory=8g",
+        "--memory-swap=8g"
+      ],
+      "container": {
+        "machine": "x86_64",
+        "system": "Linux",
+        "cpus": 32,
+        "cgroup": {
+          "memory.max": "8589934592",
+          "memory.swap.max": "0",
+          "memory.peak": "6902325248"
+        }
+      },
+      "memory_limit_gb": 8.0,
+      "memory_swap_limit_gb": 8.0,
+      "peak_memory_gb": 6.428,
+      "gpu_devices_visible": 0,
+      "final_status": "done",
+      "stop_reason": null,
+      "steps": 15,
+      "budget": {
+        "tokens": 29840.0,
+        "wall_seconds": 113.47,
+        "gpu_seconds": 0.0,
+        "escalations": 0.0
+      },
+      "changed_files": [
+        "calc.py"
+      ]
+    }
+  }
+}

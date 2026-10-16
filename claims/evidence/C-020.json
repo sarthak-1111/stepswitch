@@ -1,0 +1,71 @@
+{
+  "claim": "C-020",
+  "text": "Stops at the budget you set.",
+  "scope": "Per-task budgets for tokens, wall time, GPU-seconds and escalations (SPEC \u00a77.4).",
+  "thresholds": {
+    "max_overrun_steps": 1
+  },
+  "command": "uv run ssw prove --claim C-020",
+  "mode": "quick",
+  "source_digest": "e575cfa2487243a4db0466d56b25219db8211f4e70fe3e5109909a8bf09b8804",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-16T07:53:27+00:00",
+  "sections": {
+    "budgets": {
+      "recorded": "2026-10-16T07:53:27+00:00",
+      "runs": [
+        {
+          "budget": "tokens",
+          "limit": 250,
+          "used": 300.0,
+          "overrun": 50.0,
+          "largest_step_cost": 100.0,
+          "steps": 3,
+          "status": "stopped",
+          "stop_reason": "budget_tokens"
+        },
+        {
+          "budget": "wall_seconds",
+          "limit": 25.0,
+          "used": 30.0,
+          "overrun": 5.0,
+          "largest_step_cost": 10.0,
+          "steps": 3,
+          "status": "stopped",
+          "stop_reason": "budget_wall_seconds"
+        },
+        {
+          "budget": "gpu_seconds",
+          "limit": 10.0,
+          "used": 12.0,
+          "overrun": 2.0,
+          "largest_step_cost": 4.0,
+          "steps": 3,
+          "status": "stopped",
+          "stop_reason": "budget_gpu_seconds"
+        },
+        {
+          "budget": "escalations",
+          "limit": 1,
+          "used": 1.0,
+          "overrun": 0.0,
+          "largest_step_cost": 1.0,
+          "steps": 5,
+          "status": "stopped",
+          "stop_reason": "budget_escalations"
+        }
+      ],
+      "max_overrun_steps": 1
+    }
+  }
+}

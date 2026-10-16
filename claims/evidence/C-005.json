@@ -1,0 +1,172 @@
+{
+  "claim": "C-005",
+  "text": "Works with any open-weight model your installed engines can serve, including models without native tool calling.",
+  "scope": "Models served by a supported engine that is installed; the compatibility matrix lists exactly what has been verified (SPEC \u00a74.8).",
+  "thresholds": {
+    "min_families": 4,
+    "fallback_final_status": "done"
+  },
+  "command": "uv run ssw prove --claim C-005",
+  "mode": "quick",
+  "source_digest": "e575cfa2487243a4db0466d56b25219db8211f4e70fe3e5109909a8bf09b8804",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-16T07:52:47+00:00",
+  "sections": {
+    "fallback": {
+      "recorded": "2026-10-16T07:52:47+00:00",
+      "model": "phi-3.5-mini-instruct",
+      "registry_tool_calls": "none",
+      "worker": {
+        "id": "managed/phi-3.5-mini-instruct",
+        "harness": "builtin",
+        "endpoint": "managed",
+        "model": "phi-3.5-mini-instruct",
+        "format": "chat-completions",
+        "tier": "cpu",
+        "level": 0,
+        "family": "phi3.5",
+        "local": true,
+        "roles": [
+          "summarizer",
+          "log_triage",
+          "commit_message"
+        ],
+        "tool_protocol": "fallback",
+        "context": 8192,
+        "gpu": false,
+        "pin_only": false
+      },
+      "status": "done",
+      "stop_reason": null,
+      "steps": [
+        {
+          "step": 1,
+          "step_type": "plan",
+          "worker": "managed/phi-3.5-mini-instruct",
+          "tool_calls": []
+        },
+        {
+          "step": 2,
+          "step_type": "navigate",
+          "worker": "managed/phi-3.5-mini-instruct",
+          "tool_calls": [
+            "read"
+          ]
+        },
+        {
+          "step": 3,
+          "step_type": "edit",
+          "worker": "managed/phi-3.5-mini-instruct",
+          "tool_calls": [
+            "grep"
+          ]
+        },
+        {
+          "step": 4,
+          "step_type": "read",
+          "worker": "managed/phi-3.5-mini-instruct",
+          "tool_calls": [
+            "read"
+          ]
+        },
+        {
+          "step": 5,
+          "step_type": "edit",
+          "worker": "managed/phi-3.5-mini-instruct",
+          "tool_calls": [
+            "edit"
+          ]
+        },
+        {
+          "step": 6,
+          "step_type": "edit",
+          "worker": "managed/phi-3.5-mini-instruct",
+          "tool_calls": [
+            "read"
+          ]
+        },
+        {
+          "step": 7,
+          "step_type": "edit",
+          "worker": "managed/phi-3.5-mini-instruct",
+          "tool_calls": [
+            "edit"
+          ]
+        },
+        {
+          "step": 8,
+          "step_type": "run",
+          "worker": "managed/phi-3.5-mini-instruct",
+          "tool_calls": [
+            "test"
+          ]
+        },
+        {
+          "step": 9,
+          "step_type": "run",
+          "worker": "managed/phi-3.5-mini-instruct",
+          "tool_calls": []
+        },
+        {
+          "step": 10,
+          "step_type": "run",
+          "worker": "managed/phi-3.5-mini-instruct",
+          "tool_calls": [
+            "finish"
+          ]
+        },
+        {
+          "step": 11,
+          "step_type": "summarize",
+          "worker": "managed/phi-3.5-mini-instruct",
+          "tool_calls": []
+        }
+      ],
+      "tool_calls": [
+        {
+          "name": "read",
+          "is_error": false
+        },
+        {
+          "name": "grep",
+          "is_error": false
+        },
+        {
+          "name": "read",
+          "is_error": false
+        },
+        {
+          "name": "edit",
+          "is_error": true
+        },
+        {
+          "name": "read",
+          "is_error": false
+        },
+        {
+          "name": "edit",
+          "is_error": false
+        },
+        {
+          "name": "test",
+          "is_error": false
+        }
+      ],
+      "turns_through_fallback": 9,
+      "model_turns": 12,
+      "changed_files": [
+        "calc.py"
+      ]
+    }
+  }
+}

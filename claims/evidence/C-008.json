@@ -1,0 +1,404 @@
+{
+  "claim": "C-008",
+  "text": "The science gate catches numerical regressions beyond your tolerances.",
+  "scope": "Quantities and tolerances declared in science.toml, compared by the science-track gate.",
+  "thresholds": {
+    "caught_above_tolerance": 1.0,
+    "flagged_below_tolerance": 0.0
+  },
+  "command": "uv run ssw prove --claim C-008",
+  "mode": "quick",
+  "source_digest": "e575cfa2487243a4db0466d56b25219db8211f4e70fe3e5109909a8bf09b8804",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-16T07:53:15+00:00",
+  "sections": {
+    "mutations": {
+      "recorded": "2026-10-16T07:53:15+00:00",
+      "project": "science_fixture.py: Gaussian peaks, golden case `peaks`",
+      "python": "3.12.15",
+      "numpy": "2.5.4",
+      "baseline_passes": {
+        "elementwise": true,
+        "integral": true,
+        "peaks": true,
+        "overlap": true
+      },
+      "mutations": [
+        {
+          "mode": "elementwise",
+          "constant": "SCALE",
+          "value": 1e-07,
+          "multiple": 0.1,
+          "measured_in_tolerances": 0.10000000016801092,
+          "beyond_tolerance": false,
+          "flagged": false,
+          "gate": null
+        },
+        {
+          "mode": "elementwise",
+          "constant": "SCALE",
+          "value": 3e-07,
+          "multiple": 0.3,
+          "measured_in_tolerances": 0.3000000000623501,
+          "beyond_tolerance": false,
+          "flagged": false,
+          "gate": null
+        },
+        {
+          "mode": "elementwise",
+          "constant": "SCALE",
+          "value": 5e-07,
+          "multiple": 0.5,
+          "measured_in_tolerances": 0.5000000001788855,
+          "beyond_tolerance": false,
+          "flagged": false,
+          "gate": null
+        },
+        {
+          "mode": "elementwise",
+          "constant": "SCALE",
+          "value": 8e-07,
+          "multiple": 0.8,
+          "measured_in_tolerances": 0.8000000001266473,
+          "beyond_tolerance": false,
+          "flagged": false,
+          "gate": null
+        },
+        {
+          "mode": "elementwise",
+          "constant": "SCALE",
+          "value": 1.2499999999999999e-06,
+          "multiple": 1.25,
+          "measured_in_tolerances": 1.250000000060853,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        },
+        {
+          "mode": "elementwise",
+          "constant": "SCALE",
+          "value": 2e-06,
+          "multiple": 2.0,
+          "measured_in_tolerances": 2.0000000001669234,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        },
+        {
+          "mode": "elementwise",
+          "constant": "SCALE",
+          "value": 4.9999999999999996e-06,
+          "multiple": 5.0,
+          "measured_in_tolerances": 5.000000000139275,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        },
+        {
+          "mode": "elementwise",
+          "constant": "SCALE",
+          "value": 9.999999999999999e-06,
+          "multiple": 10.0,
+          "measured_in_tolerances": 10.000000000174142,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        },
+        {
+          "mode": "elementwise",
+          "constant": "SCALE",
+          "value": 9.999999999999999e-05,
+          "multiple": 100.0,
+          "measured_in_tolerances": 100.00000000009794,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        },
+        {
+          "mode": "integral",
+          "constant": "SCALE",
+          "value": 1e-05,
+          "multiple": 0.1,
+          "measured_in_tolerances": 0.1000000000000034,
+          "beyond_tolerance": false,
+          "flagged": false,
+          "gate": null
+        },
+        {
+          "mode": "integral",
+          "constant": "SCALE",
+          "value": 3e-05,
+          "multiple": 0.3,
+          "measured_in_tolerances": 0.2999999999983388,
+          "beyond_tolerance": false,
+          "flagged": false,
+          "gate": null
+        },
+        {
+          "mode": "integral",
+          "constant": "SCALE",
+          "value": 5e-05,
+          "multiple": 0.5,
+          "measured_in_tolerances": 0.49999999999834566,
+          "beyond_tolerance": false,
+          "flagged": false,
+          "gate": null
+        },
+        {
+          "mode": "integral",
+          "constant": "SCALE",
+          "value": 8e-05,
+          "multiple": 0.8,
+          "measured_in_tolerances": 0.8000000000000272,
+          "beyond_tolerance": false,
+          "flagged": false,
+          "gate": null
+        },
+        {
+          "mode": "integral",
+          "constant": "SCALE",
+          "value": 0.000125,
+          "multiple": 1.25,
+          "measured_in_tolerances": 1.2499999999975355,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        },
+        {
+          "mode": "integral",
+          "constant": "SCALE",
+          "value": 0.0002,
+          "multiple": 2.0,
+          "measured_in_tolerances": 1.9999999999983968,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        },
+        {
+          "mode": "integral",
+          "constant": "SCALE",
+          "value": 0.0005,
+          "multiple": 5.0,
+          "measured_in_tolerances": 4.999999999998499,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        },
+        {
+          "mode": "integral",
+          "constant": "SCALE",
+          "value": 0.001,
+          "multiple": 10.0,
+          "measured_in_tolerances": 9.999999999996998,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        },
+        {
+          "mode": "integral",
+          "constant": "SCALE",
+          "value": 0.01,
+          "multiple": 100.0,
+          "measured_in_tolerances": 100.00000000000007,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        },
+        {
+          "mode": "peaks",
+          "constant": "SHIFT",
+          "value": 0.001,
+          "multiple": 0.1,
+          "measured_in_tolerances": 0.09999510211429197,
+          "beyond_tolerance": false,
+          "flagged": false,
+          "gate": null
+        },
+        {
+          "mode": "peaks",
+          "constant": "SHIFT",
+          "value": 0.003,
+          "multiple": 0.3,
+          "measured_in_tolerances": 0.2999902040675906,
+          "beyond_tolerance": false,
+          "flagged": false,
+          "gate": null
+        },
+        {
+          "mode": "peaks",
+          "constant": "SHIFT",
+          "value": 0.005,
+          "multiple": 0.5,
+          "measured_in_tolerances": 0.5000000000009663,
+          "beyond_tolerance": false,
+          "flagged": false,
+          "gate": null
+        },
+        {
+          "mode": "peaks",
+          "constant": "SHIFT",
+          "value": 0.008,
+          "multiple": 0.8,
+          "measured_in_tolerances": 0.8000262492886989,
+          "beyond_tolerance": false,
+          "flagged": false,
+          "gate": null
+        },
+        {
+          "mode": "peaks",
+          "constant": "SHIFT",
+          "value": 0.0125,
+          "multiple": 1.25,
+          "measured_in_tolerances": 1.2499904337142098,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        },
+        {
+          "mode": "peaks",
+          "constant": "SHIFT",
+          "value": 0.02,
+          "multiple": 2.0,
+          "measured_in_tolerances": 2.000000000000046,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        },
+        {
+          "mode": "peaks",
+          "constant": "SHIFT",
+          "value": 0.05,
+          "multiple": 5.0,
+          "measured_in_tolerances": 5.000000000000071,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        },
+        {
+          "mode": "peaks",
+          "constant": "SHIFT",
+          "value": 0.1,
+          "multiple": 10.0,
+          "measured_in_tolerances": 9.999999999999964,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        },
+        {
+          "mode": "peaks",
+          "constant": "SHIFT",
+          "value": 1.0,
+          "multiple": 100.0,
+          "measured_in_tolerances": 100.0,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        },
+        {
+          "mode": "overlap",
+          "constant": "BROADEN",
+          "value": 0.02000000000000001,
+          "multiple": 0.1,
+          "measured_in_tolerances": 0.09802491309585096,
+          "beyond_tolerance": false,
+          "flagged": false,
+          "gate": null
+        },
+        {
+          "mode": "overlap",
+          "constant": "BROADEN",
+          "value": 0.03464101615137756,
+          "multiple": 0.3,
+          "measured_in_tolerances": 0.28983002968740984,
+          "beyond_tolerance": false,
+          "flagged": false,
+          "gate": null
+        },
+        {
+          "mode": "overlap",
+          "constant": "BROADEN",
+          "value": 0.044721359549995815,
+          "multiple": 0.5,
+          "measured_in_tolerances": 0.47825407971968614,
+          "beyond_tolerance": false,
+          "flagged": false,
+          "gate": null
+        },
+        {
+          "mode": "overlap",
+          "constant": "BROADEN",
+          "value": 0.05656854249492383,
+          "multiple": 0.8,
+          "measured_in_tolerances": 0.7563109617816359,
+          "beyond_tolerance": false,
+          "flagged": false,
+          "gate": null
+        },
+        {
+          "mode": "overlap",
+          "constant": "BROADEN",
+          "value": 0.07071067811865478,
+          "multiple": 1.25,
+          "measured_in_tolerances": 1.1654119382274997,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        },
+        {
+          "mode": "overlap",
+          "constant": "BROADEN",
+          "value": 0.08944271909999163,
+          "multiple": 2.0,
+          "measured_in_tolerances": 1.830768887624011,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        },
+        {
+          "mode": "overlap",
+          "constant": "BROADEN",
+          "value": 0.14142135623730956,
+          "multiple": 5.0,
+          "measured_in_tolerances": 4.351975766020085,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        },
+        {
+          "mode": "overlap",
+          "constant": "BROADEN",
+          "value": 0.2000000000000001,
+          "multiple": 10.0,
+          "measured_in_tolerances": 8.230831231476158,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        },
+        {
+          "mode": "overlap",
+          "constant": "BROADEN",
+          "value": 0.6324555320336761,
+          "multiple": 100.0,
+          "measured_in_tolerances": 56.329978058006056,
+          "beyond_tolerance": true,
+          "flagged": true,
+          "gate": "golden"
+        }
+      ],
+      "above_tolerance": 20,
+      "below_tolerance": 16,
+      "caught_above_tolerance": 1.0,
+      "flagged_below_tolerance": 0.0
+    }
+  }
+}

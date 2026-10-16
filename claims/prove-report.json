@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "mode": "quick",
-  "source_digest": "ba4a1b84cecc9a6ed70597cebaf2f31303c1c5ef59d9a4cac36aeacff8e2778a",
-  "created": "2026-10-16T06:28:21+00:00",
-  "duration_s": 6.51,
+  "source_digest": "e575cfa2487243a4db0466d56b25219db8211f4e70fe3e5109909a8bf09b8804",
+  "created": "2026-10-16T07:53:27+00:00",
+  "duration_s": 364.21,
   "platform": {
     "os": "windows",
     "machine": "amd64",
@@ -15,11 +15,27 @@
     "image_version": null
   },
   "selection": {
-    "phase": 1,
+    "phase": 2,
     "claims": [],
     "skip": []
   },
   "claims": {
+    "C-001": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c001_cpu_only_8gb.py::test_toy_task_runs_in_cpu_only_8gb_container": "passed"
+      },
+      "parts": [],
+      "notes": {}
+    },
+    "C-002": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c002_step_switching.py::test_single_task_switches_endpoints_with_logged_reasons": "passed"
+      },
+      "parts": [],
+      "notes": {}
+    },
     "C-004": {
       "status": "passing",
       "tests": {
@@ -29,10 +45,37 @@
       "parts": [],
       "notes": {}
     },
+    "C-005": {
+      "status": "pending",
+      "tests": {
+        "tests/claims/test_c005_fallback.py::test_model_without_native_tools_completes_task_via_fallback": "passed"
+      },
+      "parts": [
+        "fallback"
+      ],
+      "notes": {}
+    },
     "C-007": {
       "status": "passing",
       "tests": {
         "tests/claims/test_c007_no_telemetry.py::test_default_flow_opens_no_outbound_connections": "passed"
+      },
+      "parts": [],
+      "notes": {}
+    },
+    "C-008": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c008_science_gate.py::test_mutations_above_tolerance_caught_below_not_flagged": "passed"
+      },
+      "parts": [],
+      "notes": {}
+    },
+    "C-009": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c009_protected_constants.py::test_protected_change_fails_without_allow_flag": "passed",
+        "tests/claims/test_c009_protected_constants.py::test_protected_change_passes_with_allow_flag": "passed"
       },
       "parts": [],
       "notes": {}
@@ -46,11 +89,19 @@
       "notes": {
         "tests/claims/test_c016_platforms.py::test_prove_quick_passed_on_linux_macos_windows": "pending: no platform evidence yet; the CI workflow writes claims/evidence/C-016.json after `ssw prove --quick` ran on all three platforms"
       }
+    },
+    "C-020": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c020_budgets.py::test_tiny_budgets_stop_with_status_and_bounded_overrun": "passed"
+      },
+      "parts": [],
+      "notes": {}
     }
   },
   "summary": {
-    "pending": 1,
-    "passing": 2,
+    "pending": 2,
+    "passing": 7,
     "failing": 0
   }
 }
