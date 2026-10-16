@@ -14,7 +14,7 @@ but resident memory is what decides whether a CPU-only 8 GB machine can run the 
 
 ## Decision
 
-**T0 default set** (`sy models pull --tier cpu`, llama.cpp preferred; Ollama tags as alternates):
+**T0 default set** (`ssw models pull --tier cpu`, llama.cpp preferred; Ollama tags as alternates):
 
 | Role | Model | Quant | Disk GB |
 |---|---|---|---|
@@ -30,7 +30,7 @@ Qwen3.5 0.8B/2B/4B (vision-language models; thinking switched off for router rol
 Gemma 4 E2B/E4B as a second family, sized by total rather than effective parameters. Phi-4-mini
 is dropped from the defaults as outdated; users can still add it.
 
-**T1-T3 candidates** (registry priors; any other model can be added with `sy models add`):
+**T1-T3 candidates** (registry priors; any other model can be added with `ssw models add`):
 
 | Tier | Models |
 |---|---|

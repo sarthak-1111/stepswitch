@@ -21,7 +21,7 @@ current versions and found constraints the SPEC does not mention (docs/RESEARCH.
 - TypeScript 7 is a native compiler with no programmatic API yet.
 - The documentation theme named in SPEC §24 has been in maintenance mode since 2025-11 and is
   incompatible with its host tool's 2.0 release.
-- The plain YAML loader drops comments on a round trip; `sy prove` rewrites claim statuses in a
+- The plain YAML loader drops comments on a round trip; `ssw prove` rewrites claim statuses in a
   hand-commented file.
 
 ## Decision
@@ -29,14 +29,14 @@ current versions and found constraints the SPEC does not mention (docs/RESEARCH.
 | Area | Choice |
 |---|---|
 | Python | `requires-python = ">=3.11"`; CI matrix 3.11 to 3.15; development on a **uv-managed** interpreter (`python-preference = "only-managed"`), currently 3.12 |
-| Packaging | uv with dependency groups; build backend `uv_build`; the dashboard is built before packaging into the package directory, because `uv_build` runs no build scripts (hatchling is the fallback if that becomes awkward) |
+| Packaging | uv with dependency groups; build backend hatchling, which maps `registry/` and the built dashboard into the package (ADR 0012 supersedes the earlier `uv_build` choice); the dashboard is built before packaging |
 | CLI | `typer>=0.26` |
 | API and SSE | `fastapi>=0.135` with its built-in SSE; `uvicorn>=0.54` without extras |
 | Models | `pydantic>=2.14,<3` |
 | HTTP | `httpx>=0.28.1,<1`, used only inside the egress module, so the client library can be swapped without touching callers |
 | YAML | `ruamel.yaml>=0.19.1` (round-trip mode keeps comments in `claims.yaml`) |
 | JSON Schema | `jsonschema>=4.26` (Draft 2020-12) for HANDOFF and probe outputs |
-| State | SQLite in WAL mode on local disks only; `sy doctor` fails when `sqlite3.sqlite_version` is below 3.51.3 (or the 3.50.7 / 3.44.6 backports) and falls back to `journal_mode=DELETE` on network volumes |
+| State | SQLite in WAL mode on local disks only; `ssw doctor` fails when `sqlite3.sqlite_version` is below 3.51.3 (or the 3.50.7 / 3.44.6 backports) and falls back to `journal_mode=DELETE` on network volumes |
 | Quality | `ruff>=0.17`, `mypy>=2.4` (blocking), `pytest>=9.1`; the beta Rust type checker only as an optional, non-blocking CI job |
 | Dashboard | Node >= 22.12 (CI and development on the current LTS), `react@^19.3`, `vite@^8.3`, `@vitejs/plugin-react@^6.1`, `typescript@^7.0` for type checking |
 | Harness extensions | TypeScript; code or lint tooling that imports the compiler API pins TypeScript 6 until TypeScript 7 ships one |
@@ -49,4 +49,4 @@ current versions and found constraints the SPEC does not mention (docs/RESEARCH.
   prerequisite recorded in PROGRESS.md.
 - Contributors need uv >= 0.13 for the same defaults as CI.
 - Phase 0 test tooling switches from the plain YAML loader to `ruamel.yaml` so that tests and the
-  future `sy prove` read `claims.yaml` the same way.
+  future `ssw prove` read `claims.yaml` the same way.

@@ -59,7 +59,7 @@ Phase 0 research (docs/RESEARCH.md: "API formats", "Format conversion notes", "E
    n>1 candidates, logprobs and audio, goes into a `ConversionReport`: reported, approximated
    or, in strict mode, rejected. This is exactly the SPEC §4.1 rule with the scope spelled out.
 4. **Probe before trusting.** Every capability that varies by server is decided per endpoint by
-   `sy probe` and stored in the capability profile, never inferred from the format name. That
+   `ssw probe` and stored in the capability profile, never inferred from the format name. That
    covers native tool calls, parallel calls, streamed tool arguments, tool-call IDs,
    `tool_choice` forcing, assistant prefill, the reasoning field, usage semantics, structured
    output, context length, prefix-cache behaviour and throughput.
@@ -94,7 +94,7 @@ Phase 0 research (docs/RESEARCH.md: "API formats", "Format conversion notes", "E
    follow it. Where a template exposes a retention switch (a preserve- or clear-thinking
    argument), the codec passes it explicitly instead of relying on the template default.
    Switching models always drops reasoning (rule 1).
-9. **Rendering fidelity.** When Switchyard renders a prompt itself (raw completion endpoints,
+9. **Rendering fidelity.** When Stepswitch renders a prompt itself (raw completion endpoints,
    harmony models), history is rendered byte-identically to what the model generated, using the
    family's reference renderer or an equivalent, with any template date pinned per session.
    This keeps server prefix caches valid. Registry entries record the template source (Jinja

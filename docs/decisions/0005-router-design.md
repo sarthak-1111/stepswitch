@@ -35,7 +35,7 @@ stronger model recovers less than half of the quality gap.
 2. **Four stages, as in SPEC §7.1**, each recorded in the decision:
    - *Rules* are hard filters and pins: explicit flags, track constraints (T0 never edits
      science code), offline mode, budgets, protected paths, and capability requirements from
-     probe profiles. They are written as data in `switchyard.toml` (`[[policy.rules]]` with
+     probe profiles. They are written as data in `stepswitch.toml` (`[[policy.rules]]` with
      `when` conditions over feature fields and `to`/`exclude` actions, first match wins),
      evaluated by a small safe matcher, never `eval`. This borrows the deterministic
      `{to, when}` route shape from existing workflow tools without depending on them.
@@ -52,7 +52,7 @@ stronger model recovers less than half of the quality gap.
      separate pure function, so C-003 can property-test it directly. For a mid-trajectory
      switch, `p_success` of the new worker is estimated *given the handoff* (a learned handoff
      penalty on top of its fresh-start rate), not as if it started fresh. Phase 2 uses default
-     throughput figures; Phase 5 adds `sy calibrate` data and the per-server prefix registry.
+     throughput figures; Phase 5 adds `ssw calibrate` data and the per-server prefix registry.
 3. **Step boundaries only.** A step runs to completion on one worker. No switch happens while a
    tool loop is open or while the next turn depends on state held by the current endpoint
    (signed reasoning, stored responses). Switching back to a model whose server still holds the
@@ -74,5 +74,5 @@ stronger model recovers less than half of the quality gap.
   C-015 uses a simulation harness with synthetic workers.
 - The classifier costs T0 tokens per uncertain step; caching and the state machine's own step
   knowledge keep that small, and the ledger reports it like any other step.
-- Rules as data make routing user-editable (`sy policy show|edit`) and diffable in reviews.
+- Rules as data make routing user-editable (`ssw policy show|edit`) and diffable in reviews.
 - Learned parameters stay in the local database; nothing leaves the machine (SPEC §10).

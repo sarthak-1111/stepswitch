@@ -6,7 +6,7 @@
   IDs, not prose (ADR 0007). Interoperability identifiers that merely contain a company name
   are listed in ALLOWED_IDENTIFIERS.
 * Nothing personal or machine-specific is committed: endpoints, keys and paths from
-  ``.switchyard/local.toml``, the current home directory, a distinctive user name, the host name.
+  ``.stepswitch/local.toml``, the current home directory, a distinctive user name, the host name.
 * The local state directory stays gitignored and kickoff material stays untracked.
 """
 
@@ -55,7 +55,7 @@ SKIP_DIRS = {
     ".git",
     ".venv",
     "node_modules",
-    ".switchyard",
+    ".stepswitch",
     "__pycache__",
     ".pytest_cache",
     ".ruff_cache",
@@ -171,7 +171,7 @@ ALLOWED_IDENTIFIERS = (
     "nvidia-nemotron-open-model-license",
 )
 
-# Keys in .switchyard/local.toml whose values are machine-specific by definition.
+# Keys in .stepswitch/local.toml whose values are machine-specific by definition.
 SENSITIVE_KEYS = {"url", "api_key", "key", "token", "secret", "password", "model_dir", "host"}
 
 URL_RE = re.compile(r"https?://\S+")
@@ -251,7 +251,7 @@ def machine_specific_values(root: Path = ROOT) -> set[str]:
     host = socket.gethostname()
     if host and host.lower() != "localhost":
         values.add(host)
-    local = root / ".switchyard" / "local.toml"
+    local = root / ".stepswitch" / "local.toml"
     if local.is_file():
         values |= _sensitive_strings(tomllib.loads(local.read_text(encoding="utf-8")))
     return {value for value in values if len(value) >= 4}
@@ -285,10 +285,10 @@ def test_local_state_and_kickoff_material_stay_untracked() -> None:
     ignored = {
         line.strip() for line in (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
     }
-    assert ".switchyard/" in ignored
+    assert ".stepswitch/" in ignored
     for path in repo_files():
         rel = path.relative_to(ROOT).as_posix()
-        assert not rel.startswith(".switchyard/"), rel
+        assert not rel.startswith(".stepswitch/"), rel
         assert path.name != "KICKOFF.md" and path.suffix.lower() != ".zip", rel
 
 

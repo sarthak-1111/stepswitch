@@ -39,7 +39,7 @@ become precise:
 ## Consequences
 
 - Claim tests for C-001 and the OS-enforced part of C-006 run only on Linux; on other systems
-  they report "not applicable here" rather than passing. `sy prove` shows the platform each
+  they report "not applicable here" rather than passing. `ssw prove` shows the platform each
   claim was proven on.
 - C-016 requires a hosted CI setup on a code host, which is a maintainer action (creating the
   remote repository); until then only the local platform's part can be shown.

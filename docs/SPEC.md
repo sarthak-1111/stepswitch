@@ -1,4 +1,4 @@
-# Switchyard: Product Spec (v0.3 draft)
+# Stepswitch: Product Spec (v0.3 draft)
 
 Status: v0.3, 2026-10-16. Phase 0 research has been applied: items that were marked (verify)
 are now verified and recorded in docs/RESEARCH.md, or replaced. Every change is listed below and
@@ -8,7 +8,8 @@ backed by an ADR in docs/decisions/ or by a dated research entry.
 
 | Section | Change | Source |
 |---|---|---|
-| §0 | Name is taken; rename to Stepswitch (CLI `ssw`) as the first change of Phase 1 | ADR 0001 |
+| §0, all | Name was taken; renamed to Stepswitch (CLI `ssw`) at the start of Phase 1 | ADR 0001 |
+| §21 | Build backend hatchling instead of `uv_build` (packages `registry/` and the dashboard) | ADR 0012 |
 | §1 | Positioning corrected: per-turn routing and cache-aware switching already exist; novelty reworded | ADR 0010 |
 | §3 | SQLite version and volume checks for WAL | ADR 0002 |
 | §4.1 | Responses codec follows the open responses specification; generate-content marked legacy; interactions format is a watch item; lossless scope spelled out; gateway bridge isolated out of process | ADR 0003 |
@@ -28,19 +29,17 @@ backed by an ADR in docs/decisions/ or by a dated research entry.
 
 ## §0 Name and pitch
 
-- Working name: Switchyard. CLI: `sy`. Phase 0 checks the name on the package index and on code
-  hosting. If it's taken, propose three alternatives in an ADR and pick one.
-  **Phase 0 result:** the package-index name is taken, an active same-domain project uses the
-  name, and `sy` collides with a same-domain tool. ADR 0001 renames the project to
-  **Stepswitch** (CLI `ssw`, long form `stepswitch`) as the first change of Phase 1. This spec
-  keeps the working name until then.
+- Name: **Stepswitch**. CLI: `ssw` (long form `stepswitch`). The kickoff's working name,
+  Switchyard (CLI `sy`), was taken on the package index, used by an active same-domain project,
+  and its CLI collided with a same-domain tool, so ADR 0001 renamed the project at the start of
+  Phase 1.
 - One-line pitch: "Routes every task, and every step inside it, to the best model and harness for
   the job, works with any open model or API, and proves every claim it makes." (Internal pitch;
   public wording must pass the claims lint, ADR 0006.)
 - Headline feature: **step-level model switching inside a single task.** Planning, navigation,
   editing, test triage and review can each run on a different model, chosen at runtime, with the
   cost of switching taken into account.
-- Second headline: **`sy prove`.** Every public claim maps to an automated test that anyone can
+- Second headline: **`ssw prove`.** Every public claim maps to an automated test that anyone can
   run on their own machine.
 
 ## §1 Positioning: what exists vs what is new
@@ -54,7 +53,7 @@ per-request class hints from harnesses to gateways, category-based routing for d
 subtasks, rule-based per-task routing with fallback chains, and per-task (harness, model)
 selection. Prior art per item: docs/RESEARCH.md, "Positioning check" (ADR 0010).
 
-What Switchyard combines (each must be real, tested and demoable; public text says "combines",
+What Stepswitch combines (each must be real, tested and demoable; public text says "combines",
 never "first" or "only"):
 1. Step-type-aware routing inside one task, driven by a classifier plus a policy that learns from
    the user's own verified outcomes, with every switch logged with its reason and cost.
@@ -74,7 +73,7 @@ never "first" or "only"):
 12. Verifiable zero-egress mode with an audit log.
 13. Runs on anything from a CPU-only laptop to a GPU cluster, plus a slow lane that runs very large
     models on small GPUs for asynchronous jobs.
-14. A claims registry and `sy prove`: the README shows only claims whose tests currently pass (§18).
+14. A claims registry and `ssw prove`: the README shows only claims whose tests currently pass (§18).
 
 ## §2 Core concepts
 
@@ -84,14 +83,14 @@ never "first" or "only"):
 - **Track**: `general` or `science`. Selects policies, gates, glossaries and defaults.
 - **Role**: what a model is used for (router, summarizer, embedder, planner, editor, reviewer...).
 - **Endpoint**: a reachable model, either a local engine server or a remote API, with a format.
-- **Capability profile**: what an endpoint can actually do, measured by `sy probe` (§4.6).
+- **Capability profile**: what an endpoint can actually do, measured by `ssw probe` (§4.6).
 - **Worker**: a (harness, endpoint, settings) triple that can execute steps or whole tasks.
 - **Tier**: a hardware class that determines which models are practical locally (§5).
 - **Policy**: rules plus learned parameters mapping (task features, step type) to a worker.
 - **Gate**: an ordered set of verification checks producing a Verdict.
 - **Trajectory**: the recorded event stream of a run, which can be replayed or forked.
 - **Ledger**: per-step accounting of tokens, wall time, GPU-seconds and cache hits.
-- **Claim**: a public statement about Switchyard with an ID, exact wording, scope and tests (§18).
+- **Claim**: a public statement about Stepswitch with an ID, exact wording, scope and tests (§18).
 
 ## §3 Architecture
 
@@ -120,15 +119,15 @@ never "first" or "only"):
 ```
 
 All state (tasks, steps, ledger, trajectories, probe results, bandit parameters) lives in one
-SQLite file per project at `.switchyard/state.db`. Large blobs (raw tool outputs, diffs) live in
-`.switchyard/blobs/`, addressed by content hash. The database uses WAL mode, which needs SQLite
-3.51.3 or later (earlier versions have a WAL-reset corruption bug) and a local volume: `sy doctor`
+SQLite file per project at `.stepswitch/state.db`. Large blobs (raw tool outputs, diffs) live in
+`.stepswitch/blobs/`, addressed by content hash. The database uses WAL mode, which needs SQLite
+3.51.3 or later (earlier versions have a WAL-reset corruption bug) and a local volume: `ssw doctor`
 checks both, and on network drives the database falls back to `journal_mode=DELETE` (ADR 0002).
 
 ## §4 Compatibility layer: every open model, every API format
 
 Goal: any open-weight model that a supported engine can serve, and any endpoint that speaks a
-supported API format, works as a Switchyard worker. Nothing in the core talks to a model except
+supported API format, works as a Stepswitch worker. Nothing in the core talks to a model except
 through this layer.
 
 ### §4.1 API formats (inbound proxy and outbound clients)
@@ -173,7 +172,7 @@ SGLang profile). Optional: ExLlamaV3 through its separate server process (pinned
 vendored). TensorRT-LLM is dropped as an adapter (Linux only; our reference GPUs are not on its
 supported list); a user-run server stays reachable through the chat-completions codec.
 
-### §4.3 Model onboarding: `sy models add <hub-id | local path | endpoint URL>`
+### §4.3 Model onboarding: `ssw models add <hub-id | local path | endpoint URL>`
 1. Read metadata: architecture, parameter count (total and active), context length, license and
    commercial-use conditions, chat template and its source (Jinja template, reference encoder
    script, or an engine tokenizer mode; some families ship no Jinja template), tokenizer,
@@ -182,7 +181,7 @@ supported list); a user-run server stays reachable through the chat-completions 
 3. Select the tool-call parser by hub ID plus chat-template hash and confirm it with probe
    results (§4.4). Engine recipes record parser flags, plugins, forks and the minimum engine
    version.
-4. Run `sy probe` (§4.6) and store the capability profile.
+4. Run `ssw probe` (§4.6) and store the capability profile.
 5. Write a registry entry. No hardcoded model list is needed for a model to work.
 
 ### §4.4 Tool-calling compatibility
@@ -193,7 +192,7 @@ supported list); a user-run server stays reachable through the chat-completions 
   docs/RESEARCH.md, "Tool-call formats"). Syntax can change between
   versions of one family, so the parser is chosen per model version; templates not in the
   catalog fall back to detection by template markers, confirmed by the probe. Server-side
-  parsing is used only after `sy probe` passes single, parallel, streamed and schema-valid calls
+  parsing is used only after `ssw probe` passes single, parallel, streamed and schema-valid calls
   for that (engine, parser, model); otherwise parse raw text.
 - Fallback text protocol: for models with no native tool calling, describe tools in the prompt
   and force a JSON action object with grammar or JSON-Schema constrained decoding (llama.cpp
@@ -215,7 +214,7 @@ switched off at all; unsupported levels are clamped and reported. A per-model re
 continuations, and template retention switches are passed explicitly. Reasoning text is never
 passed to a different model during a switch; only HANDOFF content is (§9).
 
-### §4.6 Capability probe: `sy probe <endpoint>`
+### §4.6 Capability probe: `ssw probe <endpoint>`
 A short battery, under 3 minutes on a T0 model:
 basic chat · system prompt adherence · native tool call · parallel tool calls · fallback tool
 protocol · JSON Schema adherence · streaming · usage reporting · reasoning field detection ·
@@ -229,7 +228,7 @@ Output: a capability profile (JSON) stored in SQLite and used by the router.
 - `docs/COMPATIBILITY.md` is generated from probe results, never hand-written.
 - CI runs probes on a small set of tiny models from different families on every release and on
   a weekly schedule, plus mock-server conformance tests for every API format on every commit.
-- Users can submit probe results for their own models via pull request (`sy probe --export`
+- Users can submit probe results for their own models via pull request (`ssw probe --export`
   produces a result file with model hash, engine version, hardware and date).
 
 ### §4.8 Claim scope
@@ -265,14 +264,14 @@ Defaults by role (overridable in policy):
 - Review: a model from a different family than the author of the patch.
 - Science-track edits: largest available endpoint. T0 never edits code in the science track.
 
-### §5.1 `sy doctor`
+### §5.1 `ssw doctor`
 Detects OS, CPU (cores, AVX2/AVX-512/AMX, ARM features), RAM, GPUs (vendor, VRAM, compute
 capability including FP8/FP4 support, driver version), disk space, installed engines and their
 versions, and the SQLite library version (WAL needs 3.51.3 or later, ADR 0002). Prints a
-recommended profile and writes it to `.switchyard/local.toml`. `--json` for machine-readable
+recommended profile and writes it to `.stepswitch/local.toml`. `--json` for machine-readable
 output.
 
-### §5.2 `sy models pull --tier cpu`
+### §5.2 `ssw models pull --tier cpu`
 Installs the default T0 set (ADR 0009): one router and summarizer model (one server, two slots),
 one embedding model, optionally a FIM code model. Uses llama.cpp server (preferred) or Ollama if
 present (pulling `hf.co/...` names when the original source is required). Respects a disk
@@ -348,7 +347,7 @@ expected_gain(m) = (p_success(m) - p_success(current)) * value_of_success_second
 switch if expected_gain(m) - switch_cost(m) > margin
 ```
 
-- `prefill_tps` and `decode_tps` come from the probe or `sy calibrate`.
+- `prefill_tps` and `decode_tps` come from the probe or `ssw calibrate`.
 - `uncached_tokens(m)` comes from a per-server prefix registry (hash of the prefix last sent to
   that server) and engine prefix-cache metrics where available.
 - Above a threshold (default 24k uncached tokens), send a HANDOFF brief (§9) instead of the
@@ -442,7 +441,7 @@ configured.
 
 - Every step is a JSONL event: prompt hash, worker, tokens in/out, cache hits, tool calls, output
   blob refs, diffs, gate results.
-- `sy replay <run> --from-step k --worker X` forks a new run from step k with a different worker.
+- `ssw replay <run> --from-step k --worker X` forks a new run from step k with a different worker.
 - Deterministic replay where possible (temperature 0, fixed seeds, recorded tool outputs).
 - Same-model resume: the llama.cpp server keeps a host-RAM prompt cache (`--cache-ram`) that
   restores matching prefixes automatically; slot files (`/slots/{id}?action=save|restore`, under
@@ -454,13 +453,13 @@ configured.
 Interface: `start(task, worktree, endpoint, settings) -> RunHandle`, `events()`, `cancel()`,
 `result() -> RunResult`.
 
-1. **Built-in lean agent** (`sy agent`), the default worker. Tools: `read(path, range)`, `grep`,
+1. **Built-in lean agent** (`ssw agent`), the default worker. Tools: `read(path, range)`, `grep`,
    `repo_map`, `lsp(defs|refs|hover|diagnostics)`, `edit(hash-anchored)`, `run(cmd)`,
    `test(selector)`, `search(semantic)`. Step-level routing lives here. `lsp` is a thin client
    (pygls and lsprotocol) for user-installed language servers whose launch commands live in
-   registry TOML; servers are never auto-downloaded. The edit format is Switchyard's own,
+   registry TOML; servers are never auto-downloaded. The edit format is Stepswitch's own,
    specified under `spec/` (prior art: the hash-anchored line edits of Oh My Pi, MIT).
-2. **Proxy** (`sy proxy`): a local endpoint that accepts every supported API format (§4.1) and
+2. **Proxy** (`ssw proxy`): a local endpoint that accepts every supported API format (§4.1) and
    forwards to any endpoint in any format. External harnesses point at it, and the router picks
    a model per request. This is how mid-session switching works inside third-party harnesses.
    Switches happen at a new user turn, never inside an open tool-call loop (§7.2, ADR 0004).
@@ -470,15 +469,15 @@ Interface: `start(task, worktree, endpoint, settings) -> RunHandle`, `events()`,
    `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1` it tells the proxy each request's class (main, subagent,
    compaction, ...) for step-level routing; `CLAUDE_CODE_MAX_CONTEXT_TOKENS` is set from the
    routed model's context. Its documentation says routing it to other models through a gateway
-   is not supported, so the adapter is documented as "works through `sy proxy`; not supported
+   is not supported, so the adapter is documented as "works through `ssw proxy`; not supported
    upstream".
-4. **Pi adapter**: TypeScript extension registering Switchyard as a provider plus a virtual
+4. **Pi adapter**: TypeScript extension registering Stepswitch as a provider plus a virtual
    model whose `route()` calls the router (in-process step-level routing).
 5. **Oh My Pi adapter**: provider plus generated `modelRoles` and a `before_subagent_spawn` hook;
-   mid-turn switching goes through `sy proxy`. Pi and Oh My Pi have diverged (separate packages,
+   mid-turn switching goes through `ssw proxy`. Pi and Oh My Pi have diverged (separate packages,
    runtimes and config files), so they are two thin adapters on a shared core.
 6. **OpenCode and Kimi Code adapters**: both are ACP agents and are driven through the ACP client
-   (item 7) where available. Generated config only points their model endpoints at `sy proxy`
+   (item 7) where available. Generated config only points their model endpoints at `ssw proxy`
    and is passed through environment variables or an isolated config directory, never by
    editing user files. Kimi Code means the current TypeScript CLI; the older Python packages are
    archived.
@@ -487,7 +486,7 @@ Interface: `start(task, worktree, endpoint, settings) -> RunHandle`, `events()`,
    `session/new`, `session/prompt`, `session/update`, `session/cancel`, client-side
    `session/request_permission`, optional `fs/*` and `terminal/*`), feature-detected at
    `initialize`. Model selection uses `session/set_config_option` when the agent offers a model
-   option, otherwise `sy proxy`. v2 (alpha) is tracked.
+   option, otherwise `ssw proxy`. v2 (alpha) is tracked.
 
 In offline mode every adapter sets its harness's egress switches (auto-update, model-list
 fetch, telemetry, version checks), and the audit log lists any residual calls (§15).
@@ -517,7 +516,7 @@ on by default): no code reuse and no adapter.
 |---|---|
 | RN1 | Server manager with lazy start, TTL, LRU eviction, hot-swap (§5.3). |
 | RN2 | Continuous batching for parallel agents on vLLM/SGLang; concurrency per server from free KV memory. |
-| RN3 | Speculative decoding per engine: n-gram methods (no extra model memory; the CPU-only option), model-shipped MTP heads, or a T0 draft model (llama.cpp `--spec-type`, `--spec-draft-model`; vLLM `--speculative-config`; SGLang `--speculative-algorithm`). `sy calibrate` reads acceptance counters. |
+| RN3 | Speculative decoding per engine: n-gram methods (no extra model memory; the CPU-only option), model-shipped MTP heads, or a T0 draft model (llama.cpp `--spec-type`, `--spec-draft-model`; vLLM `--speculative-config`; SGLang `--speculative-algorithm`). `ssw calibrate` reads acceptance counters. |
 | RN4 | KV cache quantization through one registry key, `kv_cache_dtype`, mapped to each engine's flag (llama.cpp `-ctk`/`-ctv`, vLLM and SGLang `--kv-cache-dtype`, Ollama `OLLAMA_KV_CACHE_TYPE`); off by default. FP8 KV on GPUs without native FP8 needs specific attention backends. |
 | RN5 | MoE expert offload to system RAM for T1/T2 boxes (verified flags): llama.cpp `--n-cpu-moe N`, `--cpu-moe`, `--override-tensor`, `--moe-cache-mib`; KTransformers through SGLang `--kt-method`, `--kt-num-gpu-experts`, `--kt-cpuinfer`, `--kt-threadpool-count`. |
 | RN6 | Test impact analysis first, full suite last (§8.2). |
@@ -525,22 +524,22 @@ on by default): no code reuse and no adapter.
 | RN8 | Pre-created worktree pool; shared dependency caches (uv cache, pnpm store). |
 | RN9 | Slow-lane queue for asynchronous jobs; results arrive as review comments. |
 | RN10 | Timeouts, budgets, kill switches; stuck-loop detection (no progress for N steps). |
-| RN11 | `sy calibrate`: measure throughput per endpoint for the cost model. |
+| RN11 | `ssw calibrate`: measure throughput per endpoint for the cost model. |
 
 ## §15 Privacy and zero-egress
 
-- `--offline` or `privacy.mode = "local"` blocks every non-local connection at `switchyard.net`.
+- `--offline` or `privacy.mode = "local"` blocks every non-local connection at `stepswitch.net`.
   "Local" means 127.0.0.0/8, ::1 and Unix sockets (ADR 0011).
-- Egress can also happen behind a localhost URL or outside `switchyard.net`, so local mode also:
+- Egress can also happen behind a localhost URL or outside `stepswitch.net`, so local mode also:
   rejects engine models that forward to a hosted service (Ollama cloud-backed model names; or
   require the engine's no-cloud switch) and llama-swap configs with remote `peers`; forbids lazy
   downloads by libraries used in context services (parser bundles, BPE files, language servers,
   hub tokenizers and models), which are fetched by an install-time prefetch step into caches
-  under `.switchyard/`; sets each harness's egress switches (§12); and disables the gateway
+  under `.stepswitch/`; sets each harness's egress switches (§12); and disables the gateway
   bridge (§4.1) unless it targets a local endpoint. Context services are tested with networking
   disabled.
 - Egress audit log: every connection with host, bytes, purpose and task ID; visible in the
-  dashboard and via `sy audit`. Spawned processes are logged too, since in-process observation
+  dashboard and via `ssw audit`. Spawned processes are logged too, since in-process observation
   cannot see their connections; OS-level isolation is the enforcement layer on Linux.
 - Secret scanner and redactor before any remote call. Per-path deny lists (e.g. `data/**`).
 - No telemetry, ever, by default.
@@ -569,15 +568,15 @@ decisions (features, candidate scores, cost estimates, switch events with cost) 
 time, GPU-seconds by task, model and day; reference-cost-avoided counter) · leaderboard ·
 trajectory viewer with fork and replay · endpoints (status, probe profiles, start/stop) ·
 compatibility matrix · egress audit log · science view (numerical diff reports with plots) ·
-claims view (latest `sy prove` report).
+claims view (latest `ssw prove` report).
 
 Task API: `POST /api/tasks`, `GET /api/tasks/{id}`, `POST /api/tasks/{id}/cancel`,
 `GET /api/workers`, `GET /api/endpoints`, `GET /api/leaderboard`, `GET /api/ledger`,
 `GET /api/claims`, `GET /api/events` (SSE).
 
-## §18 Claims verification: `sy prove`
+## §18 Claims verification: `ssw prove`
 
-Every public statement about Switchyard is a claim with an automated test. The README shows
+Every public statement about Stepswitch is a claim with an automated test. The README shows
 only claims whose tests currently pass.
 
 ### §18.1 Claims registry: `claims/claims.yaml`
@@ -596,16 +595,16 @@ Each entry: `id`, `text` (exact public wording), `scope`, `kind`
    exactly. Unmarked superlatives or comparatives ("fastest", "best", "beats", "any model",
    "all models", "zero", "never") fail the lint.
 3. Every number in the README comes from an evidence file via templating, never typed by hand.
-4. The README claims section is generated by `sy prove --render-readme` and includes only
+4. The README claims section is generated by `ssw prove --render-readme` and includes only
    claims whose latest status is `passing`.
 
-### §18.4 `sy prove`
-- `sy prove --quick`: CPU-only, fake workers and T0 models, under 10 minutes on a laptop. For
+### §18.4 `ssw prove`
+- `ssw prove --quick`: CPU-only, fake workers and T0 models, under 10 minutes on a laptop. For
   bench and probe-matrix claims it validates the committed evidence (schema, thresholds, the
   digest of the configuration that produced it, the recorded command) instead of re-running the
   bench (ADR 0006).
-- `sy prove --full`: includes bench-based and probe-matrix claims and rewrites their evidence.
-- `sy prove --claim C-0xx`: one claim.
+- `ssw prove --full`: includes bench-based and probe-matrix claims and rewrites their evidence.
+- `ssw prove --claim C-0xx`: one claim.
 - Prints a pass/fail table and writes `prove-report.json` and `prove-report.md`. The JSON report
   carries a digest of the sources it ran against; phase checks accept only a report whose digest
   matches the working tree.
@@ -617,7 +616,7 @@ Each entry: `id`, `text` (exact public wording), `scope`, `kind`
 
 | ID | Claim text (public wording) | How it's proven | Phase |
 |---|---|---|---|
-| C-001 | Runs end to end on a CPU-only machine with 8 GB RAM. | `sy run` completes a toy task in a container capped at 8 GB RAM with no GPU visible. | P2 |
+| C-001 | Runs end to end on a CPU-only machine with 8 GB RAM. | `ssw run` completes a toy task in a container capped at 8 GB RAM with no GPU visible. | P2 |
 | C-002 | Switches models between steps inside a single task. | One task's trajectory contains ≥ 2 distinct endpoints across typed steps; every switch has a logged reason and cost estimate. | P2 |
 | C-003 | Only switches models when the expected gain outweighs the cost of re-reading context. | Property test over randomized scenarios: switch iff gain − cost > margin; no switch otherwise. | P5 |
 | C-004 | Speaks the chat-completions, responses, messages and generate-content API formats, plus engine-native formats. | Conformance tests against mock servers per format (streaming, tool calls, parallel tool calls, errors, usage); round-trip translation tests preserve messages and tool calls. | P1 |
@@ -632,7 +631,7 @@ Each entry: `id`, `text` (exact public wording), `scope`, `kind`
 | C-013 | Flags tasks where passing candidates disagree. | Seeded ambiguous tasks are flagged; unambiguous ones are not. | P6 |
 | C-014 | Replays recorded runs deterministically. | Replay of a recorded fake-worker run reproduces identical diffs and gate results. | P7 |
 | C-015 | The router learns which worker suits which task. | Simulation: cumulative regret below threshold and better than random and fixed policies. | P7 |
-| C-016 | Runs on macOS, Linux and Windows. | `sy prove --quick` passes in CI on all three. | P1+ |
+| C-016 | Runs on macOS, Linux and Windows. | `ssw prove --quick` passes in CI on all three. | P1+ |
 | C-017 | Goes from install to first completed task in under 5 minutes on a CPU-only machine. | Timed scripted quickstart in a clean container (model download time reported separately). | P10 |
 | C-018 | Every number in this README is reproducible. | Integrity lint (§18.3) plus evidence files with commands. | P3+ |
 | C-019 | Token accounting matches what model servers report. | Ledger totals equal server-reported usage within 1%. | P3 |
@@ -640,41 +639,41 @@ Each entry: `id`, `text` (exact public wording), `scope`, `kind`
 
 ## §19 CLI
 
-The CLI name follows the project name (ADR 0001: `ssw` from Phase 1); the examples below keep
-`sy` until the rename lands. The proxy's default port is 7778, next to the dashboard's 7777,
-since 4000 is a common default of other local gateways (ADR 0004).
+The CLI is `ssw`, with `stepswitch` as a long alias (ADR 0001). The proxy's default port is
+7778, next to the dashboard's 7777, since 4000 is a common default of other local gateways
+(ADR 0004).
 
 ```
-sy init                       # create switchyard.toml, detect hardware, pick profile
-sy doctor [--json]            # hardware + engines report
-sy models list|add|pull|serve|stop [--tier cpu|t1|t2|t3] [--max-gb N]
-sy probe <endpoint> [--export]
-sy calibrate                  # measure throughput per endpoint
-sy run "<task>" [--track general|science] [--best-of N] [--offline] [--budget-tokens N]
-sy agent                      # interactive built-in agent with step-level routing
-sy proxy [--port 7778]        # all-format proxy for external harnesses
-sy bench run --suite <name> [--workers a,b] [--seeds N] ; sy bench report
-sy dash                       # start API + dashboard
-sy replay <run> --from-step K --worker X
-sy prove [--quick|--full] [--claim ID] [--render-readme]
-sy policy show|edit ; sy audit
+ssw init                       # create stepswitch.toml, detect hardware, pick profile
+ssw doctor [--json]            # hardware + engines report
+ssw models list|add|pull|serve|stop [--tier cpu|t1|t2|t3] [--max-gb N]
+ssw probe <endpoint> [--export]
+ssw calibrate                  # measure throughput per endpoint
+ssw run "<task>" [--track general|science] [--best-of N] [--offline] [--budget-tokens N]
+ssw agent                      # interactive built-in agent with step-level routing
+ssw proxy [--port 7778]        # all-format proxy for external harnesses
+ssw bench run --suite <name> [--workers a,b] [--seeds N] ; ssw bench report
+ssw dash                       # start API + dashboard
+ssw replay <run> --from-step K --worker X
+ssw prove [--quick|--full] [--claim ID] [--render-readme]
+ssw policy show|edit ; ssw audit
 ```
 
 ## §20 Config files
 
-- `switchyard.toml` (committed): tracks, policies, acceptance commands, budgets, science
+- `stepswitch.toml` (committed): tracks, policies, acceptance commands, budgets, science
   tolerances and protected zones.
-- `.switchyard/local.toml` (gitignored): endpoints, keys, hardware overrides, model directory.
-  The rest of `.switchyard/` (state database, blobs, prefetched caches) is gitignored as well.
+- `.stepswitch/local.toml` (gitignored): endpoints, keys, hardware overrides, model directory.
+  The rest of `.stepswitch/` (state database, blobs, prefetched caches) is gitignored as well.
 - `registry/*.toml` (in package, overridable per user): model and worker definitions.
 - `claims/claims.yaml` (committed): claims registry. Tools read and rewrite it with ruamel.yaml
   in round-trip mode, which keeps comments (PyYAML drops them).
-- Precedence: CLI flags > environment > `.switchyard/local.toml` > `switchyard.toml` > defaults.
+- Precedence: CLI flags > environment > `.stepswitch/local.toml` > `stepswitch.toml` > defaults.
 
 ## §21 Repo layout
 
 ```
-src/switchyard/
+src/stepswitch/
   cli.py
   core/        task, step, track, policy, budget
   compat/      codecs/ (chat, responses, messages, generate_content, ollama, llamacpp, text),
@@ -691,7 +690,7 @@ src/switchyard/
   api/         app, routes, sse, static/ (built dashboard)
   net.py       egress control + audit
   ledger.py
-dashboard/              React + Vite (Node >= 22.12), built into src/switchyard/api/static/
+dashboard/              React + Vite (Node >= 22.12), built into src/stepswitch/api/static/
 adapters/pi/ adapters/omp/   TypeScript extensions on a shared core
 registry/               model and worker TOML
 claims/                 claims.yaml, evidence/
@@ -704,9 +703,10 @@ docs/ scripts/
 install.sh install.ps1
 ```
 
-The dashboard is built in CI before `uv build`, since the `uv_build` backend runs no build
-scripts and packages only the module tree. TypeScript code that imports the compiler API pins
-TypeScript 6, because TypeScript 7 has no compiler API yet (ADR 0002).
+The dashboard is built in CI before `uv build`, since no Python build backend runs Node; the
+hatchling backend maps `dashboard/dist/` and `registry/` into the package (ADR 0012). TypeScript
+code that imports the compiler API pins TypeScript 6, because TypeScript 7 has no compiler API
+yet (ADR 0002).
 
 ## §22 Research list (Phase 0)
 
@@ -735,17 +735,17 @@ extra rows.
 ## §23 Phases and acceptance criteria
 
 `scripts/phase_check.py N` implements these checks; `--upto N` runs phases 0..N. A phase is also
-only complete when every claim assigned to it (§18.5) is `passing` in `sy prove`.
+only complete when every claim assigned to it (§18.5) is `passing` in `ssw prove`.
 
 - **P0 Research and design** (no product code): RESEARCH.md covers every §22 row with
   `verified: yes|no` and a date, including a table of API formats, engines and tool-call formats;
   ARCHITECTURE.md; ADRs for name, stack, compatibility layer, proxy and router; PROGRESS.md;
   `claims/claims.yaml` with C-001..C-020 as `pending`.
 - **P1 Foundation and compatibility core**: package, CLI skeleton, config, registry,
-  `sy doctor`, codecs for all §4.1 formats with mock-server conformance tests, llama.cpp and
-  Ollama engine adapters, `sy models add`, `sy models pull --tier cpu` (≥ 3 T0 models),
-  `sy probe`, server manager, `sy calibrate`, claims framework with integrity meta-tests and
-  `sy prove` skeleton. Claims: C-004, C-007, C-016.
+  `ssw doctor`, codecs for all §4.1 formats with mock-server conformance tests, llama.cpp and
+  Ollama engine adapters, `ssw models add`, `ssw models pull --tier cpu` (≥ 3 T0 models),
+  `ssw probe`, server manager, `ssw calibrate`, claims framework with integrity meta-tests and
+  `ssw prove` skeleton. Claims: C-004, C-007, C-016.
 - **P2 Built-in agent, router v1, gates, tracks**: tools, fallback tool protocol, rules +
   classifier routing, step-level routing, escalation ladder, worktree pool, both tracks with
   gates, ledger, budgets. Claims: C-001, C-002, C-005 (fallback part), C-008, C-009, C-020.
@@ -754,8 +754,8 @@ only complete when every claim assigned to it (§18.5) is `passing` in `sy prove
   COMPATIBILITY.md, remaining engine adapters (vLLM, SGLang, MLX, transformers). Claims: C-005
   (matrix part), C-018, C-019.
 - **P4 Dashboard and task API**: all §17 views and endpoints, SSE, Playwright smoke test,
-  README claims section generated by `sy prove --render-readme`.
-- **→ v0.1 launch candidate.** `sy prove --quick` passes on all three OSes.
+  README claims section generated by `ssw prove --render-readme`.
+- **→ v0.1 launch candidate.** `ssw prove --quick` passes on all three OSes.
 - **P5 Token and cache optimization**: TK1–TK12, HANDOFF v0.1, cache-aware switching with
   calibration. Claims: C-003, C-010, C-011.
 - **P6 Best-of-N, disagreement, cross-family review.** Claims: C-012, C-013.
@@ -771,15 +771,15 @@ only complete when every claim assigned to it (§18.5) is `passing` in `sy prove
 
 - README, top to bottom: one-line pitch → demo GIF of a task where step badges visibly switch
   models (tiny → large → reviewer) with a live token counter → "claims verified: N/N" badge and
-  "Don't trust us, run `sy prove`" → 60-second CPU-only quickstart → leaderboard image →
+  "Don't trust us, run `ssw prove`" → 60-second CPU-only quickstart → leaderboard image →
   "run it on your own repo" → compatibility matrix link → how it works → feature comparison
   table (features only) → roadmap.
-- Quickstart must work CPU-only: `uv tool install <package> && <cli> init && <cli> run "..."`,
-  with the names from ADR 0001 (the package-index name `switchyard` belongs to an unrelated
-  project, so the original command would install it). Current uv downloads Python 3.15 by
+- Quickstart must work CPU-only: `uv tool install stepswitch && ssw init && ssw run "..."`
+  (the kickoff's command used the working name, whose package-index entry belongs to an
+  unrelated project; ADR 0001). Current uv downloads Python 3.15 by
   default, so every runtime dependency must install on 3.15 (pure-Python or cp315 wheels), and
   CI tests 3.15.
-- Contributor magnets: add a model with `sy models add` and submit its probe result; add a bench
+- Contributor magnets: add a model with `ssw models add` and submit its probe result; add a bench
   task in YAML; add an API codec or engine adapter against a small interface; labeled
   good-first issues; public roadmap issue for P5–P10.
 - Releases: v0.1 after P4, then frequent minor releases while momentum lasts. Changelog kept.
@@ -796,7 +796,7 @@ only complete when every claim assigned to it (§18.5) is `passing` in `sy prove
 - "Every model" means every model a supported engine can serve. Brand-new architectures work as
   soon as an engine supports them; the matrix shows what's verified.
 - The slow lane is slow. Asynchronous jobs only, never interactive.
-- Model churn: the registry is data, updated via pull requests and `sy models add`.
+- Model churn: the registry is data, updated via pull requests and `ssw models add`.
 - Licenses: respect model and code licenses; never redistribute weights. Model licenses with
   commercial conditions are flagged in the registry (§5).
 - Supply chain: dependencies are pinned and hash-locked in `uv.lock`; optional bridges with a

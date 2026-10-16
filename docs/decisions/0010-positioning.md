@@ -6,7 +6,7 @@
 
 ## Context
 
-SPEC §1 lists fourteen items as "New in Switchyard". The claims system depends on honest
+SPEC §1 lists fourteen items as "New in Stepswitch". The claims system depends on honest
 positioning, so Phase 0 searched for prior art for each item (docs/RESEARCH.md, "Positioning
 check"). Findings:
 
@@ -25,7 +25,7 @@ check"). Findings:
 
 ## Decision
 
-1. Move "cache-aware switching" to the "already exists elsewhere" list. Switchyard keeps it as a
+1. Move "cache-aware switching" to the "already exists elsewhere" list. Stepswitch keeps it as a
    feature (time-based, measured prefill cost model), with no novelty claim.
 2. Reword the novelty of item 1 to: **step-type-aware routing inside one task, with a policy that
    learns from the user's own verified outcomes, and every switch logged with its reason and
@@ -33,7 +33,7 @@ check"). Findings:
    own.
 3. Reword item 2 to: **learned, verification-scored routing over (harness, model) pairs, per task
    and per step**.
-4. Items 5 to 14 are described as what Switchyard *combines* or *integrates*, each with its
+4. Items 5 to 14 are described as what Stepswitch *combines* or *integrates*, each with its
    closest prior art. Public text never says "first" or "only"; the claims lint already rejects
    such words.
 5. Add to the "already exists" list: per-turn routing inside agent sessions, per-request router

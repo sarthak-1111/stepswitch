@@ -1,5 +1,5 @@
 # Machine-specific state: endpoints, keys, hardware overrides, local DB, blobs (SPEC §20).
-.switchyard/
+.stepswitch/
 
 # Python
 __pycache__/

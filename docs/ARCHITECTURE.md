@@ -1,6 +1,6 @@
-# Switchyard architecture
+# Stepswitch architecture
 
-Status: Phase 0 design, 2026-10-16. The product spec (docs/SPEC.md) says *what* Switchyard does;
+Status: Phase 0 design, 2026-10-16. The product spec (docs/SPEC.md) says *what* Stepswitch does;
 this document says how the parts fit, which interfaces they expose and which invariants each part
 must keep. Decisions that had real alternatives are recorded in docs/decisions/. Facts about
 external projects (versions, flags, formats) live in docs/RESEARCH.md with the date they were
@@ -11,7 +11,7 @@ checked; this document links to them instead of repeating them.
 1. **The step is the unit of routing.** Model choice happens at every step boundary inside a
    task (SPEC §0, §7, §12.1), and every switch is a logged, costed event. Mid-step switching
    never happens.
-2. **One compatibility layer.** Only `switchyard.compat` knows wire formats, chat templates,
+2. **One compatibility layer.** Only `stepswitch.compat` knows wire formats, chat templates,
    tool-call syntaxes and reasoning fields. Everything else works on the internal representation
    (IR) and on capability profiles (SPEC §4, working rule 2).
 3. **CPU-first.** The core process stays small (no inference engine imported, no heavyweight
@@ -20,16 +20,16 @@ checked; this document links to them instead of repeating them.
 4. **Claims are code.** Every public statement has a claim test and an evidence file; phase
    checks read a prove report bound to the source digest (ADR 0006).
 5. **Local-first, zero telemetry.** All network I/O goes through one choke point,
-   `switchyard.net`, which enforces offline mode and writes the egress audit log (SPEC §15).
+   `stepswitch.net`, which enforces offline mode and writes the egress audit log (SPEC §15).
 6. **Cross-platform.** Windows, macOS and Linux are first-class: pathlib everywhere, no shell
    scripts in core paths, process management abstracted per OS (section 16).
 
 ## 2. Component map and processes
 
 ```
- sy CLI (Typer) ───────────────┐            Local service (FastAPI, long-lived, optional)
-   run · agent · bench · prove │            ├─ Task API + SSE + dashboard   (sy dash)
-   probe · calibrate · doctor  │            └─ all-format proxy             (sy proxy)
+ ssw CLI (Typer) ───────────────┐            Local service (FastAPI, long-lived, optional)
+   run · agent · bench · prove │            ├─ Task API + SSE + dashboard   (ssw dash)
+   probe · calibrate · doctor  │            └─ all-format proxy             (ssw proxy)
                                ▼                         │
                  Orchestrator (in-process library) ◄─────┘
    task queue · router · workers · gates · ledger · trajectories · budgets
@@ -41,21 +41,21 @@ checked; this document links to them instead of repeating them.
  handoff · tokens      protocol · reasoning ·   review · science gates
                        probe · onboarding
                                │
-                               ▼  HTTP only, via switchyard.net
+                               ▼  HTTP only, via stepswitch.net
  Model plane: server manager + engine adapters (llama.cpp server, Ollama, vLLM, SGLang,
  MLX-LM, transformers serve, slow lane) · remote endpoints (opt-in)
 ```
 
 | Process | Lifetime | Started by | Owns |
 |---|---|---|---|
-| `sy` CLI | one command | user | in-process orchestrator for `sy run`, `sy bench`, `sy prove` |
-| local service | long-lived | `sy dash`, `sy proxy` | Task API, SSE, dashboard assets, proxy routes, server-manager reaper |
+| `ssw` CLI | one command | user | in-process orchestrator for `ssw run`, `ssw bench`, `ssw prove` |
+| local service | long-lived | `ssw dash`, `ssw proxy` | Task API, SSE, dashboard assets, proxy routes, server-manager reaper |
 | engine servers | lazy, TTL | server manager or the user | model weights, KV caches |
 | external harnesses | one task | worker adapters | their own agent loop, pointed at the proxy |
 | git worktrees | pooled | worktree pool | isolated checkouts for candidates |
 
 The orchestrator is a library. The CLI and the local service both embed it and share state
-through the per-project SQLite database, so `sy run` works without any service running.
+through the per-project SQLite database, so `ssw run` works without any service running.
 
 ## 3. Orchestrator
 
@@ -113,10 +113,10 @@ replay relies on (SPEC §11).
 4. The switch is logged as a `switch` event with from, to, reason, estimated cost and expected
    gain; C-002 asserts on these events, and the dashboard renders them as step badges.
 5. In proxy mode the same logic runs per request: the harness's model name acts as a slot hint
-   (`sy:plan`, `sy:edit`, `sy:fast`, or a mapped name) and the request content gives the step
+   (`ssw:plan`, `ssw:edit`, `ssw:fast`, or a mapped name) and the request content gives the step
    type.
 
-## 5. Compatibility layer (`switchyard.compat`)
+## 5. Compatibility layer (`stepswitch.compat`)
 
 Details and rationale: ADR 0003. Formats and their fields: docs/RESEARCH.md, "API formats".
 
@@ -151,13 +151,13 @@ Details and rationale: ADR 0003. Formats and their fields: docs/RESEARCH.md, "AP
   optional token budget) onto each endpoint's mechanism, clamping and reporting unsupported
   levels. Same-model continuations follow the model's retention policy; opaque payloads go
   back only to their origin, and reasoning is stripped on any switch.
-- **Capability probe** (`sy probe`, SPEC §4.6) produces a JSON capability profile stored in
+- **Capability probe** (`ssw probe`, SPEC §4.6) produces a JSON capability profile stored in
   SQLite and consumed by router rules; `--export` writes a shareable result file.
-- **Onboarding** (`sy models add`, SPEC §4.3) reads metadata (including the template source and
+- **Onboarding** (`ssw models add`, SPEC §4.3) reads metadata (including the template source and
   license conditions), picks engine and quant for the detected hardware, selects the tool-call
   parser, probes, and writes a registry entry.
 
-## 6. Model plane (`switchyard.serve`)
+## 6. Model plane (`stepswitch.serve`)
 
 - **Engine adapter interface** (SPEC §5.3, ADR 0008): `start(model) / stop / health`, plus
   optional `metrics / prefix_cache_stats` (derived from per-response usage and timing fields
@@ -170,10 +170,10 @@ Details and rationale: ADR 0003. Formats and their fields: docs/RESEARCH.md, "AP
   evict for engines that load and unload models themselves (it sets their keep-alive instead).
   Engine recipes in the registry carry exact flags, parser names, plugins and minimum versions.
 - **Runtime registry**: running servers (pid, port, models, owner, last use) are recorded in a
-  machine-level runtime file, so a later `sy` process adopts them instead of starting duplicates.
-  The long-lived local service runs the TTL/LRU reaper; without it, `sy models stop` and the next
-  `sy` command clean up.
-- **Hardware detection** (`sy doctor`, SPEC §5.1) feeds tier selection and quant choice (for
+  machine-level runtime file, so a later `ssw` process adopts them instead of starting duplicates.
+  The long-lived local service runs the TTL/LRU reaper; without it, `ssw models stop` and the next
+  `ssw` command clean up.
+- **Hardware detection** (`ssw doctor`, SPEC §5.1) feeds tier selection and quant choice (for
   example: no native FP8/FP4 on compute capability below 8.9/10.0, so INT4 builds are preferred).
 - **Engine availability by OS** is data, not code: vLLM, SGLang and KTransformers are
   Linux-only, so on a Windows workstation they run under WSL2 or a container and are reached over
@@ -181,7 +181,7 @@ Details and rationale: ADR 0003. Formats and their fields: docs/RESEARCH.md, "AP
 - **Slow lane** (SPEC §5 "SL"): asynchronous jobs only, behind the same HTTP interface; engines
   without a server get a thin local HTTP shim.
 
-## 7. Workers and harness adapters (`switchyard.workers`)
+## 7. Workers and harness adapters (`stepswitch.workers`)
 
 Interface (SPEC §12): `start(task, worktree, endpoint, settings) -> RunHandle`, `events()`,
 `cancel()`, `result() -> RunResult`.
@@ -190,7 +190,7 @@ Interface (SPEC §12): `start(task, worktree, endpoint, settings) -> RunHandle`,
   (hash-anchored), `run(cmd)`, `test(selector)`, `search(semantic)`, exposed as `TOOL_NAMES`.
   Step-level routing lives here.
 - **Fake workers**: deterministic scripted workers for CI, the bench and replay tests.
-- **External harnesses** run as subprocesses pointed at `sy proxy`, so the router can still
+- **External harnesses** run as subprocesses pointed at `ssw proxy`, so the router can still
   choose a model per request. Harnesses that speak the Agent Client Protocol are driven by one
   generic ACP client (ACP v1 over stdio, stable methods only, model choice through a session
   config option when offered); others get small adapters whose generated config is passed
@@ -198,7 +198,7 @@ Interface (SPEC §12): `start(task, worktree, endpoint, settings) -> RunHandle`,
   routing hook (Pi's virtual models) calls the router directly. In offline mode every adapter
   sets its harness's own egress switches (SPEC §12).
 
-## 8. Context services (`switchyard.context`)
+## 8. Context services (`stepswitch.context`)
 
 - **Repo map** (TK2): tree-sitter tags, ranking over definition/reference edges, token-budgeted,
   cached per file content hash. Grammars come from pinned per-language wheels that work offline
@@ -208,12 +208,12 @@ Interface (SPEC §12): `start(task, worktree, endpoint, settings) -> RunHandle`,
   **context pruning** (TK6), **HANDOFF briefs** (TK7, SPEC §9).
 - **LSP**: a thin client on a JSON-RPC library and the protocol types package, launching
   language servers that the user has installed.
-- **Token counting** (`switchyard.context.tokens`, SPEC §9): counts with the receiving model's
+- **Token counting** (`stepswitch.context.tokens`, SPEC §9): counts with the receiving model's
   tokenizer in a fixed order (local `tokenizer.json` from the registry, the llama.cpp server's
   `/tokenize`, a mapped BPE encoding from a cache prefetched at install time, then a flagged
   estimate) and records which one was used and whether the count is exact.
 
-## 9. Verification (`switchyard.verify`)
+## 9. Verification (`stepswitch.verify`)
 
 Gate order, cheapest first (SPEC §8.1): format → lint → typecheck → impacted tests →
 golden/numerical (science) → full suite → review. The first hard failure stops the chain and a
@@ -226,38 +226,38 @@ protected zones and reproducibility records (SPEC §6.2).
 
 ## 10. State, ledger and trajectories
 
-- **State**: one SQLite database per project at `.switchyard/state.db`, WAL mode, versioned
+- **State**: one SQLite database per project at `.stepswitch/state.db`, WAL mode, versioned
   migrations. Tables: tasks, steps, events, decisions, ledger, endpoints, probes, bandit,
-  egress_audit, prove_runs. WAL needs SQLite 3.51.3 or later and a local disk; `sy doctor`
+  egress_audit, prove_runs. WAL needs SQLite 3.51.3 or later and a local disk; `ssw doctor`
   checks both, and on network volumes the database uses `journal_mode=DELETE` (ADR 0002).
-- **Blobs**: `.switchyard/blobs/<aa>/<sha256>` for raw tool outputs and diffs.
+- **Blobs**: `.stepswitch/blobs/<aa>/<sha256>` for raw tool outputs and diffs.
 - **Ledger** (TK12): per step tokens in/out, cached tokens, wall time, GPU-seconds and cache
   hits, taken from server-reported usage; estimates are flagged as such. C-019 compares ledger
   totals with server-reported usage.
 - **Trajectories**: every step is a JSONL event (prompt hash, worker, tokens, cache hits, tool
-  calls, blob refs, diffs, gate results). `sy replay <run> --from-step k --worker X` forks a new
+  calls, blob refs, diffs, gate results). `ssw replay <run> --from-step k --worker X` forks a new
   run (SPEC §11).
 
-## 11. Proxy (`sy proxy`)
+## 11. Proxy (`ssw proxy`)
 
 Details: ADR 0004. Inbound routes for every supported format decode to IR, the router picks an
 endpoint per request, the request is re-encoded for the target, and the (streamed) response is
 translated back into the caller's format. The proxy binds to 127.0.0.1 (default port 7778) with
 a local token, keeps per-session state for cache-aware switching, records every request in the
-ledger, and makes all upstream calls through `switchyard.net`. It switches models only at a new
+ledger, and makes all upstream calls through `stepswitch.net`. It switches models only at a new
 user turn, never inside an open tool-call loop or while the session depends on state held by the
 current endpoint, and it keeps its own response store so stateful responses-format features work
 against stateless backends.
 
 ## 12. Task API and dashboard
 
-FastAPI app from `switchyard.api.app.create_app()`; routes per SPEC §17 (`/api/tasks`,
+FastAPI app from `stepswitch.api.app.create_app()`; routes per SPEC §17 (`/api/tasks`,
 `/api/workers`, `/api/endpoints`, `/api/leaderboard`, `/api/ledger`, `/api/claims`,
 `/api/events` as SSE). Bound to 127.0.0.1:7777 with a local token. The dashboard is React +
-Vite + TypeScript, built in CI into `src/switchyard/api/static/` before packaging and served by
+Vite + TypeScript, built in CI into `src/stepswitch/api/static/` before packaging and served by
 the same app; one route per SPEC §17 view.
 
-## 13. Network egress (`switchyard.net`)
+## 13. Network egress (`stepswitch.net`)
 
 - One factory returns httpx clients whose transport enforces policy and records audit rows (host,
   port, bytes, purpose, task ID). In offline mode only local addresses (127.0.0.0/8, ::1, Unix
@@ -266,8 +266,8 @@ the same app; one route per SPEC §17 view.
   hosted service and hot-swap configs with remote peers are rejected (SPEC §15).
 - The secret scanner and redactor run before any remote call; per-path deny lists apply.
 - Downloads (model weights, grammars, tokenizer files, BPE tables) happen only in explicit
-  commands that go through `switchyard.net`, including an install-time prefetch into caches
-  under `.switchyard/`. Lazy downloads by libraries are switched off; in offline mode they are
+  commands that go through `stepswitch.net`, including an install-time prefetch into caches
+  under `.stepswitch/`. Lazy downloads by libraries are switched off; in offline mode they are
   forbidden, and context services are tested with networking disabled.
 - Tests add an interpreter audit hook on socket connects and process spawns as an independent
   observer (C-006, C-007). It cannot see child processes' own connections, so Linux CI also runs
@@ -276,7 +276,7 @@ the same app; one route per SPEC §17 view.
 ## 14. Claims and prove
 
 `claims/claims.yaml` (registry) → claim tests in `tests/claims/` marked `claim("C-0xx")` → evidence
-JSON in `claims/evidence/` → `sy prove` runs the selected claims through pytest, records outcomes
+JSON in `claims/evidence/` → `ssw prove` runs the selected claims through pytest, records outcomes
 per test, writes `claims/prove-report.json|md` with the source digest, updates statuses, and
 `--render-readme` regenerates the README claims section. Contracts: ADR 0006.
 
@@ -284,13 +284,13 @@ per test, writes `claims/prove-report.json|md` with the source digest, updates s
 
 | File | Committed | Holds |
 |---|---|---|
-| `switchyard.toml` | yes | tracks, policies, acceptance commands, budgets, science tolerances, protected zones |
-| `.switchyard/local.toml` | no | endpoints, keys, hardware overrides, model directory |
+| `stepswitch.toml` | yes | tracks, policies, acceptance commands, budgets, science tolerances, protected zones |
+| `.stepswitch/local.toml` | no | endpoints, keys, hardware overrides, model directory |
 | `registry/*.toml` | yes (package data, user-overridable) | model and worker definitions |
 | `claims/claims.yaml` | yes | claims registry |
-| `.switchyard/state.db`, `.switchyard/blobs/` | no | per-project state |
+| `.stepswitch/state.db`, `.stepswitch/blobs/` | no | per-project state |
 
-Precedence: CLI flags > environment > `.switchyard/local.toml` > `switchyard.toml` > packaged
+Precedence: CLI flags > environment > `.stepswitch/local.toml` > `stepswitch.toml` > packaged
 defaults. Secrets are only ever read from `local.toml` or the environment.
 
 ## 16. Cross-platform notes
@@ -308,8 +308,8 @@ defaults. Secrets are only ever read from `local.toml` or the environment.
 
 ## 17. Invariants checked by tests
 
-- No module outside `switchyard.compat` imports a codec or names a wire format.
-- No network call bypasses `switchyard.net`; with offline mode on, only local connections happen.
+- No module outside `stepswitch.compat` imports a codec or names a wire format.
+- No network call bypasses `stepswitch.net`; with offline mode on, only local connections happen.
 - Every router decision and every switch has a stored reason and cost estimate.
 - Budgets never overrun by more than one step.
 - Every public claim has a claim test; README text inside markers matches the registry.

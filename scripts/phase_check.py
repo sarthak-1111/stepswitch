@@ -6,7 +6,7 @@ Usage:
     add --json for machine-readable output
 
 A phase is complete only when this script exits 0 for it, `uv run pytest -q` passes, and
-`uv run sy prove --quick --phase N` reports every claim assigned to the phase as passing. The
+`uv run ssw prove --quick --phase N` reports every claim assigned to the phase as passing. The
 last condition is checked here by reading claims/prove-report.json, which must carry the
 current `source_digest` (see `source_digest`), so a stale report never counts.
 
@@ -43,7 +43,7 @@ PHASE_TITLES = {
     3: "Bench, leaderboard, compatibility matrix",
     4: "Dashboard and task API",
 }
-SY = Path(sys.executable).with_name("sy.exe" if os.name == "nt" else "sy")
+SY = Path(sys.executable).with_name("ssw.exe" if os.name == "nt" else "ssw")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 CheckFn = Callable[[], tuple[bool, str]]
@@ -125,9 +125,9 @@ def run(cmd: list[str], timeout: int = 900) -> tuple[int, str, str]:
     return proc.returncode, proc.stdout or "", proc.stderr or ""
 
 
-def sy(*args: str, timeout: int = 600) -> tuple[int, str, str]:
+def ssw(*args: str, timeout: int = 600) -> tuple[int, str, str]:
     if not SY.exists():
-        return 127, "", "the `sy` entry point is not installed (Phase 1 adds it; then `uv sync`)"
+        return 127, "", "the `ssw` entry point is not installed (Phase 1 adds it; then `uv sync`)"
     return run([str(SY), *args], timeout=timeout)
 
 
@@ -156,8 +156,8 @@ def modules_check(names: Iterable[str]) -> tuple[bool, str]:
 
 
 def help_check(args: list[str], words: Iterable[str]) -> tuple[bool, str]:
-    code, out, err = sy(*args, "--help")
-    label = " ".join(["sy", *args, "--help"])
+    code, out, err = ssw(*args, "--help")
+    label = " ".join(["ssw", *args, "--help"])
     if code != 0:
         return False, f"`{label}` exited {code}: {last_line(err) or last_line(out)}"
     missing = [w for w in words if not re.search(rf"(?<![\w-]){re.escape(w)}(?![\w-])", out)]
@@ -175,13 +175,13 @@ def combine(*results: tuple[bool, str]) -> tuple[bool, str]:
 
 
 def json_out(*args: str) -> tuple[Any, str]:
-    code, out, err = sy(*args)
+    code, out, err = ssw(*args)
     if code != 0:
-        return None, f"`sy {' '.join(args)}` exited {code}: {last_line(err) or last_line(out)}"
+        return None, f"`ssw {' '.join(args)}` exited {code}: {last_line(err) or last_line(out)}"
     try:
         return json.loads(out), ""
     except json.JSONDecodeError as exc:
-        return None, f"`sy {' '.join(args)}` did not print JSON on stdout: {exc}"
+        return None, f"`ssw {' '.join(args)}` did not print JSON on stdout: {exc}"
 
 
 # --------------------------------------------------------------------------------------------
@@ -203,12 +203,12 @@ STATUS_LINE_RE = re.compile(rb"^[ \t]*status:[^\n]*(?:\n|$)", re.M)
 
 
 def source_digest(root: Path = ROOT) -> str:
-    """Digest of everything a prove run depends on; `sy prove` must record the same value.
+    """Digest of everything a prove run depends on; `ssw prove` must record the same value.
 
     sha256 over files under DIGEST_SOURCES sorted by POSIX relative path; each entry is
     `path NUL sha256(content)`. Text content is hashed with CRLF normalized to LF, so a checkout
     on any OS gives the same digest. `status:` lines in claims.yaml are dropped first, because
-    `sy prove` rewrites them after computing the digest.
+    `ssw prove` rewrites them after computing the digest.
     """
     files: list[Path] = []
     for entry in DIGEST_SOURCES:
@@ -252,7 +252,7 @@ def claims_check(phase: int) -> tuple[bool, str]:
     """Every test of the claim parts assigned to `phase` passed in a fresh prove report, and every
     claim whose last part lands in `phase` is `passing` in both the report and claims.yaml.
 
-    Report contract (claims/prove-report.json, written by `sy prove`):
+    Report contract (claims/prove-report.json, written by `ssw prove`):
       {"schema": 1, "mode": "quick"|"full", "source_digest": "<hex>",
        "claims": {"C-0xx": {"status": "passing"|"failing"|"pending",
                             "tests": {"<node id>": "passed"|"failed"|"skipped"|"error"}}}}
@@ -274,11 +274,11 @@ def claims_check(phase: int) -> tuple[bool, str]:
     if not report_path.is_file():
         return (
             False,
-            f"{label}: no claims/prove-report.json; run `uv run sy prove --quick --phase {phase}`",
+            f"{label}: no claims/prove-report.json; run `uv run ssw prove --quick --phase {phase}`",
         )
     report = json.loads(report_path.read_text(encoding="utf-8"))
     if report.get("source_digest") != source_digest():
-        return False, f"{label}: prove report is stale (source digest differs); re-run `sy prove`"
+        return False, f"{label}: prove report is stale (source digest differs); re-run `ssw prove`"
     results = report.get("claims", {})
     failed = [
         f"{cid} {node.rsplit('::', 1)[-1]}"
@@ -297,7 +297,7 @@ def claims_check(phase: int) -> tuple[bool, str]:
 
 
 for _phase in range(1, MAX_PHASE + 1):
-    check(_phase, f"claims assigned to phase {_phase} pass in a fresh `sy prove` report")(
+    check(_phase, f"claims assigned to phase {_phase} pass in a fresh `ssw prove` report")(
         lambda phase=_phase: claims_check(phase)
     )
 
@@ -594,16 +594,16 @@ REGISTRY_KEYS = {
 DOCTOR_KEYS = {"os", "cpu", "ram_gb", "gpus", "disk", "engines", "profile"}
 
 
-@check(1, "package `switchyard` and the `sy` entry point are installed")
+@check(1, "package `stepswitch` and the `ssw` entry point are installed")
 def _p1_package() -> tuple[bool, str]:
     problems = []
-    if not (ROOT / "src" / "switchyard" / "__init__.py").is_file():
-        problems.append("src/switchyard/__init__.py missing")
+    if not (ROOT / "src" / "stepswitch" / "__init__.py").is_file():
+        problems.append("src/stepswitch/__init__.py missing")
     pyproject = tomllib.loads(read("pyproject.toml") or "")
-    if "sy" not in pyproject.get("project", {}).get("scripts", {}):
-        problems.append("[project.scripts] has no `sy`")
+    if "ssw" not in pyproject.get("project", {}).get("scripts", {}):
+        problems.append("[project.scripts] has no `ssw`")
     if not SY.exists():
-        problems.append("`sy` not installed in this environment")
+        problems.append("`ssw` not installed in this environment")
     return not problems, "; ".join(problems) or "ok"
 
 
@@ -612,12 +612,12 @@ def _p1_cli() -> tuple[bool, str]:
     return help_check([], SPEC_COMMANDS)
 
 
-@check(1, "config: `sy init` and switchyard.config")
+@check(1, "config: `ssw init` and stepswitch.config")
 def _p1_config() -> tuple[bool, str]:
-    return combine(help_check(["init"], []), modules_check(["switchyard.config"]))
+    return combine(help_check(["init"], []), modules_check(["stepswitch.config"]))
 
 
-@check(1, "`sy doctor --json` reports OS, CPU, RAM, GPUs, disk, engines and a profile")
+@check(1, "`ssw doctor --json` reports OS, CPU, RAM, GPUs, disk, engines and a profile")
 def _p1_doctor() -> tuple[bool, str]:
     data, error = json_out("doctor", "--json")
     if error:
@@ -626,7 +626,7 @@ def _p1_doctor() -> tuple[bool, str]:
     return not missing, ("missing keys: " + ", ".join(sorted(missing))) if missing else "ok"
 
 
-@check(1, "registry has >= 3 T0 models, installed by `sy models pull --tier cpu`")
+@check(1, "registry has >= 3 T0 models, installed by `ssw models pull --tier cpu`")
 def _p1_registry() -> tuple[bool, str]:
     if not list((ROOT / "registry").glob("*.toml")):
         return False, "registry/*.toml missing"
@@ -635,7 +635,7 @@ def _p1_registry() -> tuple[bool, str]:
         return False, error
     entries = data.get("models", []) if isinstance(data, dict) else data
     if not isinstance(entries, list):
-        return False, "`sy models list --json` must print a list (or {'models': [...]})"
+        return False, "`ssw models list --json` must print a list (or {'models': [...]})"
     incomplete = [str(e.get("hub_id", "?")) for e in entries if REGISTRY_KEYS - set(e)]
     installed = [e for e in entries if e.get("installed") is True]
     problems = []
@@ -645,14 +645,14 @@ def _p1_registry() -> tuple[bool, str]:
         problems.append(f"entries missing keys {sorted(REGISTRY_KEYS)}: {', '.join(incomplete)}")
     if len(installed) < 3:
         problems.append(
-            f"only {len(installed)} T0 models installed (run `sy models pull --tier cpu`)"
+            f"only {len(installed)} T0 models installed (run `ssw models pull --tier cpu`)"
         )
     return not problems, "; ".join(problems) or f"{len(installed)} T0 models installed"
 
 
 @check(1, "codecs for every SPEC §4.1 format")
 def _p1_codecs() -> tuple[bool, str]:
-    return modules_check(f"switchyard.compat.codecs.{key}" for key in FORMAT_KEYS)
+    return modules_check(f"stepswitch.compat.codecs.{key}" for key in FORMAT_KEYS)
 
 
 @check(1, "mock-server conformance tests cover every format and pass")
@@ -668,31 +668,31 @@ def _p1_conformance() -> tuple[bool, str]:
 @check(1, "llama.cpp and Ollama engine adapters and the server manager")
 def _p1_engines() -> tuple[bool, str]:
     return modules_check(
-        ["switchyard.serve.manager", "switchyard.serve.llamacpp", "switchyard.serve.ollama"]
+        ["stepswitch.serve.manager", "stepswitch.serve.llamacpp", "stepswitch.serve.ollama"]
     )
 
 
-@check(1, "`sy models add|pull`, `sy probe` and `sy calibrate`")
+@check(1, "`ssw models add|pull`, `ssw probe` and `ssw calibrate`")
 def _p1_model_commands() -> tuple[bool, str]:
     return combine(
         help_check(["models", "add"], []),
         help_check(["models", "pull"], ["--tier", "--max-gb"]),
         help_check(["probe"], ["--export"]),
         help_check(["calibrate"], []),
-        modules_check(["switchyard.compat.probe", "switchyard.compat.onboarding"]),
+        modules_check(["stepswitch.compat.probe", "stepswitch.compat.onboarding"]),
     )
 
 
-@check(1, "claims framework: `sy prove` options and the README renderer")
+@check(1, "claims framework: `ssw prove` options and the README renderer")
 def _p1_prove() -> tuple[bool, str]:
     result = help_check(["prove"], ["--quick", "--full", "--phase", "--claim", "--render-readme"])
     try:
-        module = importlib.import_module("switchyard.prove.render_readme")
+        module = importlib.import_module("stepswitch.prove.render_readme")
         renderer_ok = callable(getattr(module, "render_claims_section", None))
     except ImportError:
         renderer_ok = False
     return combine(
-        result, (renderer_ok, "switchyard.prove.render_readme.render_claims_section missing")
+        result, (renderer_ok, "stepswitch.prove.render_readme.render_claims_section missing")
     )
 
 
@@ -722,7 +722,7 @@ def _p1_integrity_no_skips() -> tuple[bool, str]:
 AGENT_TOOLS = {"read", "grep", "repo_map", "lsp", "edit", "run", "test", "search"}
 
 
-@check(2, "`sy run` options and `sy agent`")
+@check(2, "`ssw run` options and `ssw agent`")
 def _p2_cli() -> tuple[bool, str]:
     return combine(
         help_check(["run"], ["--track", "--best-of", "--offline", "--budget-tokens"]),
@@ -733,9 +733,9 @@ def _p2_cli() -> tuple[bool, str]:
 @check(2, "built-in agent exposes the SPEC §12 tools (TOOL_NAMES)")
 def _p2_agent_tools() -> tuple[bool, str]:
     try:
-        module = importlib.import_module("switchyard.workers.builtin_agent")
+        module = importlib.import_module("stepswitch.workers.builtin_agent")
     except ImportError as exc:
-        return False, f"switchyard.workers.builtin_agent: {exc}"
+        return False, f"stepswitch.workers.builtin_agent: {exc}"
     missing = AGENT_TOOLS - set(getattr(module, "TOOL_NAMES", ()))
     return not missing, ("missing tools: " + ", ".join(sorted(missing))) if missing else "ok"
 
@@ -746,9 +746,9 @@ def _p2_router() -> tuple[bool, str]:
     return combine(
         modules_check(
             [
-                "switchyard.compat.toolcall.fallback",
-                "switchyard.router.rules",
-                "switchyard.router.classifier",
+                "stepswitch.compat.toolcall.fallback",
+                "stepswitch.router.rules",
+                "stepswitch.router.classifier",
             ]
         ),
         (not missing_tests, "no tests matching: " + ", ".join(missing_tests)),
@@ -759,11 +759,11 @@ def _p2_router() -> tuple[bool, str]:
 def _p2_tracks() -> tuple[bool, str]:
     return modules_check(
         [
-            "switchyard.core.track",
-            "switchyard.core.budget",
-            "switchyard.verify.gates",
-            "switchyard.verify.science",
-            "switchyard.ledger",
+            "stepswitch.core.track",
+            "stepswitch.core.budget",
+            "stepswitch.verify.gates",
+            "stepswitch.verify.science",
+            "stepswitch.ledger",
         ]
     )
 
@@ -799,18 +799,18 @@ def _p3_suites() -> tuple[bool, str]:
     return not problems, "; ".join(problems) or f"{len(general)} general, {len(science)} science"
 
 
-@check(3, "matrix runner, bootstrap CIs, fake workers and `sy bench`")
+@check(3, "matrix runner, bootstrap CIs, fake workers and `ssw bench`")
 def _p3_bench_machinery() -> tuple[bool, str]:
     try:
-        metrics = importlib.import_module("switchyard.bench.metrics")
+        metrics = importlib.import_module("stepswitch.bench.metrics")
         ci_ok = callable(getattr(metrics, "bootstrap_ci", None))
     except ImportError:
         ci_ok = False
     return combine(
         modules_check(
-            ["switchyard.bench.runner", "switchyard.bench.report", "switchyard.workers.fake"]
+            ["stepswitch.bench.runner", "stepswitch.bench.report", "stepswitch.workers.fake"]
         ),
-        (ci_ok, "switchyard.bench.metrics.bootstrap_ci missing"),
+        (ci_ok, "stepswitch.bench.metrics.bootstrap_ci missing"),
         help_check(["bench", "run"], ["--suite", "--workers", "--seeds"]),
         help_check(["bench", "report"], []),
     )
@@ -827,9 +827,9 @@ def _p3_results() -> tuple[bool, str]:
 @check(3, "docs/COMPATIBILITY.md is generated from probe results")
 def _p3_compatibility() -> tuple[bool, str]:
     text = read("docs/COMPATIBILITY.md")
-    if "generated by `sy probe --render-matrix`" not in text:
+    if "generated by `ssw probe --render-matrix`" not in text:
         return False, "docs/COMPATIBILITY.md missing or lacks the generated-file marker"
-    code, out, err = sy("probe", "--render-matrix", "--check")
+    code, out, err = ssw("probe", "--render-matrix", "--check")
     return code == 0, "matrix matches probe results" if code == 0 else (
         last_line(err) or last_line(out)
     )
@@ -838,7 +838,7 @@ def _p3_compatibility() -> tuple[bool, str]:
 @check(3, "remaining engine adapters: vLLM, SGLang, MLX, transformers")
 def _p3_engines() -> tuple[bool, str]:
     return modules_check(
-        f"switchyard.serve.{name}" for name in ("vllm", "sglang", "mlx", "transformers")
+        f"stepswitch.serve.{name}" for name in ("vllm", "sglang", "mlx", "transformers")
     )
 
 
@@ -872,10 +872,10 @@ DASHBOARD_VIEWS = [
 ]
 
 
-@check(4, "task API routes from SPEC §17 (switchyard.api.app.create_app)")
+@check(4, "task API routes from SPEC §17 (stepswitch.api.app.create_app)")
 def _p4_api() -> tuple[bool, str]:
     try:
-        app = importlib.import_module("switchyard.api.app").create_app()
+        app = importlib.import_module("stepswitch.api.app").create_app()
     except Exception as exc:  # noqa: BLE001 - report any import or factory failure
         return False, f"create_app(): {exc}"
     present = {
@@ -909,9 +909,9 @@ def _p4_playwright() -> tuple[bool, str]:
     return bool(found), "ok" if found else "no Playwright smoke test found"
 
 
-@check(4, "README claims section matches `sy prove --render-readme`")
+@check(4, "README claims section matches `ssw prove --render-readme`")
 def _p4_readme() -> tuple[bool, str]:
-    code, out, err = sy("prove", "--render-readme", "--check")
+    code, out, err = ssw("prove", "--render-readme", "--check")
     return code == 0, "README is current" if code == 0 else (last_line(err) or last_line(out))
 
 

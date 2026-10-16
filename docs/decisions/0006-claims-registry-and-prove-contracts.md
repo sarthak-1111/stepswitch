@@ -6,15 +6,15 @@
 
 ## Context
 
-SPEC §18 requires every public statement about Switchyard to be a registered claim with an
+SPEC §18 requires every public statement about Stepswitch to be a registered claim with an
 automated test, integrity meta-tests that run from day one, a README that shows only passing
 claims, and README numbers that come from evidence files. Several details are left open:
 
 - which documents are "public" and therefore linted;
 - the marker syntax for claim text and templated numbers;
 - how a claim whose parts land in different phases (C-005 is "P2–P3") is represented;
-- how `scripts/phase_check.py` can tell that a `sy prove` report reflects the current code;
-- how `sy prove --quick` (CPU-only, under 10 minutes) can cover bench-based claims that the
+- how `scripts/phase_check.py` can tell that a `ssw prove` report reflects the current code;
+- how `ssw prove --quick` (CPU-only, under 10 minutes) can cover bench-based claims that the
   phase goals require (C-011 in Phase 5, C-012 in Phase 6).
 
 ## Decision
@@ -33,16 +33,16 @@ claims, and README numbers that come from evidence files. Several details are le
    - Templated number: `<!-- num:C-0xx:dotted.key -->value<!-- /num -->`, where the value is
      read from `claims/evidence/C-0xx.json` and must match it at the displayed precision.
    - Generated README section: between `<!-- claims:start -->` and `<!-- claims:end -->`,
-     written only by `sy prove --render-readme`.
+     written only by `ssw prove --render-readme`.
 4. **Lint rules.** The banned unmarked patterns live in `claims.yaml` (`lint.banned_unmarked`):
    the SPEC list, extended with "faster", "better", "cheaper", "cheapest", "outperform",
    "always", "guarantee" and "state of the art", and with "any/all/every … model(s)" allowing
    up to two words in between (so "any open model" is caught). Code spans, fenced code, URLs
    and link targets are not prose. In the README, digits outside markers fail, except claim IDs,
    section references (§) and version tokens such as v0.1.
-5. **Status.** `status` is written by `sy prove`, never by hand. A claim whose parts are not all
+5. **Status.** `status` is written by `ssw prove`, never by hand. A claim whose parts are not all
    due stays `pending` while the due parts' tests pass.
-6. **Prove report contract.** `sy prove` writes `claims/prove-report.json`:
+6. **Prove report contract.** `ssw prove` writes `claims/prove-report.json`:
    `{"schema": 1, "mode": "quick"|"full", "source_digest": "<hex>", "claims": {"C-0xx":
    {"status": ..., "tests": {"<node id>": "passed"|"failed"|"skipped"|"error"}}}}`.
    `source_digest` is the algorithm in `scripts/phase_check.py`: sha256 over the files under
@@ -64,7 +64,7 @@ claims, and README numbers that come from evidence files. Several details are le
 
 - The SPEC §0 pitch cannot appear verbatim in the README ("best", "any open model") until the
   statements in it are registered claims or the pitch is reworded. Tracked in PROGRESS.md.
-- Contributors must re-run `sy prove` after changing sources before a phase check passes.
+- Contributors must re-run `ssw prove` after changing sources before a phase check passes.
 - Quick-mode coverage of bench claims depends on committed evidence produced by a full run;
   the README links each number to that evidence and its command.
 - The meta-tests carry self-tests on synthetic text, so they stay meaningful while the public

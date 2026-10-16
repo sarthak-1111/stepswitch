@@ -254,9 +254,9 @@ def lint_readme_numbers(
 
 
 def _readme_renderer() -> Callable[[Registry], str] | None:
-    """The generator behind `sy prove --render-readme`, once it exists (Phase 1)."""
+    """The generator behind `ssw prove --render-readme`, once it exists (Phase 1)."""
     try:
-        module = importlib.import_module("switchyard.prove.render_readme")
+        module = importlib.import_module("stepswitch.prove.render_readme")
     except ImportError:
         return None
     renderer = getattr(module, "render_claims_section", None)
@@ -407,10 +407,10 @@ def test_readme_claims_section_is_generated_from_passing_claims(registry: Regist
     assert all(claims[cid]["status"] == "passing" for cid in listed)
     renderer = _readme_renderer()
     if renderer is None:
-        # Before `sy prove --render-readme` exists nothing can be generated, so nothing is listed.
+        # Before `ssw prove --render-readme` exists nothing can be generated, so nothing is listed.
         assert not listed, "claims listed in README before the renderer exists"
     else:
-        assert section.group(0) == renderer(registry), "run `sy prove --render-readme`"
+        assert section.group(0) == renderer(registry), "run `ssw prove --render-readme`"
 
 
 # --------------------------------------------------------------------------------------------
@@ -420,7 +420,7 @@ def test_readme_claims_section_is_generated_from_passing_claims(registry: Regist
 
 def test_lint_flags_unmarked_superlatives(registry: Registry) -> None:
     for text in (
-        "Switchyard is the fastest router.",
+        "Stepswitch is the fastest router.",
         "Works with any open model.",
         "It never sends data anywhere.",
         "Zero setup required.",
@@ -442,7 +442,7 @@ def test_lint_rejects_altered_or_unknown_claims(registry: Registry) -> None:
 
 def test_lint_ignores_code_and_urls(registry: Registry) -> None:
     text = (
-        "Run `sy bench --best` or see [results](https://example.org/best-zero).\n```\nnever\n```\n"
+        "Run `ssw bench --best` or see [results](https://example.org/best-zero).\n```\nnever\n```\n"
     )
     assert lint_public_text(text, registry) == []
 

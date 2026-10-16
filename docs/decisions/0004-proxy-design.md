@@ -1,4 +1,4 @@
-# ADR 0004: Proxy design (`sy proxy`)
+# ADR 0004: Proxy design (`ssw proxy`)
 
 - Status: accepted
 - Date: 2026-10-16
@@ -26,7 +26,7 @@ research (docs/RESEARCH.md: "Harnesses", "API formats", "Positioning check") fou
 
 ## Decision
 
-1. **Process and binding.** The proxy is a FastAPI router that runs alone (`sy proxy`) or
+1. **Process and binding.** The proxy is a FastAPI router that runs alone (`ssw proxy`) or
    mounted beside the Task API. It binds to 127.0.0.1 only. Default port **7778** (7777 is the
    dashboard; 4000 is avoided because Oh My Pi uses it). It requires a local token, generated
    on first start and stored under the gitignored state directory, and accepts that token
@@ -39,10 +39,10 @@ research (docs/RESEARCH.md: "Harnesses", "API formats", "Positioning check") fou
 3. **Pipeline per request**: decode to IR → session lookup → router (ADR 0005) → encode for
    the chosen upstream → stream back, translated into the caller's format. Errors are mapped
    into the caller's error shape. Retries happen only before the first byte reaches the caller.
-4. **Model names are slot hints.** `sy:auto`, `sy:plan`, `sy:edit`, `sy:fast`, `sy:review`,
+4. **Model names are slot hints.** `ssw:auto`, `ssw:plan`, `ssw:edit`, `ssw:fast`, `ssw:review`,
    registry model names (pass-through), and per-harness aliases from config. A harness's
    request-class header, when present, refines the step type.
-5. **Sessions and step boundaries.** A session key comes from `x-switchyard-session` or a hash
+5. **Sessions and step boundaries.** A session key comes from `x-stepswitch-session` or a hash
    of the system prompt and first user turn. Per-session state holds the current worker, the
    step counter, whether a tool loop is open, the prefix registry used for cache-aware
    switching, and a bounded response store for stateful responses requests. **The proxy
@@ -52,7 +52,7 @@ research (docs/RESEARCH.md: "Harnesses", "API formats", "Positioning check") fou
 7. **Accounting.** Every proxied request becomes a step record with decision, switch event,
    server-reported usage and timing, so external harness runs appear in the ledger, the
    trajectory viewer and the dashboard exactly like built-in agent runs.
-8. **Egress.** Upstream calls go through `switchyard.net`; offline mode refuses remote upstreams
+8. **Egress.** Upstream calls go through `stepswitch.net`; offline mode refuses remote upstreams
    and the audit log records every connection.
 9. **Harness specifics live in adapters, not in the proxy.** For example, the messages-format
    harness adapter sets the base URL, slot model names, the context-size variable from the

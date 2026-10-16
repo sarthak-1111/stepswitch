@@ -1,8 +1,8 @@
-# Switchyard claims registry (SPEC §18).
+# Stepswitch claims registry (SPEC §18).
 #
-# Every public statement about Switchyard lives here with its exact wording, scope, tests,
+# Every public statement about Stepswitch lives here with its exact wording, scope, tests,
 # thresholds and evidence. The README claims section is generated from this file by
-# `sy prove --render-readme` and shows only claims whose latest status is `passing`.
+# `ssw prove --render-readme` and shows only claims whose latest status is `passing`.
 # Integrity meta-tests (tests/claims/test_integrity.py) enforce the rules below on every run.
 #
 # Field reference (SPEC §18.1):
@@ -16,7 +16,7 @@
 #   parts       instead of `tests` when parts of a claim land in different phases
 #   thresholds  numbers the claim tests assert against
 #   evidence    JSON artifacts written by the claim tests (SPEC §18.2)
-#   status      pending | passing | failing (set by `sy prove`, never by hand)
+#   status      pending | passing | failing (set by `ssw prove`, never by hand)
 
 version: 1
 
@@ -54,11 +54,11 @@ claims:
   - id: C-001
     text: "Runs end to end on a CPU-only machine with 8 GB RAM."
     scope: >-
-      A bundled toy task completed by `sy run` with tiny-tier models, inside a Linux x86-64
+      A bundled toy task completed by `ssw run` with tiny-tier models, inside a Linux x86-64
       container started with --memory=8g --memory-swap=8g and no GPU devices; evidence records
       the cgroup memory limits, peak memory and the absence of GPU device nodes (ADR 0011).
     proof: >-
-      `sy run` completes a toy task in a container capped at 8 GB RAM with no GPU visible.
+      `ssw run` completes a toy task in a container capped at 8 GB RAM with no GPU visible.
     kind: e2e
     phase: 2
     tests:
@@ -298,10 +298,10 @@ claims:
   - id: C-016
     text: "Runs on macOS, Linux and Windows."
     scope: >-
-      `sy prove --quick` on pinned hosted CI runner labels for Linux x86-64, macOS arm64 and
+      `ssw prove --quick` on pinned hosted CI runner labels for Linux x86-64, macOS arm64 and
       Windows x86-64; the prove report records each runner label and image version (ADR 0011).
     proof: >-
-      `sy prove --quick` passes in CI on all three.
+      `ssw prove --quick` passes in CI on all three.
     kind: platform
     phase: 1
     tests:
