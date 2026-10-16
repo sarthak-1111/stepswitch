@@ -68,6 +68,11 @@ class ModelEntry(BaseModel):
     license: str
     commercial_use: CommercialUse = "permitted"
     template_source: str | None = None
+    # sha256 of the chat template, so the tool-call parser is chosen per template version.
+    template_sha256: str | None = None
+    # How the entry was made: packaged, or by `ssw models add` from a hub repo, a local file
+    # (hub_id `local/<id>` with an absolute `file`) or an endpoint.
+    source: str | None = None
     verified: date | str | None = None
     engines: dict[str, EngineRecipe] = Field(default_factory=dict)
     notes: str | None = None

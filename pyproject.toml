@@ -47,7 +47,7 @@ pythonpath = ["."]
 addopts = ["-ra", "--strict-markers", "--import-mode=importlib"]
 markers = [
   "claim(id): links a claim test to an entry in claims/claims.yaml (SPEC §18.2)",
-  "live: needs a running local model server; skipped when none is reachable",
+  "live: needs a running model server or the model hub (STEPSWITCH_LIVE_HUB=1); skipped otherwise",
 ]
 
 [tool.ruff]
