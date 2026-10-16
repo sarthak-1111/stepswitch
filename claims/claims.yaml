@@ -148,7 +148,7 @@ claims:
     evidence: [claims/evidence/C-005.json]
     readme_numbers:
       - {key: sections.matrix.families_passing_count, label: model families passing the probe suite}
-    status: pending
+    status: passing
 
   - id: C-006
     text: "In offline mode, makes no network connections except to local endpoints."
@@ -344,7 +344,7 @@ claims:
       - tests/claims/test_c018_readme_numbers.py::test_every_readme_number_has_evidence_and_command
     thresholds: {unsourced_numbers: 0}
     evidence: [claims/evidence/C-018.json]
-    status: pending
+    status: passing
 
   - id: C-019
     text: "Token accounting matches what model servers report."
@@ -363,7 +363,7 @@ claims:
         label: largest difference from the server counters
         unit: "%"
         digits: 2
-    status: pending
+    status: passing
 
   - id: C-020
     text: "Stops at the budget you set."

@@ -1,0 +1,90 @@
+{
+  "claim": "C-019",
+  "text": "Token accounting matches what model servers report.",
+  "scope": "Ledger totals compared with server-reported usage for the same runs.",
+  "thresholds": {
+    "max_relative_error": 0.01
+  },
+  "command": "uv run ssw prove --claim C-019",
+  "mode": "quick",
+  "source_digest": "0d3d27fe9fdf9f6de8882186d6648a773601d4c5f24b452926666119baa20059",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-16T13:25:59+00:00",
+  "sections": {
+    "accounting": {
+      "recorded": "2026-10-16T13:25:59+00:00",
+      "engine": "llama.cpp server",
+      "runs": [
+        {
+          "worker": "managed/qwen3-4b-instruct-2507",
+          "status": "done",
+          "steps": 15
+        },
+        {
+          "worker": "managed/phi-3.5-mini-instruct",
+          "status": "done",
+          "steps": 12
+        }
+      ],
+      "comparisons": [
+        {
+          "model": "phi-3.5-mini-instruct",
+          "calls": 12,
+          "usage_sources": [
+            "server"
+          ],
+          "ledger": {
+            "input": 20909,
+            "cached_input": 17711,
+            "output": 2097
+          },
+          "server": {
+            "input": 20909.0,
+            "cached_input": 17711.0,
+            "output": 2097.0
+          },
+          "relative_error": {
+            "input": 0.0,
+            "cached_input": 0.0,
+            "output": 0.0
+          }
+        },
+        {
+          "model": "qwen3-4b-instruct-2507",
+          "calls": 16,
+          "usage_sources": [
+            "server"
+          ],
+          "ledger": {
+            "input": 30805,
+            "cached_input": 27220,
+            "output": 1296
+          },
+          "server": {
+            "input": 30805.0,
+            "cached_input": 27220.0,
+            "output": 1296.0
+          },
+          "relative_error": {
+            "input": 0.0,
+            "cached_input": 0.0,
+            "output": 0.0
+          }
+        }
+      ],
+      "max_relative_error": 0.0,
+      "max_relative_error_percent": 0.0,
+      "threshold": 0.01
+    }
+  }
+}

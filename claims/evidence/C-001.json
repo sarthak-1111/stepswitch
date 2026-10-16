@@ -10,7 +10,7 @@
   },
   "command": "uv run ssw prove --claim C-001",
   "mode": "quick",
-  "source_digest": "e575cfa2487243a4db0466d56b25219db8211f4e70fe3e5109909a8bf09b8804",
+  "source_digest": "0d3d27fe9fdf9f6de8882186d6648a773601d4c5f24b452926666119baa20059",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -22,10 +22,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-16T07:49:49+00:00",
+  "updated": "2026-10-16T13:18:03+00:00",
   "sections": {
     "container": {
-      "recorded": "2026-10-16T07:49:49+00:00",
+      "recorded": "2026-10-16T13:18:03+00:00",
       "image": "python:3.12-slim",
       "image_digests": [
         "python@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1"
@@ -48,19 +48,19 @@
         "cgroup": {
           "memory.max": "8589934592",
           "memory.swap.max": "0",
-          "memory.peak": "6902325248"
+          "memory.peak": "6907473920"
         }
       },
       "memory_limit_gb": 8.0,
       "memory_swap_limit_gb": 8.0,
-      "peak_memory_gb": 6.428,
+      "peak_memory_gb": 6.433,
       "gpu_devices_visible": 0,
       "final_status": "done",
       "stop_reason": null,
       "steps": 15,
       "budget": {
         "tokens": 29840.0,
-        "wall_seconds": 113.47,
+        "wall_seconds": 113.755,
         "gpu_seconds": 0.0,
         "escalations": 0.0
       },

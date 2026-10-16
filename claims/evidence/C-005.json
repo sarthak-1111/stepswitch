@@ -6,9 +6,9 @@
     "min_families": 4,
     "fallback_final_status": "done"
   },
-  "command": "uv run ssw prove --claim C-005",
+  "command": "uv run ssw prove --full --claim C-005",
   "mode": "quick",
-  "source_digest": "e575cfa2487243a4db0466d56b25219db8211f4e70fe3e5109909a8bf09b8804",
+  "source_digest": "0d3d27fe9fdf9f6de8882186d6648a773601d4c5f24b452926666119baa20059",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -20,10 +20,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-16T07:52:47+00:00",
+  "updated": "2026-10-16T13:21:02+00:00",
   "sections": {
     "fallback": {
-      "recorded": "2026-10-16T07:52:47+00:00",
+      "recorded": "2026-10-16T13:21:01+00:00",
       "model": "phi-3.5-mini-instruct",
       "registry_tool_calls": "none",
       "worker": {
@@ -42,6 +42,7 @@
           "commit_message"
         ],
         "tool_protocol": "fallback",
+        "tool_parser": null,
         "context": 8192,
         "gpu": false,
         "pin_only": false
@@ -166,6 +167,82 @@
       "model_turns": 12,
       "changed_files": [
         "calc.py"
+      ]
+    },
+    "matrix": {
+      "recorded": "2026-10-16T13:21:02+00:00",
+      "ci_set": [
+        "qwen3-4b-instruct-2507",
+        "phi-3.5-mini-instruct",
+        "smollm2-1.7b-instruct",
+        "granite-3.3-2b-instruct"
+      ],
+      "engine": "llamacpp",
+      "models": [
+        {
+          "model": "qwen3-4b-instruct-2507",
+          "family": "qwen3",
+          "result": "qwen3-4b-instruct-2507--llamacpp.json",
+          "date": "2026-10-16",
+          "engine": "llamacpp",
+          "engine_version": "b11669-620d2225c",
+          "full_probe": true,
+          "hash_matches": true,
+          "passes": true,
+          "tool_path": "native",
+          "failed_checks": []
+        },
+        {
+          "model": "phi-3.5-mini-instruct",
+          "family": "phi3.5",
+          "result": "phi-3.5-mini-instruct--llamacpp.json",
+          "date": "2026-10-16",
+          "engine": "llamacpp",
+          "engine_version": "b11669-620d2225c",
+          "full_probe": true,
+          "hash_matches": true,
+          "passes": true,
+          "tool_path": "fallback",
+          "failed_checks": []
+        },
+        {
+          "model": "smollm2-1.7b-instruct",
+          "family": "smollm2",
+          "result": "smollm2-1.7b-instruct--llamacpp.json",
+          "date": "2026-10-16",
+          "engine": "llamacpp",
+          "engine_version": "b11669-620d2225c",
+          "full_probe": true,
+          "hash_matches": true,
+          "passes": true,
+          "tool_path": "fallback",
+          "failed_checks": []
+        },
+        {
+          "model": "granite-3.3-2b-instruct",
+          "family": "granite3.3",
+          "result": "granite-3.3-2b-instruct--llamacpp.json",
+          "date": "2026-10-16",
+          "engine": "llamacpp",
+          "engine_version": "b11669-620d2225c",
+          "full_probe": true,
+          "hash_matches": true,
+          "passes": true,
+          "tool_path": "native",
+          "failed_checks": []
+        }
+      ],
+      "families_passing": [
+        "granite3.3",
+        "phi3.5",
+        "qwen3",
+        "smollm2"
+      ],
+      "families_passing_count": 4,
+      "min_families": 4,
+      "fallback_models": [
+        "phi-3.5-mini-instruct",
+        "smollm2-1.7b-instruct"
       ]
     }
   }

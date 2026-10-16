@@ -1,0 +1,60 @@
+{
+  "claim": "C-018",
+  "text": "Every number in this README is reproducible.",
+  "scope": "Numbers in the README, each rendered from an evidence file that records its command.",
+  "thresholds": {
+    "unsourced_numbers": 0
+  },
+  "command": "uv run ssw prove --claim C-018",
+  "mode": "quick",
+  "source_digest": "0d3d27fe9fdf9f6de8882186d6648a773601d4c5f24b452926666119baa20059",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-16T13:21:34+00:00",
+  "sections": {
+    "readme": {
+      "recorded": "2026-10-16T13:21:34+00:00",
+      "numbers": [
+        {
+          "marker": "C-001:sections.container.peak_memory_gb",
+          "shown": "6.43",
+          "evidence": "claims/evidence/C-001.json",
+          "command": "uv run ssw prove --claim C-001",
+          "source_digest": "0d3d27fe9fdf9f6de8882186d6648a773601d4c5f24b452926666119baa20059",
+          "updated": "2026-10-16T13:18:03+00:00"
+        },
+        {
+          "marker": "C-001:sections.container.steps",
+          "shown": "15",
+          "evidence": "claims/evidence/C-001.json",
+          "command": "uv run ssw prove --claim C-001",
+          "source_digest": "0d3d27fe9fdf9f6de8882186d6648a773601d4c5f24b452926666119baa20059",
+          "updated": "2026-10-16T13:18:03+00:00"
+        },
+        {
+          "marker": "C-001:sections.container.budget.wall_seconds",
+          "shown": "114",
+          "evidence": "claims/evidence/C-001.json",
+          "command": "uv run ssw prove --claim C-001",
+          "source_digest": "0d3d27fe9fdf9f6de8882186d6648a773601d4c5f24b452926666119baa20059",
+          "updated": "2026-10-16T13:18:03+00:00"
+        }
+      ],
+      "unsourced_numbers": 0,
+      "problems": [],
+      "self_checks": {
+        "hand_typed_number_flagged": true,
+        "altered_marker_flagged": true
+      }
+    }
+  }
+}

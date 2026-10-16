@@ -7,7 +7,7 @@
   },
   "command": "uv run ssw prove --claim C-020",
   "mode": "quick",
-  "source_digest": "e575cfa2487243a4db0466d56b25219db8211f4e70fe3e5109909a8bf09b8804",
+  "source_digest": "0d3d27fe9fdf9f6de8882186d6648a773601d4c5f24b452926666119baa20059",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -19,10 +19,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-16T07:53:27+00:00",
+  "updated": "2026-10-16T13:26:17+00:00",
   "sections": {
     "budgets": {
-      "recorded": "2026-10-16T07:53:27+00:00",
+      "recorded": "2026-10-16T13:26:17+00:00",
       "runs": [
         {
           "budget": "tokens",
