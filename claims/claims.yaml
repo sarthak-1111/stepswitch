@@ -1,0 +1,369 @@
+# Switchyard claims registry (SPEC §18).
+#
+# Every public statement about Switchyard lives here with its exact wording, scope, tests,
+# thresholds and evidence. The README claims section is generated from this file by
+# `sy prove --render-readme` and shows only claims whose latest status is `passing`.
+# Integrity meta-tests (tests/claims/test_integrity.py) enforce the rules below on every run.
+#
+# Field reference (SPEC §18.1):
+#   id          C-0xx, never reused
+#   text        exact public wording; changing it needs an ADR (set `narrowed_by`)
+#   scope       the conditions under which the text is true; part of the claim
+#   proof       how it is proven, verbatim from SPEC §18.5
+#   kind        unit | integration | e2e | bench | probe | platform
+#   phase       first phase in which the claim must pass (SPEC §23)
+#   tests       pytest node IDs, each marked @pytest.mark.claim("<id>")
+#   parts       instead of `tests` when parts of a claim land in different phases
+#   thresholds  numbers the claim tests assert against
+#   evidence    JSON artifacts written by the claim tests (SPEC §18.2)
+#   status      pending | passing | failing (set by `sy prove`, never by hand)
+
+version: 1
+
+lint:
+  # Public text. Internal engineering docs (SPEC, RESEARCH, PROGRESS, ARCHITECTURE, ADRs) are
+  # design material, not public claims, and are not linted. See docs/decisions (claims ADR).
+  public_docs:
+    - README.md
+    - docs/site/**/*.md
+  # Unmarked superlatives and comparatives fail the lint (SPEC §18.3 item 2). Case-insensitive
+  # regular expressions, matched outside claim markers, code and URLs.
+  banned_unmarked:
+    - '\bfastest\b'
+    - '\bfaster\b'
+    - '\bbest\b'
+    - '\bbetter\b'
+    - '\bbeats?\b'
+    - '\boutperform(s|ed|ing)?\b'
+    - '\bcheapest\b'
+    - '\bcheaper\b'
+    - '\b(any|all|every)\s+(\S+\s+){0,2}models?\b'
+    - '\bzero\b'
+    - '\bnever\b'
+    - '\balways\b'
+    - '\bguarantee(s|d)?\b'
+    - '\bstate[- ]of[- ]the[- ]art\b'
+  # Digits allowed in README prose outside claim and number markers (everything else must be
+  # rendered from an evidence file, SPEC §18.3 item 3).
+  readme_number_allowlist:
+    - '\bC-\d{3}\b'
+    - '§\d+(\.\d+)*'
+    - '\bv\d+(\.\d+)+\b'
+
+claims:
+  - id: C-001
+    text: "Runs end to end on a CPU-only machine with 8 GB RAM."
+    scope: >-
+      A bundled toy task completed by `sy run` with tiny-tier models, inside a Linux x86-64
+      container started with --memory=8g --memory-swap=8g and no GPU devices; evidence records
+      the cgroup memory limits, peak memory and the absence of GPU device nodes (ADR 0011).
+    proof: >-
+      `sy run` completes a toy task in a container capped at 8 GB RAM with no GPU visible.
+    kind: e2e
+    phase: 2
+    tests:
+      - tests/claims/test_c001_cpu_only_8gb.py::test_toy_task_runs_in_cpu_only_8gb_container
+    thresholds: {memory_limit_gb: 8, memory_swap_limit_gb: 8, gpu_devices_visible: 0, final_status: done}
+    evidence: [claims/evidence/C-001.json]
+    status: pending
+
+  - id: C-002
+    text: "Switches models between steps inside a single task."
+    scope: >-
+      One task's recorded trajectory, with typed steps, served by at least two distinct
+      endpoints; every switch event carries a logged reason and cost estimate.
+    proof: >-
+      One task's trajectory contains ≥ 2 distinct endpoints across typed steps; every switch
+      has a logged reason and cost estimate.
+    kind: integration
+    phase: 2
+    tests:
+      - tests/claims/test_c002_step_switching.py::test_single_task_switches_endpoints_with_logged_reasons
+    thresholds: {min_distinct_endpoints: 2, switches_with_reason_and_cost: 1.0}
+    evidence: [claims/evidence/C-002.json]
+    status: pending
+
+  - id: C-003
+    text: "Only switches models when the expected gain outweighs the cost of re-reading context."
+    scope: >-
+      The router's switch decision under the cache-aware cost model of SPEC §7.2, over
+      randomized scenarios.
+    proof: >-
+      Property test over randomized scenarios: switch iff gain − cost > margin; no switch
+      otherwise.
+    kind: unit
+    phase: 5
+    tests:
+      - tests/claims/test_c003_switch_cost.py::test_switch_iff_gain_exceeds_cost_plus_margin
+    thresholds: {min_examples: 1000, violations: 0}
+    evidence: [claims/evidence/C-003.json]
+    status: pending
+
+  - id: C-004
+    text: "Speaks the chat-completions, responses, messages and generate-content API formats, plus engine-native formats."
+    scope: >-
+      The codecs of SPEC §4.1, tested against mock servers for each format; round trips through
+      the internal representation.
+    proof: >-
+      Conformance tests against mock servers per format (streaming, tool calls, parallel tool
+      calls, errors, usage); round-trip translation tests preserve messages and tool calls.
+    kind: integration
+    phase: 1
+    tests:
+      - tests/claims/test_c004_api_formats.py::test_conformance_against_mock_servers
+      - tests/claims/test_c004_api_formats.py::test_round_trip_preserves_messages_and_tool_calls
+    thresholds:
+      formats: [chat-completions, responses, messages, generate-content, ollama-native, llamacpp-native, text-completion]
+      cases: [non-streaming, streaming, tool-call, parallel-tool-calls, error, usage]
+      round_trip_differences: 0
+    evidence: [claims/evidence/C-004.json]
+    status: pending
+
+  - id: C-005
+    text: "Works with any open-weight model your installed engines can serve, including models without native tool calling."
+    scope: >-
+      Models served by a supported engine that is installed; the compatibility matrix lists
+      exactly what has been verified (SPEC §4.8).
+    proof: >-
+      A model with no native tool calling completes a tool-using task through the fallback
+      protocol; probe suite passes on the CI model set (≥ 4 families); compatibility matrix
+      generated from results.
+    kind: probe
+    phase: 2
+    parts:
+      - name: fallback
+        phase: 2
+        tests:
+          - tests/claims/test_c005_fallback.py::test_model_without_native_tools_completes_task_via_fallback
+      - name: matrix
+        phase: 3
+        tests:
+          - tests/claims/test_c005_matrix.py::test_probe_suite_passes_on_ci_model_set
+          - tests/claims/test_c005_matrix.py::test_compatibility_matrix_generated_from_probe_results
+    thresholds: {min_families: 4, fallback_final_status: done}
+    evidence: [claims/evidence/C-005.json]
+    status: pending
+
+  - id: C-006
+    text: "In offline mode, makes no network connections except to local endpoints."
+    scope: >-
+      A full task flow with `--offline` (or privacy.mode = "local"). Local means 127.0.0.0/8,
+      ::1 and Unix sockets. On Linux CI the flow runs under OS-level network isolation plus the
+      in-process connection recorder; on macOS and Windows the evidence comes from the recorder
+      only and says so (ADR 0011).
+    proof: >-
+      Full flow under a socket-level guard plus OS-level network isolation in CI; zero
+      non-local connections observed; audit log matches observed connections exactly.
+    kind: e2e
+    phase: 9
+    tests:
+      - tests/claims/test_c006_offline.py::test_offline_flow_makes_only_local_connections
+      - tests/claims/test_c006_offline.py::test_audit_log_matches_observed_connections
+    thresholds: {non_local_connections: 0, audit_mismatches: 0}
+    evidence: [claims/evidence/C-006.json]
+    status: pending
+
+  - id: C-007
+    text: "Sends no telemetry."
+    scope: >-
+      Default configuration with no remote endpoints configured; evidence lists every connection
+      and every spawned process, and the Linux run is OS-isolated (ADR 0011).
+    proof: >-
+      Default-config flow with no remote endpoints configured opens zero outbound connections.
+    kind: e2e
+    phase: 1
+    tests:
+      - tests/claims/test_c007_no_telemetry.py::test_default_flow_opens_no_outbound_connections
+    thresholds: {outbound_connections: 0}
+    evidence: [claims/evidence/C-007.json]
+    status: pending
+
+  - id: C-008
+    text: "The science gate catches numerical regressions beyond your tolerances."
+    scope: >-
+      Quantities and tolerances declared in science.toml, compared by the science-track gate.
+    proof: >-
+      Mutation test: injected perturbations above tolerance are all caught; perturbations below
+      tolerance are not flagged.
+    kind: unit
+    phase: 2
+    tests:
+      - tests/claims/test_c008_science_gate.py::test_mutations_above_tolerance_caught_below_not_flagged
+    thresholds: {caught_above_tolerance: 1.0, flagged_below_tolerance: 0.0}
+    evidence: [claims/evidence/C-008.json]
+    status: pending
+
+  - id: C-009
+    text: "Changes to protected constants fail verification unless explicitly allowed."
+    scope: >-
+      Protected zones declared in science.toml.
+    proof: >-
+      Gate test with a modified protected value, with and without the allow flag.
+    kind: unit
+    phase: 2
+    tests:
+      - tests/claims/test_c009_protected_constants.py::test_protected_change_fails_without_allow_flag
+      - tests/claims/test_c009_protected_constants.py::test_protected_change_passes_with_allow_flag
+    thresholds: {fails_without_allow: true, passes_with_allow: true}
+    evidence: [claims/evidence/C-009.json]
+    status: pending
+
+  - id: C-010
+    text: "Handoff briefs validate against the HANDOFF v0.1 schema and stay under 1,500 tokens."
+    scope: >-
+      Every handoff produced during the bench suites, counted with the receiving model's
+      tokenizer.
+    proof: >-
+      Schema validation and tokenizer count on every handoff produced during the bench suites.
+    kind: bench
+    phase: 5
+    tests:
+      - tests/claims/test_c010_handoff.py::test_bench_handoffs_validate_and_fit_token_budget
+    thresholds: {schema_valid: 1.0, max_tokens: 1500}
+    evidence: [claims/evidence/C-010.json]
+    status: pending
+
+  - id: C-011
+    text: "Uses fewer tokens than the unoptimized baseline at the same pass rate."
+    scope: >-
+      The mini bench suites, optimized configuration vs the Phase 2 baseline. The public text
+      will carry the measured percentage, rendered from evidence.
+    proof: >-
+      Bench evidence comparing P2 baseline vs optimized; claim text uses the measured
+      percentage.
+    kind: bench
+    phase: 5
+    tests:
+      - tests/claims/test_c011_token_savings.py::test_optimized_uses_fewer_tokens_at_same_pass_rate
+    thresholds: {token_reduction_pct_min: 0, pass_rate_not_lower: true}
+    evidence: [claims/evidence/C-011.json]
+    status: pending
+
+  - id: C-012
+    text: "Best-of-N across model families passes at least as many tasks as the best single worker."
+    scope: >-
+      The mini bench suites, with bootstrap confidence intervals.
+    proof: >-
+      Bench evidence on the mini suites with confidence intervals.
+    kind: bench
+    phase: 6
+    tests:
+      - tests/claims/test_c012_best_of_n.py::test_best_of_n_matches_or_beats_best_single_worker
+    thresholds: {confidence_level: 0.95}
+    evidence: [claims/evidence/C-012.json]
+    status: pending
+
+  - id: C-013
+    text: "Flags tasks where passing candidates disagree."
+    scope: >-
+      Seeded ambiguous and unambiguous tasks with at least two passing candidates.
+    proof: >-
+      Seeded ambiguous tasks are flagged; unambiguous ones are not.
+    kind: integration
+    phase: 6
+    tests:
+      - tests/claims/test_c013_disagreement.py::test_ambiguous_tasks_flagged_unambiguous_not
+    thresholds: {ambiguous_flagged: 1.0, unambiguous_flagged: 0.0}
+    evidence: [claims/evidence/C-013.json]
+    status: pending
+
+  - id: C-014
+    text: "Replays recorded runs deterministically."
+    scope: >-
+      Recorded runs of deterministic (fake) workers with recorded tool outputs.
+    proof: >-
+      Replay of a recorded fake-worker run reproduces identical diffs and gate results.
+    kind: integration
+    phase: 7
+    tests:
+      - tests/claims/test_c014_replay.py::test_replay_reproduces_diffs_and_gate_results
+    thresholds: {identical_diffs: true, identical_gate_results: true}
+    evidence: [claims/evidence/C-014.json]
+    status: pending
+
+  - id: C-015
+    text: "The router learns which worker suits which task."
+    scope: >-
+      The learning router's simulation harness with synthetic workers (SPEC §10).
+    proof: >-
+      Simulation: cumulative regret below threshold and better than random and fixed policies.
+    kind: unit
+    phase: 7
+    tests:
+      - tests/claims/test_c015_learning_router.py::test_bandit_regret_below_random_and_fixed_policies
+    thresholds: {beats_random: true, beats_fixed: true}
+    evidence: [claims/evidence/C-015.json]
+    status: pending
+
+  - id: C-016
+    text: "Runs on macOS, Linux and Windows."
+    scope: >-
+      `sy prove --quick` on pinned hosted CI runner labels for Linux x86-64, macOS arm64 and
+      Windows x86-64; the prove report records each runner label and image version (ADR 0011).
+    proof: >-
+      `sy prove --quick` passes in CI on all three.
+    kind: platform
+    phase: 1
+    tests:
+      - tests/claims/test_c016_platforms.py::test_prove_quick_passed_on_linux_macos_windows
+    thresholds: {operating_systems: [linux, macos, windows]}
+    evidence: [claims/evidence/C-016.json]
+    status: pending
+
+  - id: C-017
+    text: "Goes from install to first completed task in under 5 minutes on a CPU-only machine."
+    scope: >-
+      Scripted quickstart in a clean CPU-only container; model download time is reported
+      separately and excluded.
+    proof: >-
+      Timed scripted quickstart in a clean container (model download time reported
+      separately).
+    kind: e2e
+    phase: 10
+    tests:
+      - tests/claims/test_c017_quickstart.py::test_install_to_first_task_under_five_minutes
+    thresholds: {max_minutes_excluding_downloads: 5}
+    evidence: [claims/evidence/C-017.json]
+    status: pending
+
+  - id: C-018
+    text: "Every number in this README is reproducible."
+    scope: >-
+      Numbers in the README, each rendered from an evidence file that records its command.
+    proof: >-
+      Integrity lint (§18.3) plus evidence files with commands.
+    kind: unit
+    phase: 3
+    tests:
+      - tests/claims/test_c018_readme_numbers.py::test_every_readme_number_has_evidence_and_command
+    thresholds: {unsourced_numbers: 0}
+    evidence: [claims/evidence/C-018.json]
+    status: pending
+
+  - id: C-019
+    text: "Token accounting matches what model servers report."
+    scope: >-
+      Ledger totals compared with server-reported usage for the same runs.
+    proof: >-
+      Ledger totals equal server-reported usage within 1%.
+    kind: integration
+    phase: 3
+    tests:
+      - tests/claims/test_c019_token_accounting.py::test_ledger_matches_server_usage_within_one_percent
+    thresholds: {max_relative_error: 0.01}
+    evidence: [claims/evidence/C-019.json]
+    status: pending
+
+  - id: C-020
+    text: "Stops at the budget you set."
+    scope: >-
+      Per-task budgets for tokens, wall time, GPU-seconds and escalations (SPEC §7.4).
+    proof: >-
+      Runs with tiny budgets stop with the correct status and no overrun beyond one step.
+    kind: integration
+    phase: 2
+    tests:
+      - tests/claims/test_c020_budgets.py::test_tiny_budgets_stop_with_status_and_bounded_overrun
+    thresholds: {max_overrun_steps: 1}
+    evidence: [claims/evidence/C-020.json]
+    status: pending
