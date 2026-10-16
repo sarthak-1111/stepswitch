@@ -4,6 +4,67 @@ Newest phase first. Each phase records what was done, what research changed, ope
 actions that only the maintainer can take. Phase checks: `uv run python scripts/phase_check.py N`
 (one phase) or `--upto N` (phases 0 to N).
 
+## Phase 2: Built-in agent, router v1, gates, tracks
+
+Status: done on 2026-10-16, except C-016, which still needs hosted CI (Phase 1, maintainer
+action 1). `scripts/phase_check.py 2` passes 5 of 5 checks. `uv run pytest -q`: 1273 passed,
+6 skipped (C-016 pending, and live or platform tests that need a local server with a small
+model, a local server with a probe model, ripgrep, POSIX file modes or `STEPSWITCH_LIVE_HUB=1`).
+`ssw prove --quick --phase 2` (364 s): C-001, C-002, C-004, C-007, C-008, C-009 and C-020
+passing; C-005 pending until its compatibility-matrix part (Phase 3), with its fallback part
+passing; C-016 pending CI.
+
+### Done
+
+- **Built-in agent and router v1** (ADR 0015). One step is one model turn, with typed steps,
+  routing by rules, the T0 classifier, priors and a cost model, and every switch logged with
+  its reason and cost estimate. The escalation ladder moves up after two gate failures on one
+  rung. Per-task budgets (tokens, wall time, GPU-seconds, escalations) are checked at step
+  boundaries. `ssw run` and `ssw agent` drive it, with a worktree pool that keeps generated
+  files out of diffs, a token ledger and run trajectories.
+- **Fallback tool protocol** (ADR 0016). Models without native tool calls get the tools in
+  the prompt, one JSON action per reply under a JSON-schema constraint, with validation and
+  repair. Tool arguments are spelled out field by field, and tool examples are shown.
+- **The agent's tools and context services.** Repo map, search, hash-anchored edits
+  (`spec/edit-format.md`, ADR 0018), a built-in LSP client (ADR 0017), test, run and finish.
+- **Verification gates.** Lint, types, impacted tests, full tests with acceptance commands,
+  protected paths, and science checks with numerical tolerances and plot checks. There are
+  general and science tracks; T0 never edits code in the science track.
+- **Live results on the development machine.** C-001: the toy task finished inside a Linux
+  container limited to 8 GB with no swap and no GPU devices: 15 steps, 29,840 tokens, 113 s,
+  peak memory 6.43 GiB. C-005: Phi-3.5-mini-instruct, which has no tool calling, finished the
+  toy task through the fallback protocol in 12 model turns.
+
+### What changed against the spec
+
+- ADR 0015: the agent, not the model server, owns the tool loop, so a step may switch workers
+  inside it (ADR 0005 item 3 still holds for stored responses and for the proxy). The
+  escalation rung is a band, not a single level.
+- ADR 0016: the fallback protocol's reply format, constraints, history rendering and repair.
+- ADR 0017: a small built-in LSP client instead of pygls and lsprotocol.
+- ADR 0018: TK5 narrowed. A whole-file `text` edit replaces files of up to 100 lines. Files
+  of up to 60 lines are always read whole. A stale anchor in a file of up to 100 lines shows
+  the whole file again.
+- The C-005 fallback model is Phi-3.5-mini-instruct, not the 1.5B coder base model. The base
+  model kept repeating tool calls and never edited correctly (ADR 0016 item 10).
+
+### Open issues
+
+- Small models vary from run to run. Phi-3.5-mini-instruct failed its first live run
+  (`gates_failed`) before the short-file rules, and the claim test records one run. The
+  Phase 3 bench measures pass rates over several seeds.
+- No LSP server launch commands ship yet; the `lsp` tool works only with a server the user
+  configures.
+- Assumptions isolated behind interfaces (docs/RESEARCH.md, "Verified during Phase 2"):
+  that one engine's batch embeddings follow the input order, and the package installer's
+  offline variable.
+- Probe exports still carry hardware product names; they must be generic before the Phase 3
+  compatibility matrix commits them (Phase 1 issue).
+
+### Waiting on the maintainer
+
+Nothing new. Phase 1 actions 1 to 3 still apply.
+
 ## Phase 1: Foundation and compatibility core
 
 Status: done on 2026-10-16, except C-016, which needs hosted CI (maintainer action 1 below).
@@ -179,8 +240,8 @@ Details are in the SPEC change table and the ADRs. The main points:
    Node 22.12 or later (the current LTS line is recommended) before Phase 4. The Ollama release
    that was researched is 0.40.5; older installs may lack routes the research relies on.
 
-## Next: Phase 2
+## Next: Phase 3
 
-The built-in agent with step-level routing (rules, classifier, priors, cost model, escalation
-ladder, budgets), worktrees, the agent's tools and context services, verification gates and
-the science track. Claims due: C-001, C-002, C-005 (fallback part), C-008, C-009, C-020.
+Engine adapters, `ssw bench` with the mini-general and mini-science suites, a real leaderboard
+in `bench/results`, the compatibility matrix and `ssw probe --render-matrix`. Claims due:
+C-005 (matrix part), C-018, C-019.
