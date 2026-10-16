@@ -906,9 +906,9 @@ def _p4_dashboard() -> tuple[bool, str]:
 
 @check(4, "Playwright smoke test for the dashboard")
 def _p4_playwright() -> tuple[bool, str]:
-    found = list((ROOT / "tests").rglob("test_*dashboard*.py")) + list(
-        (ROOT / "dashboard").rglob("*.spec.ts")
-    )
+    found = list((ROOT / "tests").rglob("test_*dashboard*.py")) + [
+        path for path in (ROOT / "dashboard").rglob("*.spec.ts") if "node_modules" not in path.parts
+    ]
     return bool(found), "ok" if found else "no Playwright smoke test found"
 
 
