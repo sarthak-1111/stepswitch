@@ -2447,8 +2447,8 @@ Sources: https://api.github.com/repos/actions/checkout/releases/latest and the m
 
 - tomlkit 0.15.2 was released on 2026-10-16, the day of the check (0.15.1 on 2026-07-17). Not
   adopted: Stepswitch writes only generated TOML and managed blocks, which a small writer covers
-  (`stepswitch.tomlw`), and a same-day release would not meet the seven-day cooling period used
-  for other dependencies. https://pypi.org/pypi/tomlkit/json
+  (`stepswitch.tomlw`), so a new dependency, released the same day, was not worth adding.
+  https://pypi.org/pypi/tomlkit/json
 - For later phases: numpy 2.5.4 (2026-10-10) requires Python >= 3.12; pygls 2.1.1; lsprotocol
   2025.0.0; pytest-testmon 2.2.0; hypothesis 6.170.0; jupytext 1.19.6; playwright 1.64.0
   (2026-10-13). https://pypi.org/pypi/<name>/json
@@ -2579,3 +2579,44 @@ Checked 2026-10-16; the Windows and CUDA facts were also observed on a Windows 1
   clients always pass one and set `trust_env=False`.
 - On Windows, CPython 3.12 `shutil.which` searches the current directory first, so tool lookup
   in doctor uses absolute `PATH` entries only.
+
+### Model hub API (for `ssw models pull` and `ssw models add`)
+
+Checked 2026-10-16 against the live API and the client library sources on main
+(https://raw.githubusercontent.com/huggingface/huggingface_hub/main/src/huggingface_hub/ :
+`constants.py`, `file_download.py`, `hf_api.py`, `utils/_pagination.py`,
+`utils/_validators.py`).
+
+- `GET /api/models/{repo}` and `/api/models/{repo}/revision/{rev}` return `sha` (the 40-hex
+  commit), `cardData.license` (with `license_name` when the license is "other"),
+  `license:<id>` tags, `gated` (false, "auto" or "manual") and, for GGUF repos, a `gguf`
+  summary with `total`, `architecture`, `context_length` and `chat_template`. An unknown repo
+  answers 401 without a token; an unknown revision 404.
+- `GET /api/models/{repo}/tree/{rev}?recursive=true` lists `{type, path, size, oid, lfs{oid,
+  size}}`; `lfs.oid` is the file's sha256 (it matches the `X-Linked-ETag` of the download
+  redirect). Pagination follows `Link: rel="next"`.
+- `/{repo}/resolve/{rev}/{file}` answers 302 to a CDN host with `Accept-Ranges: bytes` and
+  `X-Linked-Size`; a `Range: bytes=0-63` request gets 206 with `Content-Range`. The client
+  library quotes the revision with `safe=""`.
+- Repo IDs: at most 96 characters, `--` and `..` forbidden (`_validators.py`).
+- httpx 0.28.1 drops `Authorization` on cross-origin redirects and keeps `Range`
+  (`_redirect_headers`), so a bearer token never reaches the CDN host.
+- Ollama can run hub GGUFs as `hf.co/{user}/{repo}:{quant}`, where the tag may also be the
+  full file name; Q4_K_M is the default when present
+  (https://raw.githubusercontent.com/huggingface/hub-docs/main/docs/hub/ollama.md).
+
+### GGUF files
+
+Checked 2026-10-16 against https://raw.githubusercontent.com/ggml-org/ggml/master/docs/gguf.md
+and, at llama.cpp tag v0.7.0, `include/llama.h`, `gguf-py/gguf/constants.py`,
+`gguf-py/gguf/gguf_reader.py`, `ggml/src/gguf.cpp`, `src/llama-model-loader.cpp` and
+`tools/gguf-split/README.md`.
+
+- Header: magic, version (3 current; 1 is obsolete), tensor count and key/value count as u64;
+  strings are u64-length-prefixed; value types 0 to 12; nested arrays are rejected by the
+  reference reader; `general.alignment` defaults to 32.
+- `general.file_type` follows the `llama_ftype` table (GUESSED = 1024); `{arch}.pooling_type`
+  above 0 marks an embedding model; `split.count` and `split.no` mark split files, named
+  `-NNNNN-of-NNNNN.gguf` and merged with `llama-gguf-split --merge`.
+- The chat template in `tokenizer.chat_template` of the Qwen3-4B-Instruct-2507 file matched
+  the hub's `gguf.chat_template`, and the parameter count matched `gguf.total`.
