@@ -1,0 +1,45 @@
+# Model registry entry (SPEC §5, ADR 0009). Facts checked against the model hub and the GGUF
+# file's metadata on the date in `verified`; sources in docs/RESEARCH.md ("Verified during
+# Phase 3", "CI model set").
+schema = 1
+
+[model]
+id = "granite-3.3-2b-instruct"
+name = "Granite-3.3-2B-Instruct"
+family = "granite3.3"
+hub_id = "ibm-granite/granite-3.3-2b-instruct-GGUF"
+source_model = "ibm-granite/granite-3.3-2b-instruct"
+revision = "7cdf86ccd1f1bb3491c9b7017b033f2e51367397"
+file = "granite-3.3-2b-instruct-Q4_K_M.gguf"
+sha256 = "ac71e9e32c0bea919b409c5918f69ca74339854b0319c5065e4e9fb6d95c4852"
+size_bytes = 1545303328
+quant = "Q4_K_M"
+format = "gguf"
+architecture = "granite"
+params_b = 2.53
+file_size_gb = 1.55
+# Resident memory at the role's context size (file + f16 KV cache; compute buffers excluded).
+# 40 layers x 8 KV heads x 64 dims x 2 x 2 bytes = 80 KiB/token.
+ram_gb = 2.22
+ram_ctx = 8192
+context = 131072
+tool_calls = "native"
+tool_syntax = "granite"
+reasoning = "none"
+roles = ["summarizer", "log_triage", "commit_message"]
+# In no default tier: a member of the CI model set (probes/ci-set.yaml), pulled by id.
+tiers = []
+optional = true
+license = "apache-2.0"
+commercial_use = "permitted"
+template_sha256 = "8a58e18acd9ca00a43a285fe6ba3760efbda06b5ab7fb57875bfacd72957ed5e"
+template_source = "gguf"
+verified = 2026-10-16
+notes = "Chat model whose template has tool calling (<|tool_call|> followed by a JSON list)."
+
+[engines.llamacpp]
+min_version = "b11669"
+args = ["--ctx-size", "8192"]
+
+[engines.ollama]
+name = "hf.co/ibm-granite/granite-3.3-2b-instruct-GGUF:granite-3.3-2b-instruct-Q4_K_M.gguf"
