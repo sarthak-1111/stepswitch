@@ -24,12 +24,18 @@ from stepswitch import net, registry
 from stepswitch.config import Config
 from stepswitch.serve import llamacpp as llamacpp_module
 from stepswitch.serve import manager as manager_module
+from stepswitch.serve import pyserver as pyserver_module
 from stepswitch.serve.base import Engine, EngineError, pid_alive, terminate
 from stepswitch.serve.llamacpp import LlamaCppEngine, find_binary
 from stepswitch.serve.manager import ServerManager
+from stepswitch.serve.mlx import MlxEngine
 from stepswitch.serve.ollama import OllamaEngine
+from stepswitch.serve.sglang import SglangEngine
+from stepswitch.serve.transformers import TransformersEngine
+from stepswitch.serve.vllm import VllmEngine
 
 FAKE = Path(__file__).parent / "fixtures" / "serve" / "fake_llama_server.py"
+ENGINE_FAKE = Path(__file__).parent / "fixtures" / "serve" / "fake_engine_server.py"
 
 ENTRY = """\
 schema = 1
@@ -445,6 +451,182 @@ def test_state_file_is_private_on_posix(world: World) -> None:
     world.manager().start("tiny-a")
     if sys.platform != "win32":
         assert world.state_file.stat().st_mode & 0o077 == 0
+
+
+# -- Python server engines ----------------------------------------------------------------------
+
+PYTHON_ENTRY = """\
+schema = 1
+
+[model]
+id = "{id}"
+name = "{id}"
+hub_id = "test/{id}"
+quant = "bf16"
+format = "safetensors"
+file_size_gb = 0.1
+ram_gb = 1.0
+context = 4096
+license = "apache-2.0"
+
+[engines.{engine}]
+args = ["--dtype", "float32"]
+"""
+
+
+def python_model(world: World, model_id: str, engine: str, *, local: bool = True) -> None:
+    """A registry entry with only an `[engines.<engine>]` recipe, and its model directory."""
+    text = PYTHON_ENTRY.format(id=model_id, engine=engine)
+    (world.registry / f"{model_id}.toml").write_text(text, encoding="utf-8")
+    if local:
+        folder = world.models / f"test--{model_id}"
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "config.json").write_text("{}", encoding="utf-8")
+
+
+def fake_vllm(world: World, **kw: Any) -> VllmEngine:
+    kw.setdefault("check_platform", False)
+    return VllmEngine(
+        command_prefix=[sys.executable, str(ENGINE_FAKE)],
+        models_dir=world.models,
+        egress=net.Egress(),
+        **kw,
+    )
+
+
+def python_manager(world: World, *engines: Engine) -> ServerManager:
+    made = ServerManager(
+        world.root,
+        world.config,
+        engines={"llamacpp": world.llamacpp, **{engine.name: engine for engine in engines}},
+        clock=world.clock,
+        registry_dirs=[world.registry],
+        ttl_s=600.0,
+    )
+    world.managers.append(made)
+    return made
+
+
+def engine_pid(log_path: str | None) -> int:
+    assert log_path is not None
+    text = Path(log_path).read_text(errors="replace")
+    pids = re.findall(r"fake engine flavor=\w+ pid=(\d+)", text)
+    assert pids, text
+    return int(pids[-1])
+
+
+def test_default_engines_include_the_python_servers(tmp_path: Path) -> None:
+    config = Config.model_validate(
+        {
+            "storage": {"models_dir": str(tmp_path / "models")},
+            "engines": {
+                "vllm": {"python": "/opt/vllm/bin/python", "env": {"OMP_NUM_THREADS": "4"}},
+                "sglang": {"command": ["sglang-wrapper", "serve"]},
+                "mlx": {"command": [1]},
+                "transformers": "not a table",
+            },
+        }
+    )
+    engines = manager_module.default_engines(config)
+    assert list(engines) == ["llamacpp", "ollama", "vllm", "sglang", "mlx", "transformers"]
+    vllm = engines["vllm"]
+    assert isinstance(vllm, VllmEngine) and vllm.python == "/opt/vllm/bin/python"
+    assert vllm.env == {"OMP_NUM_THREADS": "4"} and vllm.models_dir == tmp_path / "models"
+    sglang = engines["sglang"]
+    assert isinstance(sglang, SglangEngine)
+    assert sglang.command_prefix == ["sglang-wrapper", "serve"]
+    mlx = engines["mlx"]
+    assert isinstance(mlx, MlxEngine)
+    assert "[engines.mlx] in the configuration" in str(mlx.unavailable_reason())
+    transformers = engines["transformers"]
+    assert isinstance(transformers, TransformersEngine)
+    assert transformers.unavailable_reason() == (
+        "[engines.transformers] in the configuration: it must be a table"
+    )
+    plain = manager_module.default_engines(Config())
+    assert all(
+        isinstance(engine, pyserver_module.PythonServerEngine) and engine.settings_problem is None
+        for name, engine in plain.items()
+        if name not in ("llamacpp", "ollama")
+    )
+
+
+def test_a_model_with_only_a_python_recipe_runs_on_that_engine(world: World) -> None:
+    world.model("tiny-a")
+    python_model(world, "tiny-v", "vllm")
+    vllm = fake_vllm(world)
+    manager = python_manager(world, vllm)
+
+    info = manager.start("tiny-v", ctx_size=2048)
+    assert info.engine == "vllm" and info.engine_model == "tiny-v" and info.api_key
+    assert info.managed and info.ram_gb == 1.0 and vllm.health(info)
+    record = world.records()["tiny-v"]
+    assert record["engine"] == "vllm" and record["api_key"] == info.api_key
+    log = world.root / ".stepswitch" / "logs" / "tiny-v.log"
+    assert info.log_path == str(log)
+    text = log.read_text(errors="replace")
+    assert info.api_key not in text and "--max-model-len 2048" in text
+    models = httpx.get(f"{info.base_url}/v1/models", headers=info.headers())
+    assert models.status_code == 200 and models.json()["data"][0]["id"] == "tiny-v"
+
+    assert manager.start("tiny-a").engine == "llamacpp"  # GGUF entries keep llama.cpp
+    assert {s.model: s.engine for s in manager.status()} == {
+        "tiny-a": "llamacpp",
+        "tiny-v": "vllm",
+    }
+    real = engine_pid(info.log_path)
+    assert manager.stop("tiny-v") is True
+    assert gone(real) and [s.model for s in manager.status()] == ["tiny-a"]
+
+
+def test_idle_python_engine_servers_are_reaped(world: World) -> None:
+    python_model(world, "tiny-v", "vllm")
+    manager = python_manager(world, fake_vllm(world))
+    info = manager.start("tiny-v")
+    real = engine_pid(info.log_path)
+    world.clock.now += 601.0
+    assert manager.reap_idle() == ["tiny-v"]
+    assert gone(real) and manager.status() == []
+
+
+def test_why_a_python_engine_cannot_serve(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    python_model(world, "tiny-v", "vllm", local=False)
+    manager = python_manager(world, fake_vllm(world))
+    with pytest.raises(EngineError) as caught:
+        manager.start("tiny-v")
+    text = str(caught.value)
+    assert "llamacpp: no llama.cpp recipe" in text
+    assert "vllm: no model directory with a config.json" in text
+
+    python_model(world, "tiny-w", "vllm")
+    gated = fake_vllm(world, check_platform=True)
+    monkeypatch.setattr(gated, "platform_problem", lambda system, machine: "not on this host")
+    with pytest.raises(EngineError, match="vllm: not on this host"):
+        python_manager(world, gated).start("tiny-w", engine="vllm")
+
+
+def test_a_taken_free_port_is_retried_for_python_engines(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    python_model(world, "tiny-v", "vllm")
+    monkeypatch.setenv("FAKE_ENGINE_LOAD_SECONDS", "0")
+    blocker = socket.socket()
+    if sys.platform == "win32":
+        blocker.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+    blocker.bind(("127.0.0.1", 0))
+    blocker.listen(1)
+    taken = blocker.getsockname()[1]
+    ports = iter([taken])
+    real_free_port = pyserver_module.free_port
+    monkeypatch.setattr(pyserver_module, "free_port", lambda: next(ports, None) or real_free_port())
+    vllm = fake_vllm(world)
+    try:
+        info = python_manager(world, vllm).start("tiny-v", timeout=20)
+    finally:
+        blocker.close()
+    assert info.port != taken and vllm.health(info)
+    log = Path(str(info.log_path)).read_text(errors="replace")
+    assert "address already in use" in log  # the first attempt failed the way vLLM does
 
 
 # -- live: the installed llama-server -----------------------------------------------------------

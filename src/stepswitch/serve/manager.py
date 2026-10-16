@@ -4,9 +4,13 @@ Running servers are recorded in `.stepswitch/servers.json` (gitignored project s
 `ssw` process adopts them instead of starting duplicates. Each record holds the server's API key,
 which is why the file lives only in the state directory and is never logged.
 
-Engine choice: llama.cpp when the model's GGUF is installed and verified, else Ollama when it
-has the model. Memory accounting covers only servers the manager owns; Ollama loads and unloads
-models itself, so it gets a keep-alive instead of evictions and is never counted (ADR 0008).
+Engine choice, in this order: llama.cpp when the model's GGUF is installed and verified, Ollama
+when it has the model, then vLLM, SGLang, MLX-LM and the transformers fallback for registry
+entries with a recipe for them (`[engines.<name>]`) on a host where the engine runs. Where those
+Python engines live is machine configuration: `[engines.<name>]` tables with `python`, `command`
+and `env` (see `stepswitch.serve.pyserver`). Memory accounting covers only servers the manager
+owns; Ollama loads and unloads models itself, so it gets a keep-alive instead of evictions and is
+never counted (ADR 0008).
 
 The RAM budget is, in order: the `ram_budget_gb` argument, `[serve] ram_budget_gb` or
 `[profile] ram_budget_gb` in the configuration, or 75% of `[host] ram_gb` from `ssw doctor`.
@@ -39,21 +43,38 @@ from stepswitch.serve.base import (
     process_start_time,
 )
 from stepswitch.serve.llamacpp import LlamaCppEngine
+from stepswitch.serve.mlx import MlxEngine
 from stepswitch.serve.ollama import OllamaEngine, keep_alive_for, model_name
+from stepswitch.serve.sglang import SglangEngine
+from stepswitch.serve.transformers import TransformersEngine
+from stepswitch.serve.vllm import VllmEngine
 
 STATE_FILE = "servers.json"
 DEFAULT_TTL_S = 1800.0
 RAM_FRACTION = 0.75
 POLL_S = 0.25
 STATE_LOCK_TIMEOUT_S = 30.0
+PYTHON_ENGINES = (VllmEngine, SglangEngine, MlxEngine, TransformersEngine)
 
 
 def default_engines(config: Config) -> dict[str, Engine]:
-    """llama.cpp first (preferred for GGUF models), then Ollama."""
-    return {
-        "llamacpp": LlamaCppEngine(models_dir=config.models_dir()),
+    """llama.cpp first (preferred for GGUF models), then Ollama, then the Python servers in
+    the order vLLM, SGLang, MLX-LM, transformers, each set up from `[engines.<name>]`."""
+    models_dir = config.models_dir()
+    settings = _section(config, "engines")
+    engines: dict[str, Engine] = {
+        "llamacpp": LlamaCppEngine(models_dir=models_dir),
         "ollama": OllamaEngine(),
     }
+    for engine_class in PYTHON_ENGINES:
+        table = settings.get(engine_class.name)
+        engine = engine_class.from_settings(
+            table if isinstance(table, dict) else None, models_dir=models_dir
+        )
+        if table is not None and not isinstance(table, dict):
+            engine.settings_problem = "it must be a table"
+        engines[engine_class.name] = engine
+    return engines
 
 
 def _section(config: Config, name: str) -> dict[str, Any]:
@@ -287,7 +308,8 @@ class ServerManager:
             if not engine.has_model(tag):
                 return False, f"Ollama has no {tag} (`ollama pull {tag}`)"
             return True, ""
-        return (True, "") if engine.available() else (False, "not available")
+        problem = engine.serve_problem(entry)
+        return (problem is None), problem or ""
 
     # -- lifecycle ------------------------------------------------------------------------------
 
