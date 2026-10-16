@@ -3,7 +3,8 @@
 An open-source orchestrator for coding agents that picks a model and a harness for each task,
 and for each step inside a task.
 
-Status: research and design. Nothing here is usable yet.
+Status: early development. The command line, model setup, the compatibility layer and the
+claims framework are being built; tasks cannot run yet.
 
 - Product spec: [docs/SPEC.md](docs/SPEC.md)
 - Progress and open issues: [docs/PROGRESS.md](docs/PROGRESS.md)
