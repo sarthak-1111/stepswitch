@@ -1,0 +1,30 @@
+# Machine-specific state: endpoints, keys, hardware overrides, local DB, blobs (SPEC §20).
+.switchyard/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Node / dashboard
+node_modules/
+dashboard/dist/
+
+# Editors and local tool settings
+.vscode/
+.idea/
+.claude/settings.local.json
+
+# Generated prove reports (the committed copies live under claims/)
+/prove-report.json
+/prove-report.md

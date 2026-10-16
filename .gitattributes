@@ -1,0 +1,5 @@
+# LF in the repository and in every checkout, so source digests (ADR 0006) and tests behave
+# the same on Windows, macOS and Linux. Binary files are detected automatically.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
