@@ -88,6 +88,14 @@ ERROR_400 = {
         "code": "context_length_exceeded",
     }
 }
+ERROR_400_INVALID = {
+    "error": {
+        "message": "Invalid value for 'temperature': expected a number between 0 and 2.",
+        "type": "invalid_request_error",
+        "param": "temperature",
+        "code": "invalid_value",
+    }
+}
 ERROR_401 = {
     "error": {
         "message": "Invalid API Key",
@@ -314,7 +322,8 @@ def case_parallel_tool_calls() -> None:
 
 def case_error() -> None:
     cases: list[tuple[int, dict[str, Any], dict[str, str], str]] = [
-        (400, ERROR_400, {}, "bad_request"),
+        (400, ERROR_400, {}, "too_large"),  # a context overflow is its own kind
+        (400, ERROR_400_INVALID, {}, "bad_request"),
         (401, ERROR_401, {}, "authentication"),
         (429, ERROR_429, {"retry-after": "12"}, "rate_limit"),
         (500, ERROR_500, {}, "server"),

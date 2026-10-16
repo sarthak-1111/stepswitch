@@ -1122,3 +1122,40 @@ def test_images_and_files_encode_by_reference() -> None:
     ]
     decoded = ChatCompletionsCodec().decode_request(body)
     assert decoded.messages[0].content == request.messages[0].content[:5]
+
+
+@pytest.mark.parametrize(
+    ("status", "body"),
+    [
+        (
+            400,
+            {
+                "error": {
+                    "code": 400,
+                    "message": "request (5071 tokens) exceeds the available context size"
+                    " (4096 tokens), try increasing it",
+                    "type": "exceed_context_size_error",
+                }
+            },
+        ),
+        (400, {"error": {"message": "too long", "code": "context_length_exceeded"}}),
+        (
+            400,
+            {
+                "error": {
+                    "message": "This model's maximum context length is 8192 tokens.",
+                    "type": "invalid_request_error",
+                }
+            },
+        ),
+    ],
+)
+def test_context_overflow_is_too_large(status: int, body: dict[str, Any]) -> None:
+    error = raises(lambda: client_for(FMT, serve_json(body, status)).complete(text_request()))
+    assert error.kind == "too_large" and not error.retryable
+
+
+def test_other_bad_requests_stay_bad_requests() -> None:
+    body = {"error": {"message": "unknown field `foo`", "type": "invalid_request_error"}}
+    error = raises(lambda: client_for(FMT, serve_json(body, 400)).complete(text_request()))
+    assert error.kind == "bad_request"

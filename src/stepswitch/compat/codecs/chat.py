@@ -34,6 +34,7 @@ assistant messages in its history), so a codec instance serves one conversation 
 from __future__ import annotations
 
 import json
+import re
 import time
 import uuid
 from collections.abc import Iterable, Iterator, Mapping, Sequence
@@ -282,10 +283,25 @@ def header(headers: Mapping[str, str] | None, name: str) -> str | None:
     return None
 
 
+# A prompt longer than the context: llama.cpp says `exceed_context_size_error`, other servers
+# use the code `context_length_exceeded` or only a message.
+CONTEXT_CODES = frozenset({"exceed_context_size_error", "context_length_exceeded"})
+CONTEXT_MESSAGE = re.compile(
+    r"context (?:length|size|window)|maximum context|exceeds the available context", re.I
+)
+
+
+def is_context_overflow(status: int, message: str | None, code: str | None) -> bool:
+    if code in CONTEXT_CODES:
+        return True
+    return status in (400, 413) and bool(message and CONTEXT_MESSAGE.search(message))
+
+
 def error_from_http(status: int, body: Any, headers: Mapping[str, str] | None) -> ModelError:
     message, code = error_details(body)
+    overflow = is_context_overflow(status, message, code)
     return ModelError(
-        kind_for_status(status),
+        "too_large" if overflow else kind_for_status(status),
         message or f"HTTP {status}",
         status=status,
         code=code,
