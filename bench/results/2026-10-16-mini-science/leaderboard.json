@@ -1,0 +1,128 @@
+{
+  "command": "ssw bench run --suite mini-science --workers router,ws-ollama-local/qwen2.5:32b,ws-ollama-local/gpt-oss:120b --seeds 2 --router-pool ws-ollama-local/qwen2.5:32b,ws-ollama-local/gpt-oss:120b --budget-seconds 900.0",
+  "commit": "4766b7969e9a",
+  "contestants": [
+    {
+      "cache_hit_rate": 0.784039453151936,
+      "cached_input_tokens": 306993,
+      "ci": {
+        "confidence": 0.95,
+        "high": 1.0,
+        "low": 1.0,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "ws-ollama-local/gpt-oss:120b",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 423.598,
+      "input_tokens": 391553,
+      "median_tokens": 29773.5,
+      "median_wall_seconds": 35.9525,
+      "output_tokens": 25211,
+      "pass_rate": 1.0,
+      "passed": 12,
+      "rank": 1,
+      "reference_cost": null,
+      "runs": 12,
+      "statuses": {
+        "done": 12
+      },
+      "tasks": 6,
+      "tests_modified": 0
+    },
+    {
+      "cache_hit_rate": 0.7640266240324378,
+      "cached_input_tokens": 410021,
+      "ci": {
+        "confidence": 0.95,
+        "high": 1.0,
+        "low": 0.75,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "router",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 533.975,
+      "input_tokens": 536658,
+      "median_tokens": 40358.5,
+      "median_wall_seconds": 45.8905,
+      "output_tokens": 30605,
+      "pass_rate": 0.9166666666666666,
+      "passed": 11,
+      "rank": 2,
+      "reference_cost": null,
+      "runs": 12,
+      "statuses": {
+        "done": 11,
+        "failed": 1
+      },
+      "tasks": 6,
+      "tests_modified": 0
+    },
+    {
+      "cache_hit_rate": 0.8812586299322601,
+      "cached_input_tokens": 542494,
+      "ci": {
+        "confidence": 0.95,
+        "high": 0.8333333333333334,
+        "low": 0.16666666666666666,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "ws-ollama-local/qwen2.5:32b",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 1386.535,
+      "input_tokens": 615590,
+      "median_tokens": 36447.0,
+      "median_wall_seconds": 88.0155,
+      "output_tokens": 34620,
+      "pass_rate": 0.5,
+      "passed": 6,
+      "rank": 3,
+      "reference_cost": null,
+      "runs": 12,
+      "statuses": {
+        "done": 6,
+        "failed": 6
+      },
+      "tasks": 6,
+      "tests_modified": 3
+    }
+  ],
+  "date": "2026-10-16T10:33:02+00:00",
+  "hardware": {
+    "arch": "x86_64",
+    "cpu_cores": 32,
+    "gpu_memory_gb": [
+      51.53,
+      48.31,
+      51.53,
+      51.53
+    ],
+    "gpus": 4,
+    "os": "Windows",
+    "ram_gb": 1098.43
+  },
+  "interval": {
+    "confidence": 0.95,
+    "resamples": 10000,
+    "seed": 0
+  },
+  "prices": null,
+  "results_file": "results.jsonl",
+  "router_pool": [
+    "ws-ollama-local/gpt-oss:120b",
+    "ws-ollama-local/qwen2.5:32b"
+  ],
+  "runs": 36,
+  "schema": 1,
+  "scoring": "passes when every acceptance command exits with 0 on a fresh copy with the run's diff applied and the suite's protected paths restored",
+  "seeds": [
+    0,
+    1
+  ],
+  "sources": null,
+  "suite": "mini-science",
+  "tasks": 6,
+  "version": "0.1.0.dev0"
+}
