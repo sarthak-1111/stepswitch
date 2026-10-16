@@ -176,3 +176,12 @@ tasks:
     golden: bench/golden/upload-limits.patch
     track: general
     tags: [config, python, d1, toml]
+
+  - id: calc-bug
+    repo: bench/repos/calc-bug
+    instruction: >-
+      Fix the bug in add() in calc.py so that the tests pass.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/calc-bug.patch
+    track: general
+    tags: [bugfix, python, d1, arithmetic]
