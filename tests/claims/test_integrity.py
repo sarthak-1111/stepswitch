@@ -229,10 +229,8 @@ def _rendered_matches(rendered: str, value: Any) -> bool:
     return round(float(value), decimals) == float(shown)
 
 
-def lint_readme_numbers(
-    text: str, registry: Registry, evidence_dir: Path = EVIDENCE_DIR
-) -> list[str]:
-    """Numbers must be rendered from evidence (num markers) or be part of registered claim text."""
+def lint_number_markers(text: str, evidence_dir: Path = EVIDENCE_DIR) -> list[str]:
+    """Every num marker must show its evidence value at the displayed precision."""
     problems: list[str] = []
     for claim_id, key, rendered in NUM_SPAN_RE.findall(text):
         value = _evidence_value(evidence_dir, claim_id, key)
@@ -242,15 +240,26 @@ def lint_readme_numbers(
             problems.append(
                 f"num marker {claim_id}:{key} shows {rendered!r}, evidence has {value!r}"
             )
+    return problems
+
+
+def lint_hand_typed_numbers(text: str, registry: Registry) -> list[str]:
+    """Outside markers, digits may only appear in claim IDs, section references and versions."""
     prose = strip_non_prose(text)
     for pattern in registry["lint"]["readme_number_allowlist"]:
         prose = re.sub(pattern, " ", prose)
-    problems.extend(
+    return [
         f"hand-typed number in README: {line.strip()!r}"
         for line in prose.splitlines()
         if re.search(r"\d", line)
-    )
-    return problems
+    ]
+
+
+def lint_readme_numbers(
+    text: str, registry: Registry, evidence_dir: Path = EVIDENCE_DIR
+) -> list[str]:
+    """Numbers must be rendered from evidence (num markers) or be part of registered claim text."""
+    return lint_number_markers(text, evidence_dir) + lint_hand_typed_numbers(text, registry)
 
 
 def _readme_renderer() -> Callable[[Registry], str] | None:
