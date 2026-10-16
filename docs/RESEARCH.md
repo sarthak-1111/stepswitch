@@ -2649,3 +2649,195 @@ and live runs on the development workstation (Ollama 0.34.4; llama.cpp b11669, C
 - A 120B mixture-of-experts reasoning model on Ollama answers one tool call per reply (no
   parallel calls), reasons in `thinking` (native) or `reasoning` (chat-completions), and keeps
   reasoning for tool turns only.
+
+## Verified during Phase 2
+
+### Grammar-constrained output for the fallback protocol (checked 2026-10-16)
+
+Sources, at pinned tags: llama.cpp v0.7.0
+(https://raw.githubusercontent.com/ggml-org/llama.cpp/v0.7.0/common/json-schema-to-grammar.cpp,
+`common/json-schema.cpp`, `grammars/README.md`, `common/chat.cpp`, `common/sampling.cpp`,
+`tools/server/server-common.cpp`, `tools/server/server-schema.cpp` at the same tag) and Ollama
+v0.40.5 (https://raw.githubusercontent.com/ollama/ollama/v0.40.5/llm/llama_server.go,
+`llm/gbnf.go`, `llm/server.go`, `server/routes.go` at the same tag).
+
+- The schema-to-grammar converter reads: same-document `$ref`; `anyOf`/`oneOf` as a union
+  (keywords beside them are ignored, so `properties` must not sit next to `anyOf`); `allOf`;
+  `type` (a name or a list); `const`; `enum`; `properties`; `required`; `additionalProperties`
+  (absent means no extra keys once `properties` is given); `items`, `prefixItems`, `minItems`,
+  `maxItems`, `minLength`, `maxLength`; integer bounds; `pattern` only when anchored with
+  `^...$` (otherwise a warning and any string); `format` date, time, date-time and uuid.
+- The request fails on a boolean subschema, an empty enum, invalid counts or bounds, an unknown
+  type, an unresolved or remote `$ref`, or an invalid regex. Other keywords are skipped
+  silently. The schema is not added to the prompt.
+- Object keys keep their insertion order, so a schema listing `tool` before `arguments` makes
+  the model write `tool` first.
+- chat-completions: a `response_format` JSON schema becomes the server's `json_schema`. For
+  templates the automatic parser handles, the grammar allows an optional reasoning block and
+  then the schema (optionally inside a json code fence); the constraint starts after the
+  reasoning block. On `/completion`, `json_schema` applies from the first token unless the
+  request sets `grammar_lazy` with `grammar_triggers`.
+- Ollama runs llama-server. A `format` schema is passed on as `json_schema` (completion path)
+  or as a `response_format` JSON schema named "schema" (chat-template path); `format: "json"`
+  becomes a built-in grammar (completion) or `json_object` (chat). When the model has a
+  thinking close tag, the schema is converted to a grammar first and the text before the
+  closing tag stays unconstrained.
+- Spot-checked again for this record: in `json-schema-to-grammar.cpp` an unanchored pattern
+  gives a warning and the plain string rule, unresolved refs are collected as errors and
+  `check_errors()` throws `std::invalid_argument`; in `llama_server.go` the `json_schema`,
+  `response_format` ("schema"), built-in JSON grammar and `json_object` paths are as above.
+
+### Schema validation without network access (checked 2026-10-16)
+
+- jsonschema 4.26.0 (installed source, `jsonschema/validators.py`): the default registry
+  (`_REMOTE_WARNING_REGISTRY`) retrieves a remote `$ref` with `urllib.request.urlopen`
+  (`_warn_for_remote_retrieve`) while validating, which would be egress outside
+  `stepswitch.net`. The fallback protocol validates with `jsonschema_specifications.REGISTRY`,
+  which never fetches; an unresolvable reference then raises
+  `referencing.exceptions.Unresolvable` (referencing 0.37.0).
+- CPython 3.12.15 `json.loads` raises RecursionError for deeply nested input (1,400 levels
+  parsed, 3,000 failed) and ValueError for integers over 4,300 digits; the fallback parser turns
+  both into repair hints.
+
+### Context overflow on the llama.cpp server (live, b11669, 2026-10-16)
+
+- A chat-completions request longer than the slot's context gets HTTP 400 with the message
+  "request (5071 tokens) exceeds the available context size (4096 tokens), try increasing it".
+  The chat codec maps it to the error kind `too_large`, and the agent then caps that worker's
+  prompt size instead of taking the worker out of the task.
+
+### A chat model without native tool calling (checked 2026-10-16)
+
+- `microsoft/Phi-3.5-mini-instruct` (revision 2fe192450127e6a83f7441aef6e3ca586c338b77):
+  license MIT; the tokenizer's chat template (430 characters) has system, user and assistant
+  roles only, with no tool role and no tool-call syntax.
+  https://huggingface.co/api/models/microsoft/Phi-3.5-mini-instruct
+- Its `config.json`: 32 layers, hidden size 3072, 32 attention heads and 32 key-value heads (no
+  grouped-query attention), original context 4096 and 131072 with rope scaling. An f16 KV cache
+  takes 384 KiB per token, 3.22 GB at 8,192 tokens.
+  https://huggingface.co/microsoft/Phi-3.5-mini-instruct/raw/main/config.json
+- GGUF: `bartowski/Phi-3.5-mini-instruct-GGUF` (revision
+  6d70da17e749a471ccb62ade694486011a75cda3, MIT, not gated). `Phi-3.5-mini-instruct-Q4_K_M.gguf`
+  is 2,393,232,672 bytes, sha256
+  e4165e3a71af97f1b4820da61079826d8752a2088e313af0c7d346796c38eff5. GGUF metadata: 3,821,079,648
+  parameters, architecture phi3, context 131072, the same 430-character template.
+  https://huggingface.co/api/models/bartowski/Phi-3.5-mini-instruct-GGUF/tree/main
+- The Ollama library has the tag `phi3.5:3.8b-mini-instruct-q4_K_M`.
+  https://ollama.com/library/phi3.5/tags
+- Also checked: `01-ai/Yi-Coder-1.5B-Chat` (Apache-2.0, template without tools) and
+  `google/gemma-3-4b-it` (Gemma license, gated on the hub; `ggml-org/gemma-3-4b-it-GGUF` is not
+  gated; template without tools). Phi-3.5-mini-instruct was chosen for its MIT license and its
+  size; it is in no default tier because its KV cache does not fit the CPU tier's RAM budget.
+
+### Small models through the fallback protocol (live, 2026-10-16)
+
+- Qwen2.5-Coder-1.5B, the base model for fill-in-the-middle (Q8_0, CPU, managed llama.cpp
+  b11669), every step of the toy task pinned to it ("Fix the bug in add() in calc.py so that the
+  tests pass"):
+  - With the `edits` argument shown as `object[]` in the protocol, every reply was a valid JSON
+    action, but after reading calc.py the model ran the same test call nine times and never
+    edited; the run stopped as stuck.
+  - With nested fields shown (`edits?: {op: ..., start: string, end?: string, text?:
+    string}[]`) and a hint on repeated calls, the model sent valid `edit` actions, but anchored
+    on the wrong function (line 14, `mul`), then cycled read, test and edit; stuck again.
+  - So the protocol carried every action, but a 1.5B base model does not solve the task. The
+    C-005 proof uses an instruction-tuned chat model without tool calling instead.
+
+### Gate tools: formatter, type checker, test runner (checked 2026-10-16)
+
+- ruff 0.16.0 changed `ruff format --check` output (a breaking change): unformatted files are
+  reported as `unformatted: File would be reformatted` followed by ` --> path:line:col`, where
+  earlier versions printed `Would reformat: path`; `--output-format` and the
+  `RUFF_OUTPUT_FORMAT` variable also apply to `format` now.
+  https://raw.githubusercontent.com/astral-sh/ruff/main/changelogs/0.16.x.md. Seen with ruff
+  0.17.1 on this machine. The format gate parses both forms, passes no `--output-format` (older
+  versions reject it) and drops `RUFF_OUTPUT_FORMAT` for its default commands.
+- `ruff check --output-format concise` exists since 0.2.0.
+  https://raw.githubusercontent.com/astral-sh/ruff/main/changelogs/0.2.x.md
+- pytest exit code 5 means no tests were collected; the gates count it as passed.
+  https://docs.pytest.org/en/stable/reference/exit-codes.html
+- mypy reads its configuration from `mypy.ini`, `.mypy.ini`, `pyproject.toml` or `setup.cfg`
+  (`[mypy]`), in that order; `--python-executable` points a mypy from elsewhere at the project
+  interpreter. https://mypy.readthedocs.io/en/stable/config_file.html,
+  https://mypy.readthedocs.io/en/stable/command_line.html
+- Hypothesis settings `derandomize`, `deadline=None` and `database=None`:
+  https://hypothesis.readthedocs.io/en/latest/reference/api.html. Observed with 6.170.0: a
+  `.hypothesis/constants/` cache is still written with `database=None` (it is gitignored).
+
+### Numerical and runtime details for the science track (checked 2026-10-16)
+
+- `numpy.trapezoid` was added in numpy 2.0 and `numpy.trapz` was removed in 2.4.0 (2.5.4 here:
+  no `trapz`). https://numpy.org/doc/stable/release/2.0.0-notes.html,
+  https://numpy.org/doc/stable/release/2.4.0-notes.html. `numpy.load` defaults to
+  `allow_pickle=False`. https://numpy.org/doc/stable/reference/generated/numpy.load.html
+- CPython trusts a cached `.pyc` while the source's size and modification time in whole seconds
+  match the values recorded in it, so a same-size edit within the same second runs the old
+  code. https://peps.python.org/pep-0552/ and `Lib/importlib/_bootstrap_external.py`. Seen here
+  twice: a control test in the science unit tests, and the C-008 claim fixture, whose
+  reference runs measured the previous mutation until it deleted the caches and ran with `-B`.
+  The gates delete stale bytecode before their first command.
+- PNG chunks carry a CRC-32 equal to `zlib.crc32` over type and data; IHDR first, one filter
+  byte per row. https://www.w3.org/TR/png-3/
+- `python -m jupytext` works through the package's `__main__.py`.
+
+### git and process control for gates (checked 2026-10-16)
+
+- `git rev-parse --end-of-options`, `git diff --relative -z` and
+  `git ls-files --others --exclude-standard`; `git hash-object` applies clean filters;
+  `GIT_OPTIONAL_LOCKS=0` keeps read-only commands from taking optional locks.
+  https://git-scm.com/docs/git-rev-parse, https://git-scm.com/docs/git-hash-object,
+  https://git-scm.com/docs/git
+- Killing a process tree: on Windows `taskkill /F /T` (started with `CREATE_NO_WINDOW`); on
+  POSIX `start_new_session=True` and `os.killpg`.
+  https://learn.microsoft.com/windows-server/administration/windows-commands/taskkill,
+  https://docs.python.org/3/library/subprocess.html. Tested on Windows: a grandchild process is
+  killed on timeout.
+
+### Agent tools: search, git plumbing, LSP and embeddings (checked 2026-10-16)
+
+- ripgrep 14.1.1 (local `rg --help` and live output;
+  https://docs.rs/grep-printer/latest/grep_printer/struct.JSON.html): `--json` emits `begin`,
+  `match`, `context`, `end` and `summary` messages; `path` and `lines` are `{"text": ...}` or
+  `{"bytes": <base64>}`; `submatches[].start/end` are byte offsets. Flags used: `--no-config`,
+  `--no-require-git`, `--no-ignore-parent`, `--no-ignore-global`, `--max-filesize`. Checked by
+  hand on 11 cases (globs, ignore-case, path, literal, look-behind fallback, truncation,
+  non-UTF-8, long lines): the Python fallback gives identical results.
+- git 2.53 (https://git-scm.com/docs/git-read-tree and the pages of the other commands): a
+  single-tree `read-tree -m` keeps index stat data and `-i` skips the working-tree check;
+  `update-index --stdin` must be the last argument and `-z` makes input NUL-separated;
+  `ls-files --exclude=<pattern>`; `commit-tree` reads the message from stdin;
+  `rev-parse --git-path`; `worktree add --detach`; `apply --check`; `core.hooksPath`;
+  `GIT_CEILING_DIRECTORIES`. The worktree pool builds diffs from a temporary index seeded from
+  the worktree's own index: on a 3,000-file repository a diff went from 1.7 s to 0.3 s.
+- LSP 3.17
+  (https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/):
+  Content-Length framing; zero-based positions in UTF-16 code units by default
+  (`positionEncodings` negotiates others); `shutdown` returns null and is followed by `exit`;
+  `initialized` is sent once; `workspace/configuration` returns one `LSPAny` per item (null when
+  unknown); hover, definition, references (`includeDeclaration`) and
+  `PublishDiagnosticsParams` shapes.
+- pygls 2.1.1 and lsprotocol 2025.0.0 (https://pypi.org/pypi/pygls/json,
+  https://pypi.org/pypi/lsprotocol/json,
+  https://raw.githubusercontent.com/openlawlibrary/pygls/main/pygls/client.py): the client is
+  asyncio-only; `start_io` pipes the server's stderr but never reads it; `stop()` has no
+  timeout. These are the reasons for the built-in client (ADR 0017).
+- Embeddings: llama.cpp's `format_embeddings_response_oaicompat`
+  (https://raw.githubusercontent.com/ggml-org/llama.cpp/master/tools/server/server-common.cpp)
+  returns `data[]` entries with `index`, `object` and `embedding`, the embedding as a base64
+  string when base64 encoding is requested. Ollama `POST /api/embed` returns
+  `{model, embeddings, ...}` (https://docs.ollama.com/api/embed); the page does not say that
+  `embeddings` follows the input order. Assumption, isolated in `compat/embeddings.py`: it
+  does. `/v1/embeddings` request fields: https://docs.ollama.com/api/openai-compatibility.
+- Offline hints passed to child tools when a task runs offline: `UV_OFFLINE`
+  (https://docs.astral.sh/uv/reference/environment/), `CARGO_NET_OFFLINE`
+  (https://doc.rust-lang.org/cargo/reference/config.html), `GOPROXY=off`
+  (https://go.dev/ref/mod), `npm_config_offline`
+  (https://docs.npmjs.com/cli/v11/using-npm/config), `HF_HUB_OFFLINE`
+  (https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables).
+  `PIP_NO_INDEX` follows pip's rule for naming environment variables after options
+  (https://pip.pypa.io/en/stable/topics/configuration/); the page does not list it. Assumption.
+- Repo map: compared with the repo map described under "Context and tokens", the ranking
+  drops self-edges (they made a file a rank sink), gives unreferenced definitions 0.1 of their
+  file's rank, lets a file whose references weigh less than 1 pass on only part of its rank,
+  and matches plain names to top-level definitions and called attributes to methods. On this
+  project's own `src/`, the core modules (paths, IR, errors, egress) now rank first.

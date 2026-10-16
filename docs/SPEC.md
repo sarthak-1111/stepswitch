@@ -25,6 +25,15 @@ backed by an ADR in docs/decisions/ or by a dated research entry.
 | §18 | Claims contracts; platform and isolation scopes | ADR 0006, ADR 0011 |
 | §19-§22, §24, §25 | Proxy port, YAML library, dashboard packaging, stack pins, research notes, quickstart and docs tool, risks | ADR 0001, ADR 0002, ADR 0004 |
 
+### Changes during Phase 2
+
+| Section | Change | Source |
+|---|---|---|
+| §7.2, §7.3 | The built-in agent may switch inside its own tool loop; the escalation rung is a ceiling for all steps and a floor for heavy steps | ADR 0015 |
+| §4.4 | Fallback protocol details: final-answer action, `tool_choice` mapping, history rewrite, default constraints, repairs, offline schema validation | ADR 0016 |
+| §12 | `lsp` is a small built-in client instead of a pygls-based one | ADR 0017 |
+| §13 (TK5) | Whole-file text only to create a file or replace one of at most 100 lines | ADR 0018 |
+
 ---
 
 ## §0 Name and pitch
@@ -455,8 +464,8 @@ Interface: `start(task, worktree, endpoint, settings) -> RunHandle`, `events()`,
 
 1. **Built-in lean agent** (`ssw agent`), the default worker. Tools: `read(path, range)`, `grep`,
    `repo_map`, `lsp(defs|refs|hover|diagnostics)`, `edit(hash-anchored)`, `run(cmd)`,
-   `test(selector)`, `search(semantic)`. Step-level routing lives here. `lsp` is a thin client
-   (pygls and lsprotocol) for user-installed language servers whose launch commands live in
+   `test(selector)`, `search(semantic)`. Step-level routing lives here. `lsp` is a small built-in
+   client (ADR 0017) for user-installed language servers whose launch commands live in
    registry TOML; servers are never auto-downloaded. The edit format is Stepswitch's own,
    specified under `spec/` (prior art: the hash-anchored line edits of Oh My Pi, MIT).
 2. **Proxy** (`ssw proxy`): a local endpoint that accepts every supported API format (§4.1) and
@@ -501,7 +510,7 @@ on by default): no code reuse and no adapter.
 | TK2 | Repo map | tree-sitter def/ref graph ranked by personalized PageRank, token-budgeted (default 2k); tags cached per file content hash (worktrees hold uncommitted edits); core grammars from pinned per-language wheels (offline), the language pack optional and prefetched. |
 | TK3 | Read dedup | content-hash cache; re-reading an unchanged file returns a short stub. |
 | TK4 | Tool-output distillation | outputs > 2k tokens summarized by T0, keeping error lines, file:line refs and numbers verbatim; raw output stored and retrievable. |
-| TK5 | Diff-only edits | hash-anchored or unified-diff edits; never whole-file rewrites. |
+| TK5 | Diff-only edits | hash-anchored or unified-diff edits; whole-file text only to create a file or replace one of at most 100 lines (ADR 0018). |
 | TK6 | Context pruning | drop superseded tool results; rolling structured summary at 60% of the budget. |
 | TK7 | Handoff briefs | HANDOFF v0.1 on model switches (§9). |
 | TK8 | Constrained decoding | JSON Schema or grammar constraints for classifier, router, reviewer, handoff, fallback tool protocol. |
