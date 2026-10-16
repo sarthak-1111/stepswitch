@@ -41,9 +41,13 @@ packages = ["src/stepswitch"]
 
 [tool.hatch.build.targets.wheel.force-include]
 # The model and worker registry ships inside the package (ADR 0002, ADR 0012), and so do the
-# science-track glossaries (SPEC §6.2).
+# science-track glossaries (SPEC §6.2) and the built-in bench suites with their repositories and
+# golden patches (SPEC §16).
 "registry" = "stepswitch/_registry"
 "science/glossaries" = "stepswitch/_science/glossaries"
+"bench/suites" = "stepswitch/_bench/suites"
+"bench/repos" = "stepswitch/_bench/repos"
+"bench/golden" = "stepswitch/_bench/golden"
 
 [tool.uv]
 # uv-managed interpreters bundle a SQLite without the WAL-reset bug (ADR 0002).

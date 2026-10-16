@@ -8,13 +8,14 @@ changes nothing.
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-from stepswitch.bench import fakes, runner
+from stepswitch.bench import fakes, runner, suites
 from stepswitch.bench.report import MANIFEST_FILE, RESULTS_FILE
 from stepswitch.bench.suites import load_suite
 from tests.unit.bench_project import CALC, CHEAT, GOLDEN, make_project
@@ -156,3 +157,19 @@ def test_hardware_summary_has_counts_and_sizes_only() -> None:
     text = json.dumps(summary)
     assert "Acme" not in text and "Brandname" not in text
     assert set(summary) <= {"os", "arch", "cpu_cores", "ram_gb", "gpus", "gpu_memory_gb"}
+
+
+def test_packaged_suites_resolve_their_repositories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Installed, the built-in suites live in `stepswitch/_bench/` (pyproject force-include)."""
+    source = make_project(tmp_path / "source") / "bench"
+    package = tmp_path / "site" / "stepswitch"
+    for part in ("suites", "repos", "golden"):
+        shutil.copytree(source / part, package / "_bench" / part)
+    monkeypatch.setattr(suites, "PACKAGE_DIR", package)
+    monkeypatch.setattr(suites, "BUNDLED_ROOTS", (package / "_bench",))
+    task = suites.load_suite("tiny", tmp_path / "elsewhere").tasks[0]
+    assert task.repo == (package / "_bench" / "repos" / "adder").resolve()
+    assert task.golden == (package / "_bench" / "golden" / "adder-fix.patch").resolve()
+    assert (task.repo / "calc.py").is_file() and task.golden.is_file()

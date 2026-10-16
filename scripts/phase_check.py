@@ -194,6 +194,7 @@ DIGEST_SOURCES = (
     "registry",
     "bench/suites",
     "bench/repos",
+    "bench/golden",
     "science",
     "pyproject.toml",
     "uv.lock",
