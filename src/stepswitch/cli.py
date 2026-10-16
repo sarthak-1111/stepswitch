@@ -739,12 +739,53 @@ def cmd_audit(
 
 
 # --------------------------------------------------------------------------------------------
-# Later phases (options are fixed now; bodies arrive with their phase)
+# Phase 2: tasks with step-level routing
 # --------------------------------------------------------------------------------------------
+
+EXIT_STOPPED = 3
+
+
+def _run_one(state: AppState, spec: Any, *, json_out: bool) -> Any:
+    from stepswitch.core.orchestrator import run_task
+
+    echo = (lambda _msg: None) if json_out else typer.echo
+    with _user_errors():
+        return run_task(
+            spec, root=state.root, config=state.config, egress=state.egress(), echo=echo
+        )
+
+
+def _show_result(result: Any, *, json_out: bool) -> None:
+    if json_out:
+        data = result.model_dump(mode="json", exclude={"diff"})
+        data["diff_lines"] = len(result.diff.splitlines())
+        _print_json(data)
+        return
+    status = result.status + (f" ({result.stop_reason})" if result.stop_reason else "")
+    typer.echo(f"Status: {status}")
+    if result.summary:
+        typer.echo(f"Summary: {result.summary}")
+    budget = result.budget
+    typer.echo(
+        f"Steps: {result.steps}, switches: {result.switches}, escalations: {result.escalations},"
+        f" tokens: {int(budget.get('tokens', 0))}, time: {budget.get('wall_seconds', 0):.1f} s"
+    )
+    if result.changed_files:
+        typer.echo("Changed: " + ", ".join(result.changed_files))
+    if result.branch:
+        typer.echo(f"Branch: {result.branch}")
+    typer.echo(f"Trajectory: {result.run_dir}")
+
+
+def _exit_code(status: str) -> int:
+    if status == "done":
+        return 0
+    return EXIT_STOPPED if status == "stopped" else 1
 
 
 @app.command("run")
 def cmd_run(
+    ctx: typer.Context,
     task: Annotated[str, typer.Argument(help="What to do, in plain language.")],
     track: Annotated[str, typer.Option("--track", help="general or science.")] = "general",
     best_of: Annotated[
@@ -756,15 +797,131 @@ def cmd_run(
     budget_tokens: Annotated[
         int | None, typer.Option("--budget-tokens", help="Stop after this many tokens.")
     ] = None,
+    budget_seconds: Annotated[
+        float | None, typer.Option("--budget-seconds", help="Stop after this much wall time.")
+    ] = None,
+    budget_gpu_seconds: Annotated[
+        float | None,
+        typer.Option("--budget-gpu-seconds", help="Stop after this much GPU time."),
+    ] = None,
+    budget_escalations: Annotated[
+        int | None, typer.Option("--budget-escalations", help="Escalate at most this often.")
+    ] = None,
+    worker: Annotated[
+        str | None,
+        typer.Option("--worker", help="Run every step on this worker (<endpoint>/<model>)."),
+    ] = None,
+    allow_protected: Annotated[
+        list[str] | None,
+        typer.Option("--allow-protected", help="Allow changing this protected value (repeat)."),
+    ] = None,
+    acceptance: Annotated[
+        list[str] | None,
+        typer.Option("--acceptance", help="Extra command that must pass (repeat)."),
+    ] = None,
+    apply: Annotated[
+        bool, typer.Option("--apply", help="Apply the result to the working tree when done.")
+    ] = False,
+    allow_remote: Annotated[
+        bool,
+        typer.Option("--allow-remote", help="Let the ladder escalate to remote endpoints."),
+    ] = False,
+    review: Annotated[
+        bool, typer.Option("--review/--no-review", help="Review the change before finishing.")
+    ] = True,
+    max_steps: Annotated[
+        int, typer.Option("--max-steps", help="Stop after this many model turns.")
+    ] = 40,
+    seed: Annotated[int, typer.Option("--seed", help="Seed for routing and sampling.")] = 0,
+    include_uncommitted: Annotated[
+        bool,
+        typer.Option("--include-uncommitted", help="Start from the working tree, not HEAD."),
+    ] = False,
+    json_out: Annotated[bool, typer.Option("--json", help="Print the result as JSON.")] = False,
 ) -> None:
     """Run a task with step-level model routing."""
-    _not_yet("run", 2)
+    from stepswitch.core.task import Budgets, TaskSpec
+
+    state = _state(ctx)
+    if track not in ("general", "science"):
+        _fail("--track must be general or science")
+    if best_of > 1 and not json_out:
+        typer.echo("note: best-of-N arrives in Phase 6; running one candidate", err=True)
+    with _user_errors():
+        spec = TaskSpec(
+            instruction=task,
+            repo=state.root,
+            track=track,  # type: ignore[arg-type]
+            acceptance=acceptance or [],
+            budgets=Budgets(
+                tokens=budget_tokens,
+                wall_seconds=budget_seconds,
+                gpu_seconds=budget_gpu_seconds,
+                escalations=budget_escalations,
+            ),
+            best_of=best_of,
+            offline=offline,
+            worker=worker,
+            seed=seed,
+            max_steps=max_steps,
+            allow_protected=allow_protected or [],
+            review=review,
+            apply=apply,
+            include_uncommitted=include_uncommitted,
+            allow_remote=allow_remote,
+        )
+    result = _run_one(state, spec, json_out=json_out)
+    _show_result(result, json_out=json_out)
+    code = _exit_code(result.status)
+    if code:
+        raise typer.Exit(code)
 
 
 @app.command("agent")
-def cmd_agent() -> None:
-    """Interactive built-in agent with step-level routing."""
-    _not_yet("agent", 2)
+def cmd_agent(
+    ctx: typer.Context,
+    track: Annotated[str, typer.Option("--track", help="general or science.")] = "general",
+    offline: Annotated[
+        bool, typer.Option("--offline", help="Local endpoints only; refuse other connections.")
+    ] = False,
+    worker: Annotated[
+        str | None, typer.Option("--worker", help="Run every step on this worker.")
+    ] = None,
+    apply: Annotated[
+        bool, typer.Option("--apply/--no-apply", help="Apply each finished task to the tree.")
+    ] = True,
+) -> None:
+    """Interactive built-in agent with step-level routing: one task per line."""
+    from stepswitch.core.task import TaskSpec
+
+    state = _state(ctx)
+    if track not in ("general", "science"):
+        _fail("--track must be general or science")
+    typer.echo("Stepswitch agent. Type a task and press Enter; an empty line or `exit` quits.")
+    while True:
+        try:
+            line = input("task> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            typer.echo("")
+            return
+        if not line or line in {"exit", "quit"}:
+            return
+        spec = TaskSpec(
+            instruction=line,
+            repo=state.root,
+            track=track,  # type: ignore[arg-type]
+            offline=offline,
+            worker=worker,
+            apply=apply,
+            include_uncommitted=True,
+        )
+        result = _run_one(state, spec, json_out=False)
+        _show_result(result, json_out=False)
+
+
+# --------------------------------------------------------------------------------------------
+# Later phases (options are fixed now; bodies arrive with their phase)
+# --------------------------------------------------------------------------------------------
 
 
 @app.command("proxy")

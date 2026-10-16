@@ -49,10 +49,22 @@ def test_version() -> None:
 
 
 @pytest.mark.parametrize(
+    ("command", "options"),
+    [
+        ("run", ["--track", "--best-of", "--offline", "--budget-tokens", "--worker", "--json"]),
+        ("agent", []),
+    ],
+)
+def test_phase_2_commands_exist_with_their_options(command: str, options: list[str]) -> None:
+    result = runner.invoke(app, [command, "--help"], env={"COLUMNS": "200"})
+    assert result.exit_code == 0, result.output
+    assert "Phase 2" not in result.output
+    assert all(option in result.output for option in options), result.output
+
+
+@pytest.mark.parametrize(
     ("args", "phase"),
     [
-        (["run", "fix the bug"], 2),
-        (["agent"], 2),
         (["proxy"], 8),
         (["bench", "run", "--suite", "mini-general"], 3),
         (["bench", "report"], 3),
