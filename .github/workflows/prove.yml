@@ -70,7 +70,7 @@ jobs:
           reports/prove-linux reports/prove-macos reports/prove-windows
           --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
       - name: Validate C-016
-        run: uv run ssw prove --quick --claim C-016
+        run: uv run ssw prove --quick --claim C-016 --strict
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

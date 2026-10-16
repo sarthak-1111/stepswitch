@@ -620,6 +620,10 @@ def cmd_prove(
         bool,
         typer.Option("--check", help="With --render-readme: fail if the section is out of date."),
     ] = False,
+    strict: Annotated[
+        bool,
+        typer.Option("--strict", help="Exit non-zero unless every selected claim is passing."),
+    ] = False,
     json_out: Annotated[bool, typer.Option("--json", help="Print the report as JSON.")] = False,
 ) -> None:
     """Run the claim tests, record evidence and statuses, and write the prove report."""
@@ -647,7 +651,8 @@ def cmd_prove(
         )
     if json_out:
         _print_json(report)
-    if any(entry["status"] == "failing" for entry in report["claims"].values()):
+    statuses = [entry["status"] for entry in report["claims"].values()]
+    if "failing" in statuses or (strict and any(s != "passing" for s in statuses)):
         raise typer.Exit(1)
 
 
