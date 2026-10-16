@@ -1127,23 +1127,46 @@ def _check_contestants(
 @bench_app.command("report")
 def bench_report(
     results: Annotated[
-        Path, typer.Argument(help="A results directory written by `ssw bench run`.")
+        list[Path], typer.Argument(help="Results directories written by `ssw bench run`.")
     ],
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Merge the runs into this directory (needed for several)."),
+    ] = None,
+    rescore: Annotated[
+        bool,
+        typer.Option(
+            "--rescore",
+            help="First recompute each run's verdicts under the current scoring rule.",
+        ),
+    ] = False,
     json_out: Annotated[
         bool, typer.Option("--json", help="Print the leaderboard as JSON.")
     ] = False,
 ) -> None:
-    """Build the leaderboard (JSON, Markdown, chart) from recorded results."""
-    from stepswitch.bench.report import write_report
+    """Build the leaderboard (JSON, Markdown, chart) from recorded results; with several
+    directories, one leaderboard over all of them."""
+    from stepswitch.bench import runner
+    from stepswitch.bench.report import LEADERBOARD_JSON, LEADERBOARD_MD, merge_runs, write_report
 
     with _user_errors():
-        if not results.is_dir():
-            raise ValueError(f"{results} is not a results directory")
-        written = write_report(results)
-    if json_out:
-        typer.echo(written["json"].read_text(encoding="utf-8"))
-    else:
-        typer.echo(written["markdown"].read_text(encoding="utf-8"))
+        for directory in results:
+            if not directory.is_dir():
+                raise ValueError(f"{directory} is not a results directory")
+        if len(results) > 1 and out is None:
+            raise ValueError("give --out to merge several results directories")
+        if rescore:
+            for directory in results:
+                changed = runner.rescore(directory)
+                typer.echo(f"Rescored {directory.name}: {changed} verdict(s) changed", err=True)
+        if out is not None:
+            names = " ".join(directory.name for directory in results)
+            target = merge_runs(results, out, command=f"ssw bench report {names} --out {out.name}")
+        else:
+            target = results[0]
+            write_report(target)
+    name = LEADERBOARD_JSON if json_out else LEADERBOARD_MD
+    typer.echo((target / name).read_text(encoding="utf-8"))
 
 
 @app.command("dash")

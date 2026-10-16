@@ -25,7 +25,7 @@ import json
 import platform
 import shutil
 import subprocess
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -402,3 +402,40 @@ def run_bench(
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
     write_report(out_dir)
     return out_dir
+
+
+def passed_from(row: Mapping[str, Any]) -> bool:
+    """The `SCORING` verdict from a row's recorded acceptance results."""
+    acceptance = row.get("acceptance") or []
+    return (
+        not row.get("apply_error")
+        and bool(acceptance)
+        and all(c.get("exit_code") == 0 and not c.get("timed_out") for c in acceptance)
+    )
+
+
+def rescore(run_dir: Path, *, commit: str | None = None) -> int:
+    """Recompute every row's `passed` under `SCORING` from its recorded acceptance results
+    (rows written under an earlier rule); note it in `run.json`. Returns the rows changed."""
+    path = run_dir / RESULTS_FILE
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+    changed = 0
+    for row in rows:
+        verdict = passed_from(row)
+        changed += verdict != bool(row.get("passed"))
+        row["passed"] = verdict
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        for row in rows:
+            handle.write(json.dumps(row, sort_keys=True) + "\n")
+    manifest_path = run_dir / MANIFEST_FILE
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("scoring") != SCORING:
+        manifest["rescored"] = {
+            "from": manifest.get("scoring") or "passed only without changes to protected paths",
+            "rows_changed": changed,
+            "at": _now(),
+            "commit": commit,
+        }
+        manifest["scoring"] = SCORING
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
+    return changed

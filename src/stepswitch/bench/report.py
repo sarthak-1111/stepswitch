@@ -91,6 +91,7 @@ def leaderboard(
         "interval": {"confidence": confidence, "resamples": resamples, "seed": seed},
         "scoring": manifest.get("scoring"),
         "router_pool": manifest.get("router_pool"),
+        "sources": manifest.get("sources"),
         "contestants": [_entry(rank, s) for rank, s in enumerate(summaries, 1)],
     }
 
@@ -147,6 +148,13 @@ def render_markdown(board: Mapping[str, Any]) -> str:
         lines.append(f"- Scoring: a run {board['scoring']}.")
     if board.get("router_pool"):
         lines.append("- Router pool: " + ", ".join(f"`{w}`" for w in board["router_pool"]))
+    for source in board.get("sources") or []:
+        lines.append(
+            f"- Run `{source['run']}`: `{source.get('command') or 'not recorded'}`, "
+            f"{source.get('started') or '?'} to {source.get('finished') or '?'}"
+            + (f", commit {source['commit']}" if source.get("commit") else "")
+            + (" (rescored under the scoring rule above)" if source.get("rescored") else "")
+        )
     prices = board.get("prices")
     if prices:
         lines.append(
@@ -269,3 +277,70 @@ def _finite(value: Any) -> Any:
     if isinstance(value, list | tuple):
         return [_finite(item) for item in value]
     return value
+
+
+def merge_runs(run_dirs: Sequence[Path], out_dir: Path, *, command: str | None = None) -> Path:
+    """One leaderboard over several runs of the same suite (for example contestants run on
+    different machines or at different times): their rows go into `out_dir/results.jsonl`, each
+    marked with its source directory, and `run.json` lists every source run's command, dates,
+    hardware and commit. Writes the report and returns `out_dir`."""
+    if not run_dirs:
+        raise ValueError("give at least one results directory")
+    sources = []
+    rows: list[dict[str, Any]] = []
+    for run_dir in run_dirs:
+        manifest = read_manifest(run_dir)
+        if not manifest:
+            raise ValueError(f"{run_dir} has no {MANIFEST_FILE}")
+        sources.append(
+            {
+                "run": run_dir.name,
+                **{
+                    key: manifest.get(key)
+                    for key in (
+                        "command",
+                        "started",
+                        "finished",
+                        "hardware",
+                        "version",
+                        "commit",
+                        "seeds",
+                        "contestants",
+                        "router_pool",
+                        "scoring",
+                        "rescored",
+                    )
+                },
+            }
+        )
+        rows += [{**row, "run": run_dir.name} for row in read_results(run_dir / RESULTS_FILE)]
+    suites = {read_manifest(d).get("suite") for d in run_dirs}
+    if len(suites) != 1:
+        raise ValueError(f"the runs are from different suites: {sorted(map(str, suites))}")
+    hardware = [json.dumps(s["hardware"], sort_keys=True) for s in sources]
+    scoring = {s["scoring"] for s in sources}
+    finished = [str(s["finished"]) for s in sources if s.get("finished")]
+    manifest = {
+        "schema": 1,
+        "suite": suites.pop(),
+        "command": command,
+        "started": min((str(s["started"]) for s in sources if s.get("started")), default=None),
+        "finished": max(finished, default=None),
+        "hardware": sources[0]["hardware"] if len(set(hardware)) == 1 else "varies by run",
+        "version": sources[-1]["version"],
+        "commit": None,
+        "seeds": sorted({seed for s in sources for seed in s.get("seeds") or []}),
+        "contestants": [c for s in sources for c in s.get("contestants") or []],
+        "router_pool": next((s["router_pool"] for s in sources if s.get("router_pool")), None),
+        "scoring": scoring.pop() if len(scoring) == 1 else "varies by run",
+        "sources": sources,
+    }
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / MANIFEST_FILE).write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n"
+    )
+    with (out_dir / RESULTS_FILE).open("w", encoding="utf-8", newline="\n") as handle:
+        for row in rows:
+            handle.write(json.dumps(row, sort_keys=True) + "\n")
+    write_report(out_dir)
+    return out_dir
