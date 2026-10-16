@@ -137,9 +137,8 @@ def test_add_local_gguf(tmp_path: Path) -> None:
     assert entry.architecture == "qwen3" and entry.context == 32768
     assert entry.quant == "Q4_K_M" and entry.format == "gguf"
     assert entry.tool_calls == "native" and entry.tool_syntax == "hermes"
-    extra = entry.model_extra or {}
-    assert extra["template_sha256"] == hashlib.sha256(TEMPLATE.encode()).hexdigest()
-    assert extra["source"] == "path"
+    assert entry.template_sha256 == hashlib.sha256(TEMPLATE.encode()).hexdigest()
+    assert entry.source == "path"
     assert entry.license == "apache-2.0" and entry.commercial_use == "permitted"
     assert entry.params_b == 0.0 and result.details["params"] == 256
     assert entry.ram_gb == round(model.stat().st_size / 1e9 * 1.15 + 0.5, 2)
@@ -268,9 +267,7 @@ def test_add_hub_repository(tmp_path: Path) -> None:
     assert entry.params_b == 4.02 and entry.context == 262144
     assert entry.architecture == "qwen3" and entry.source_model == "example-org/Tiny-Chat"
     assert entry.tool_calls == "native" and entry.tool_syntax == "hermes"
-    assert (entry.model_extra or {})["template_sha256"] == hashlib.sha256(
-        TEMPLATE.encode()
-    ).hexdigest()
+    assert entry.template_sha256 == hashlib.sha256(TEMPLATE.encode()).hexdigest()
     assert entry.license == "apache-2.0" and entry.commercial_use == "permitted"
     assert entry.engines["ollama"].name == f"hf.co/{REPO}:Tiny-Chat-Q4_K_M.gguf"
     assert result.details["choice"] == "Q4_K_M, the default quantization"
