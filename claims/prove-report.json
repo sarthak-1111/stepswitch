@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "mode": "quick",
-  "source_digest": "6163030da18f2b3377e67f09d87e2f350bb4c57999865cb8e4fe638cef19b19d",
-  "created": "2026-10-16T06:27:02+00:00",
-  "duration_s": 6.26,
+  "source_digest": "ba4a1b84cecc9a6ed70597cebaf2f31303c1c5ef59d9a4cac36aeacff8e2778a",
+  "created": "2026-10-16T06:28:21+00:00",
+  "duration_s": 6.51,
   "platform": {
     "os": "windows",
     "machine": "amd64",

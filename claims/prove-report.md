@@ -1,8 +1,8 @@
 # Prove report
 
 - Mode: quick
-- Created: 2026-10-16T06:27:02+00:00
-- Source digest: `6163030da18f2b3377e67f09d87e2f350bb4c57999865cb8e4fe638cef19b19d`
+- Created: 2026-10-16T06:28:21+00:00
+- Source digest: `ba4a1b84cecc9a6ed70597cebaf2f31303c1c5ef59d9a4cac36aeacff8e2778a`
 - Platform: windows amd64, Python 3.12.15
 
 | Claim | Status | Tests |
