@@ -20,10 +20,31 @@ RESULTS_ENV = "STEPSWITCH_PROVE_RESULTS"
 _outcomes: dict[str, str] = {}
 _reasons: dict[str, str] = {}
 _collect_errors: dict[str, str] = {}
+_root: list[str] = []
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    _root[:] = [str(config.rootpath)]
+
+
+def _relative(text: str) -> str:
+    """Reports are committed: no checkout paths (working rule 5)."""
+    for root in _root:
+        for variant in {root, root.replace("\\", "/")}:
+            for sep in ("\\", "/"):
+                text = text.replace(variant + sep, "")
+            text = text.replace(variant, ".")
+    return text
 
 
 def _reason(report: Any) -> str:
-    text = str(getattr(report, "longreprtext", "") or "")
+    longrepr = getattr(report, "longrepr", None)
+    if report.skipped and isinstance(longrepr, tuple) and len(longrepr) == 3:
+        # (path, line, message) for skips: keep the message only.
+        text = str(longrepr[2]).removeprefix("Skipped: ")
+    else:
+        text = str(getattr(report, "longreprtext", "") or "")
+    text = _relative(text)
     return text.strip().splitlines()[-1][:500] if text.strip() else ""
 
 

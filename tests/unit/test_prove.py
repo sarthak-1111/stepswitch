@@ -181,6 +181,11 @@ def test_runner_end_to_end_on_a_mini_repository(tmp_path: Path) -> None:
     }
     assert report["claims"]["C-002"]["tests"] == {"tests/claims/test_mini.py::test_bad": "failed"}
     assert report["claims"]["C-004"]["tests"] == {}
+    # skip reasons are the message alone: no absolute paths in a committed report
+    assert report["claims"]["C-003"]["notes"] == {
+        "tests/claims/test_mini.py::test_skip": "not applicable here"
+    }
+    assert str(tmp_path) not in json.dumps(report)
     assert report["source_digest"] == source_digest(root)
     saved = json.loads((root / runner.REPORT_JSON).read_text(encoding="utf-8"))
     assert saved["summary"] == {"pending": 2, "passing": 1, "failing": 1}

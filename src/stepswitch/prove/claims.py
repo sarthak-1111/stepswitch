@@ -62,7 +62,12 @@ def update_statuses(root: Path, statuses: Mapping[str, str]) -> list[str]:
             current = start.group(2)
             continue
         match = _STATUS_RE.match(line)
-        if match and current in statuses and match.group(2) != statuses[current]:
+        if (
+            match
+            and current is not None
+            and current in statuses
+            and match.group(2) != statuses[current]
+        ):
             lines[index] = f"{match.group(1)}{statuses[current]}{match.group(3)}"
             changed.append(current)
     if not changed:
