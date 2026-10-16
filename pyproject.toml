@@ -1,0 +1,41 @@
+[project]
+name = "switchyard"
+version = "0.0.0"
+description = "Model-selective, multi-agent coding orchestrator (working name)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pytest>=9.1",
+  "ruamel.yaml>=0.19.1",
+  "ruff>=0.17",
+  "mypy>=2.4",
+]
+
+[tool.uv]
+# Phase 0 has no product code. Phase 1 adds the package, a build backend and the CLI entry
+# point (ADR 0001, ADR 0002), and removes this line.
+package = false
+# uv-managed interpreters bundle a SQLite without the WAL-reset bug (ADR 0002).
+python-preference = "only-managed"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--import-mode=importlib"]
+markers = [
+  "claim(id): links a claim test to an entry in claims/claims.yaml (SPEC §18.2)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "PTH"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
