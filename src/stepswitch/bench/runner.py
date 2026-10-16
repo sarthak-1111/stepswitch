@@ -78,6 +78,8 @@ class BenchOptions:
     acceptance_timeout: float = ACCEPTANCE_TIMEOUT_S
     keep: bool = False
     prices: dict[str, float] | None = None
+    # Workers the `router` contestant may route among; None means every configured worker.
+    router_pool: list[str] | None = None
 
 
 def _now() -> str:
@@ -116,6 +118,25 @@ def _commit(root: Path) -> str | None:
     except OSError:
         return None
     return done.stdout.strip() or None if done.returncode == 0 else None
+
+
+def _router_pool(
+    contestants: Sequence[Contestant],
+    options: BenchOptions,
+    root: Path,
+    config: Any,
+    egress: Any,
+) -> list[str] | None:
+    """The worker ids the `router` contestant routes among, recorded in the manifest: the
+    given pool, or every configured worker when none is given."""
+    if all(c.name != ROUTER for c in contestants) or config is None:
+        return list(options.router_pool) if options.router_pool else None
+    from stepswitch.workers.catalog import Catalog
+
+    catalog = Catalog.from_config(config, root, egress=egress)
+    if options.router_pool:
+        catalog = catalog.subset(options.router_pool)
+    return sorted(catalog.workers)
 
 
 def _slug(name: str) -> str:
@@ -247,6 +268,7 @@ def run_one(
         acceptance=acceptance_commands(task),
         budgets=budgets,
         worker=contestant.worker,
+        workers=list(options.router_pool or []) if contestant.name == ROUTER else [],
         seed=seed,
         max_steps=task.max_steps or options.max_steps or 40,
         review=options.review,
@@ -338,6 +360,7 @@ def run_bench(
         "tasks": [t.id for t in suite.tasks],
         "review": options.review,
         "prices": options.prices,
+        "router_pool": _router_pool(contestants, options, root, config, egress),
     }
     manifest_path = out_dir / MANIFEST_FILE
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")

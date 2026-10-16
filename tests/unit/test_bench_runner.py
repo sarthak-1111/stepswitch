@@ -173,3 +173,25 @@ def test_packaged_suites_resolve_their_repositories(
     assert task.repo == (package / "_bench" / "repos" / "adder").resolve()
     assert task.golden == (package / "_bench" / "golden" / "adder-fix.patch").resolve()
     assert (task.repo / "calc.py").is_file() and task.golden.is_file()
+
+
+def test_the_router_contestant_routes_within_its_pool(project: Path) -> None:
+    suite = load_suite("tiny", project)
+    seen: dict[str, list[str]] = {}
+
+    def capture(spec: Any, **_kwargs: Any) -> Any:
+        seen[spec.worker or "router"] = list(spec.workers)
+        raise RuntimeError("stop here")
+
+    out = project / "bench" / "results" / "pool"
+    runner.run_bench(
+        suite,
+        runner.parse_contestants("router,managed/small"),
+        root=project,
+        out_dir=out,
+        options=runner.BenchOptions(router_pool=["managed/small", "local/large"]),
+        run_task=capture,
+    )
+    assert seen == {"router": ["managed/small", "local/large"], "managed/small": []}
+    manifest = json.loads((out / MANIFEST_FILE).read_text(encoding="utf-8"))
+    assert manifest["router_pool"] == ["managed/small", "local/large"]

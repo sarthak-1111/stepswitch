@@ -163,3 +163,50 @@ def test_catalog_classifier_and_duplicates() -> None:
     assert "m/tiny" in catalog and len(catalog) == 2
     with pytest.raises(ValueError, match="duplicate"):
         Catalog([tiny, tiny])
+
+
+def test_subset_keeps_the_named_workers_once_and_rejects_unknown_names() -> None:
+    from stepswitch.workers.base import Worker, WorkerSpec
+    from stepswitch.workers.catalog import Catalog
+
+    workers = [
+        Worker(WorkerSpec(id=f"ep/{name}", endpoint="ep", model=name, harness="fake"))
+        for name in ("small", "large", "other")
+    ]
+    catalog = Catalog(workers, notes=["a note"])
+    subset = catalog.subset(["ep/large", "small", "ep/large"])
+    assert list(subset.workers) == ["ep/large", "ep/small"]
+    assert subset.notes == ["a note"]
+    with pytest.raises(ValueError, match="unknown worker 'nowhere'"):
+        catalog.subset(["nowhere"])
+
+
+def test_a_task_routes_only_within_its_worker_pool(tmp_path: Path) -> None:
+    from stepswitch.compat.ir import Usage
+    from stepswitch.core.orchestrator import run_task
+    from stepswitch.core.task import TaskSpec
+    from stepswitch.trajectory.record import read_events
+    from stepswitch.workers.base import Worker, WorkerSpec
+    from stepswitch.workers.catalog import Catalog
+    from stepswitch.workers.fake import Action, ScriptedModel
+    from tests.claims.toy import TOY_INSTRUCTION, toy_repo
+
+    def finisher(name: str, tier: str) -> Worker:
+        model = ScriptedModel(
+            lambda request, index: (
+                Action(tool="finish", arguments={"summary": "Done."})
+                if request.tools
+                else Action(text="APPROVE")
+            ),
+            usage=Usage(input_tokens=10, output_tokens=2),
+        )
+        spec = WorkerSpec(id=f"fake/{name}", endpoint=name, harness="fake", tier=tier)
+        return Worker(spec, model)
+
+    repo = toy_repo("calc-bug", tmp_path / "repo")
+    catalog = Catalog([finisher("alpha", "cpu"), finisher("beta", "t2")])
+    spec = TaskSpec(instruction=TOY_INSTRUCTION, repo=repo, workers=["fake/alpha"], max_steps=6)
+    result = run_task(spec, root=repo, catalog=catalog)
+    assert set(result.endpoints) == {"alpha"}
+    events = read_events(Path(str(result.run_dir)))
+    assert next(e for e in events if e["type"] == "pool")["workers"] == ["fake/alpha"]

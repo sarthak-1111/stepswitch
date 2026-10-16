@@ -69,6 +69,8 @@ class TaskSpec(BaseModel):
     best_of: int = 1
     offline: bool = False
     worker: str | None = None
+    # Route only among these workers (ids or names); empty means every configured worker.
+    workers: list[str] = Field(default_factory=list)
     seed: int = 0
     max_steps: int = 40
     allow_protected: list[str] = Field(default_factory=list)

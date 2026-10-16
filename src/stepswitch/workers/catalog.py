@@ -213,6 +213,18 @@ class Catalog:
         ]
         return matches[0] if len(matches) == 1 else None
 
+    def subset(self, names: Sequence[str]) -> Catalog:
+        """A catalog of the named workers only (each found as `find` finds it)."""
+        chosen: list[Worker] = []
+        for name in names:
+            worker = self.find(name)
+            if worker is None:
+                known = ", ".join(sorted(self.workers)) or "none configured"
+                raise ValueError(f"unknown worker {name!r} (workers: {known})")
+            if all(worker is not other for other in chosen):
+                chosen.append(worker)
+        return Catalog(chosen, notes=list(self.notes))
+
     def classifier(self) -> Worker | None:
         """The T0 worker that classifies tasks: a local level-0 model with a router role."""
         candidates = [

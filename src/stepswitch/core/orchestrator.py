@@ -232,6 +232,9 @@ def run_task(
         rules: list[Rule] = rules_from_config(config)
         if catalog is None:
             catalog = Catalog.from_config(config, root, egress=egress, db=db, task_id=task_id)
+        if spec.workers:
+            catalog = catalog.subset(spec.workers)
+            trajectory.emit("pool", workers=[w.spec.id for w in catalog.workers.values()])
         for note in catalog.notes:
             say(f"  note: {note}")
         features = _classify(

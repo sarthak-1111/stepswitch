@@ -1036,6 +1036,13 @@ def bench_run(
     keep: Annotated[
         bool, typer.Option("--keep", help="Keep the task workspaces under .stepswitch/bench.")
     ] = False,
+    router_pool: Annotated[
+        str | None,
+        typer.Option(
+            "--router-pool",
+            help="Comma-separated workers the `router` contestant may use (default: all).",
+        ),
+    ] = None,
 ) -> None:
     """Run a benchmark suite: every contestant on every task, once per seed."""
     import shlex
@@ -1050,7 +1057,12 @@ def bench_run(
         loaded = load_suite(suite, state.root)
         selected = loaded.select([t.strip() for t in tasks.split(",")] if tasks else None)
         contestants = runner.parse_contestants(workers)
-        _check_contestants(state, contestants)
+        pool = (
+            [name.strip() for name in router_pool.split(",") if name.strip()]
+            if router_pool
+            else None
+        )
+        _check_contestants(state, contestants, pool)
         if (price_in is None) != (price_out is None):
             raise ValueError("give both --price-in and --price-out, or neither")
         stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
@@ -1061,6 +1073,7 @@ def bench_run(
             max_steps=max_steps,
             budgets=Budgets(tokens=budget_tokens, wall_seconds=budget_seconds),
             keep=keep,
+            router_pool=pool,
             prices=(
                 {"input_per_million": price_in, "output_per_million": price_out}
                 if price_in is not None and price_out is not None
@@ -1072,6 +1085,7 @@ def bench_run(
         args += ["--workers", ",".join(c.name for c in contestants), "--seeds", str(seeds)]
         args += ["--tasks", tasks] if tasks else []
         args += [] if review else ["--no-review"]
+        args += ["--router-pool", ",".join(pool)] if pool else []
         args += ["--max-steps", str(max_steps)] if max_steps else []
         args += ["--budget-tokens", str(budget_tokens)] if budget_tokens else []
         args += ["--budget-seconds", str(budget_seconds)] if budget_seconds else []
@@ -1093,9 +1107,12 @@ def bench_run(
     typer.echo((result_dir / "leaderboard.md").read_text(encoding="utf-8"))
 
 
-def _check_contestants(state: AppState, contestants: Sequence[Any]) -> None:
+def _check_contestants(
+    state: AppState, contestants: Sequence[Any], pool: Sequence[str] | None = None
+) -> None:
     """Fail before the first run when a named worker is not configured."""
     named = [c.name for c in contestants if c.worker is not None and c.fake is None]
+    named += list(pool or [])
     if not named:
         return
     from stepswitch.workers.catalog import Catalog
