@@ -145,6 +145,22 @@ def test_read_ranges_directories_and_refusals(root: Path) -> None:
     assert past.is_error and "past the end" in past.text
 
 
+def test_short_files_are_always_shown_whole(box: T.Toolbox, root: Path) -> None:
+    lines = T.READ_WHOLE_LINES
+    (root / "short.py").write_text("".join(f"x{i} = {i}\n" for i in range(lines)), "utf-8")
+    (root / "long.py").write_text("".join(f"x{i} = {i}\n" for i in range(lines + 1)), "utf-8")
+    short = box.execute("read", {"path": "short.py", "start": 10, "end": 12})
+    assert short.text.split("\n")[0] == (
+        f"short.py lines 1-{lines} of {lines} (the whole file: short files are shown whole)"
+    )
+    assert len(anchors(short)) == lines
+    assert short.data["requested"] == [10, 12]
+    whole = box.execute("read", {"path": "short.py"})  # no range asked: no note
+    assert whole.text.split("\n")[0] == f"short.py lines 1-{lines} of {lines}"
+    part = box.execute("read", {"path": "long.py", "start": 10, "end": 12})
+    assert part.text.split("\n")[0] == f"long.py lines 10-12 of {lines + 1}"
+
+
 def test_paths_stay_inside_the_root(box: T.Toolbox, root: Path) -> None:
     absolute = box.execute("read", {"path": str(root / "pkg" / "calc.py")})
     assert absolute.is_error and "Use `pkg/calc.py`" in absolute.text
@@ -181,7 +197,8 @@ def test_symbolic_links_cannot_escape(box: T.Toolbox, root: Path, tmp_path: Path
 
 def test_arguments_are_read_forgivingly(box: T.Toolbox) -> None:
     aliased = box.execute("read_file", {"file_path": "pkg/calc.py", "start_line": "2", "to": 2})
-    assert aliased.text.startswith("pkg/calc.py lines 2-2 of 6")
+    assert aliased.text.startswith("pkg/calc.py lines 1-6 of 6")  # short: shown whole
+    assert aliased.data["requested"] == [2, 2]
     assert aliased.data["tool"] == "read"
     assert not box.execute("read", '{"path": "pkg/calc.py"}').is_error
     assert not box.execute("read", '```json\n{"path": "pkg/calc.py"}\n```').is_error

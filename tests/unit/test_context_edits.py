@@ -132,6 +132,22 @@ def test_stale_anchor_rejects_everything_and_shows_fresh_anchors(tmp_path: Path)
     assert path.read_bytes() == before
 
 
+def test_stale_anchor_in_a_short_file_shows_all_of_it_and_offers_text(tmp_path: Path) -> None:
+    lines = [f"line {n}" for n in range(1, 21)]
+    path = write(tmp_path / "m.py", "\n".join(lines) + "\n")
+    with pytest.raises(E.EditError) as caught:
+        E.edit_file(path, edits=[{"op": "replace", "start": "13:zz", "text": "X"}])
+    message = str(caught.value)
+    # every line with its fresh anchor, not only the lines around the stale one
+    assert "Current lines 1-20:" in message and "|line 1\n" in message and "|line 20" in message
+    assert "whole new content as `text`" in message
+    long = write(tmp_path / "long.py", "\n".join(f"row {n}" for n in range(1, 201)) + "\n")
+    with pytest.raises(E.EditError) as caught_long:
+        E.edit_file(long, edits=[{"op": "replace", "start": "100:zz", "text": "X"}])
+    assert "Current lines 97-103:" in str(caught_long.value)
+    assert "`text`" not in str(caught_long.value)
+
+
 def test_anchor_past_the_end_is_stale(tmp_path: Path) -> None:
     path = write(tmp_path / "m.py", "a\n")
     with pytest.raises(E.EditError, match="the file has 1 lines"):

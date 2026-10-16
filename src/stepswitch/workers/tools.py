@@ -46,6 +46,7 @@ CONTROL_TOOLS = ("finish",)
 
 READ_FILE_LIMIT = 10_000_000
 READ_LINE_CHARS = 500
+READ_WHOLE_LINES = 60  # files this short are always shown whole, whatever range is asked
 GREP_RESULTS = 100
 LOCATION_RESULTS = 50
 
@@ -659,9 +660,15 @@ class Toolbox:
         if total == 0:
             return ToolOutput(f"{rel} is empty (0 lines)", data={"path": rel, "total_lines": 0})
         start = max(1, int(args.get("start") or 1))
+        end = int(args.get("end") or total)
+        requested = [start, end]
+        widened = total <= READ_WHOLE_LINES and (start, min(max(end, start), total)) != (1, total)
+        if total <= READ_WHOLE_LINES:
+            # A short file costs little to show whole, and a model that sees only part of it
+            # tends to edit the part it saw.
+            start, end = 1, total
         if start > total:
             raise ToolError(f"start {start} is past the end of {rel} ({total} lines)")
-        end = int(args.get("end") or total)
         end = min(max(end, start), total)
         hashes = edit_format.line_hashes(lines)
         seen = self._seen.setdefault(rel, {})
@@ -679,12 +686,21 @@ class Toolbox:
             used += len(row) + 1
             last = number
         header = f"{rel} lines {start}-{last} of {total}{note}"
+        if widened:
+            header += " (the whole file: short files are shown whole)"
         footer = ""
         if last < end:
             footer = f"\n[more: read with start={last + 1}]"
         output = ToolOutput(
             f"{header}\n" + "\n".join(rows) + footer,
-            data={"path": rel, "start": start, "end": last, "total_lines": total, "sha256": digest},
+            data={
+                "path": rel,
+                "start": start,
+                "end": last,
+                "requested": requested,
+                "total_lines": total,
+                "sha256": digest,
+            },
         )
         return output
 

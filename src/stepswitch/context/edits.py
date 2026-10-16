@@ -370,15 +370,19 @@ def _stale(doc: TextDoc, hashes: list[str], anchor: Anchor, reason: str) -> Edit
             "Replace the whole file with `text` instead."
         )
     line = min(max(anchor.line, 1), total)
-    low, high = max(1, line - 3), min(total, line + 3)
+    short = total <= SMALL_FILE_LINES
+    # A short file is shown whole: the model sees every current anchor at once.
+    low, high = (1, total) if short else (max(1, line - 3), min(total, line + 3))
     moved = [number for number, digest in enumerate(hashes, 1) if digest == anchor.hash]
     hint = ""
     if len(moved) == 1 and moved[0] != anchor.line:
         hint = f" The line it named may now be {moved[0]}:{anchor.hash}."
+    advice = "Use these anchors, or read the file again."
+    if short:
+        advice += " This file is short: you can also send its whole new content as `text`."
     return EditError(
         f"stale anchor {anchor}: {reason}.{hint} Nothing was changed. "
-        f"Current lines {low}-{high}:\n{render(doc.lines, hashes, low, high)}\n"
-        "Use these anchors, or read the file again."
+        f"Current lines {low}-{high}:\n{render(doc.lines, hashes, low, high)}\n{advice}"
     )
 
 

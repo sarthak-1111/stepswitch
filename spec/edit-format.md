@@ -29,7 +29,8 @@ A row is `<line>:<hash>|<text>`. The line number is 1-based. The hash is two low
 and the text is the line without its line ending. A line longer than 500 characters is shown
 cut, followed by `... [N more chars]`. Such a line can still be replaced or deleted through its
 anchor. When the output budget ends early, a last row `[more: read with start=N]` says where
-to continue.
+to continue. A file of at most 60 lines is always shown whole, whatever range is asked; the
+header then ends with `(the whole file: short files are shown whole)`.
 
 ## 2. The anchor hash
 
@@ -153,7 +154,9 @@ Use these anchors, or read the file again.
 ```
 
 The "may now be" hint appears when the stale hash occurs exactly once in the current file. An
-anchor past the end of the file reads `the file has N lines`.
+anchor past the end of the file reads `the file has N lines`. In a file of at most 100 lines the
+error shows every line with its current anchor, not only the lines around the stale one, and
+ends with `This file is short: you can also send its whole new content as `text`.`
 
 ## 6. Preservation and writing
 
