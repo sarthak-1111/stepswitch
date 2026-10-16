@@ -2742,6 +2742,15 @@ v0.40.5 (https://raw.githubusercontent.com/ollama/ollama/v0.40.5/llm/llama_serve
     on the wrong function (line 14, `mul`), then cycled read, test and edit; stuck again.
   - So the protocol carried every action, but a 1.5B base model does not solve the task. The
     C-005 proof uses an instruction-tuned chat model without tool calling instead.
+- Phi-3.5-mini-instruct (Q4_K_M, CPU, managed llama.cpp b11669), same task, every step pinned:
+  - First run: it read only lines 10-16 of calc.py and so never saw `add()`, inserted the fix
+    in the wrong place, reused anchors it had seen in the test file, and called `finish`
+    without running the tests; the gates failed twice and the run ended `gates_failed`.
+  - After two toolbox changes (files of at most 60 lines are always shown whole; a stale anchor
+    in a file of at most 100 lines shows the whole file with fresh anchors and offers `text`):
+    it read the test, grepped, read calc.py (shown whole), sent one stale anchor (refused),
+    read again, made the right anchored edit, ran the tests (3 passed) and finished; the gates
+    passed and the run ended `done` after 11 model turns in 170 s.
 
 ### Gate tools: formatter, type checker, test runner (checked 2026-10-16)
 

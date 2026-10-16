@@ -28,6 +28,11 @@ must be caught before a wrong line changes, and loosely formatted JSON must stil
    correct small files far more reliably than correct anchors, and a 100-line file costs about
    as much to rewrite as to re-read; the limit keeps TK5's purpose (no large rewrites that waste
    tokens and lose unrelated content).
+5. **Short files are shown whole.** `read` shows a file of at most 60 lines whole, whatever
+   range is asked, and a stale anchor in a file of at most 100 lines is answered with the whole
+   file and its fresh anchors plus the offer to send `text`. In live runs a 3.8B model that
+   saw only part of a short file edited the part it saw; with these two rules it completed the
+   C-005 task (docs/RESEARCH.md, "Small models through the fallback protocol").
 
 ## Consequences
 
