@@ -1,0 +1,43 @@
+# Model registry entry (SPEC §5, ADR 0009). Facts checked against the model hub on the date in
+# `verified`; sources in docs/RESEARCH.md ("Verified during Phase 2", "A chat model without
+# native tool calling").
+schema = 1
+
+[model]
+id = "phi-3.5-mini-instruct"
+name = "Phi-3.5-mini-instruct"
+family = "phi3.5"
+hub_id = "bartowski/Phi-3.5-mini-instruct-GGUF"
+source_model = "microsoft/Phi-3.5-mini-instruct"
+revision = "6d70da17e749a471ccb62ade694486011a75cda3"
+file = "Phi-3.5-mini-instruct-Q4_K_M.gguf"
+sha256 = "e4165e3a71af97f1b4820da61079826d8752a2088e313af0c7d346796c38eff5"
+size_bytes = 2393232672
+quant = "Q4_K_M"
+format = "gguf"
+architecture = "phi3"
+params_b = 3.82
+file_size_gb = 2.39
+# Resident memory at the role's context size (file + f16 KV cache; compute buffers excluded).
+# No grouped-query attention: 32 layers x 32 KV heads x 96 dims x 2 x 2 bytes = 384 KiB/token.
+ram_gb = 5.61
+ram_ctx = 8192
+context = 131072
+tool_calls = "none"
+reasoning = "none"
+roles = ["summarizer", "log_triage", "commit_message"]
+# In no default tier: pulled by id (`ssw models pull phi-3.5-mini-instruct`).
+tiers = []
+optional = true
+license = "mit"
+commercial_use = "permitted"
+template_source = "gguf"
+verified = 2026-10-16
+notes = "Chat model whose template has no tool calling; it uses the fallback tool protocol (claim C-005)."
+
+[engines.llamacpp]
+min_version = "b11669"
+args = ["--ctx-size", "8192"]
+
+[engines.ollama]
+name = "phi3.5:3.8b-mini-instruct-q4_K_M"
