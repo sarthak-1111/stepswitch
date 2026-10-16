@@ -1,0 +1,276 @@
+{
+  "problems": [
+    "old-model--ollama.json: unsupported schema 0"
+  ],
+  "ci_set": [
+    "qwen3-4b-instruct-2507",
+    "phi-3.5-mini-instruct",
+    "smollm2-1.7b-instruct",
+    "granite-3.3-2b-instruct"
+  ],
+  "checks": [
+    {
+      "name": "basic_chat",
+      "label": "basic chat"
+    },
+    {
+      "name": "system_prompt",
+      "label": "system prompt"
+    },
+    {
+      "name": "native_tool_call",
+      "label": "native tool call"
+    },
+    {
+      "name": "parallel_tool_calls",
+      "label": "parallel tool calls"
+    },
+    {
+      "name": "fallback_tool_protocol",
+      "label": "fallback tool protocol"
+    },
+    {
+      "name": "json_schema",
+      "label": "JSON Schema output"
+    },
+    {
+      "name": "streaming",
+      "label": "streaming"
+    },
+    {
+      "name": "usage",
+      "label": "usage reporting"
+    },
+    {
+      "name": "reasoning_field",
+      "label": "reasoning field"
+    },
+    {
+      "name": "context_length",
+      "label": "context length"
+    },
+    {
+      "name": "prefix_cache",
+      "label": "prefix cache"
+    },
+    {
+      "name": "throughput",
+      "label": "throughput"
+    },
+    {
+      "name": "tool_call_ids",
+      "label": "tool-call IDs"
+    },
+    {
+      "name": "forced_tool_choice",
+      "label": "forced tool choice"
+    },
+    {
+      "name": "assistant_prefill",
+      "label": "assistant prefill"
+    },
+    {
+      "name": "streamed_tool_args",
+      "label": "streamed tool arguments"
+    },
+    {
+      "name": "structured_output_under_reasoning",
+      "label": "structured output with reasoning"
+    },
+    {
+      "name": "reasoning_retention",
+      "label": "reasoning retention"
+    },
+    {
+      "name": "usage_semantics",
+      "label": "usage semantics"
+    },
+    {
+      "name": "formats_served",
+      "label": "formats served"
+    }
+  ],
+  "results": [
+    {
+      "file": "qwen3-4b-instruct-2507--llamacpp.json",
+      "model": "qwen3-4b-instruct-2507",
+      "family": "qwen3",
+      "engine": "llamacpp",
+      "engine_version": "b11669-620d2225c",
+      "format": "chat-completions",
+      "date": "2026-10-16",
+      "passes": true,
+      "failed": [],
+      "tool_path": "native",
+      "tool_parser": null,
+      "checks": {
+        "basic_chat": "yes",
+        "system_prompt": "yes",
+        "native_tool_call": "yes",
+        "parallel_tool_calls": "yes",
+        "fallback_tool_protocol": "yes",
+        "json_schema": "yes",
+        "streaming": "yes",
+        "usage": "yes",
+        "reasoning_field": "yes",
+        "context_length": "yes",
+        "prefix_cache": "yes",
+        "throughput": "yes",
+        "tool_call_ids": "yes",
+        "forced_tool_choice": "no",
+        "assistant_prefill": "yes",
+        "streamed_tool_args": "yes",
+        "structured_output_under_reasoning": "yes",
+        "reasoning_retention": "skipped",
+        "usage_semantics": "yes",
+        "formats_served": "yes"
+      }
+    },
+    {
+      "file": "phi-3.5-mini-instruct--llamacpp.json",
+      "model": "phi-3.5-mini-instruct",
+      "family": "phi3.5",
+      "engine": "llamacpp",
+      "engine_version": "b11669-620d2225c",
+      "format": "chat-completions",
+      "date": "2026-10-16",
+      "passes": true,
+      "failed": [],
+      "tool_path": "fallback",
+      "tool_parser": null,
+      "checks": {
+        "basic_chat": "yes",
+        "system_prompt": "yes",
+        "native_tool_call": "no",
+        "parallel_tool_calls": "no",
+        "fallback_tool_protocol": "yes",
+        "json_schema": "error",
+        "streaming": "yes",
+        "usage": "yes",
+        "reasoning_field": "no",
+        "context_length": "yes",
+        "prefix_cache": "yes",
+        "throughput": "yes",
+        "tool_call_ids": "skipped",
+        "forced_tool_choice": "no",
+        "assistant_prefill": "yes",
+        "streamed_tool_args": "no",
+        "structured_output_under_reasoning": "skipped",
+        "reasoning_retention": "skipped",
+        "usage_semantics": "yes",
+        "formats_served": "yes"
+      }
+    },
+    {
+      "file": "smollm2-1.7b-instruct--llamacpp.json",
+      "model": "smollm2-1.7b-instruct",
+      "family": "smollm2",
+      "engine": "llamacpp",
+      "engine_version": "b11669-620d2225c",
+      "format": "chat-completions",
+      "date": "2026-10-16",
+      "passes": true,
+      "failed": [],
+      "tool_path": "fallback",
+      "tool_parser": null,
+      "checks": {
+        "basic_chat": "yes",
+        "system_prompt": "yes",
+        "native_tool_call": "no",
+        "parallel_tool_calls": "no",
+        "fallback_tool_protocol": "yes",
+        "json_schema": "yes",
+        "streaming": "yes",
+        "usage": "yes",
+        "reasoning_field": "no",
+        "context_length": "yes",
+        "prefix_cache": "yes",
+        "throughput": "yes",
+        "tool_call_ids": "skipped",
+        "forced_tool_choice": "no",
+        "assistant_prefill": "yes",
+        "streamed_tool_args": "no",
+        "structured_output_under_reasoning": "skipped",
+        "reasoning_retention": "skipped",
+        "usage_semantics": "yes",
+        "formats_served": "yes"
+      }
+    },
+    {
+      "file": "granite-3.3-2b-instruct--llamacpp.json",
+      "model": "granite-3.3-2b-instruct",
+      "family": "granite3.3",
+      "engine": "llamacpp",
+      "engine_version": "b11669-620d2225c",
+      "format": "chat-completions",
+      "date": "2026-10-16",
+      "passes": true,
+      "failed": [],
+      "tool_path": "native",
+      "tool_parser": "granite",
+      "checks": {
+        "basic_chat": "yes",
+        "system_prompt": "yes",
+        "native_tool_call": "yes",
+        "parallel_tool_calls": "yes",
+        "fallback_tool_protocol": "no",
+        "json_schema": "yes",
+        "streaming": "yes",
+        "usage": "yes",
+        "reasoning_field": "yes",
+        "context_length": "yes",
+        "prefix_cache": "yes",
+        "throughput": "yes",
+        "tool_call_ids": "no",
+        "forced_tool_choice": "no",
+        "assistant_prefill": "yes",
+        "streamed_tool_args": "yes",
+        "structured_output_under_reasoning": "error",
+        "reasoning_retention": "skipped",
+        "usage_semantics": "yes",
+        "formats_served": "yes"
+      }
+    }
+  ],
+  "local": [
+    {
+      "endpoint": "ws-local",
+      "model": "qwen2.5-coder:32b",
+      "created": 1792132800.0,
+      "capabilities": {
+        "native_tools": true,
+        "parallel_tools": true,
+        "json_schema": true,
+        "streaming": true,
+        "reasoning_field": false,
+        "prefix_cache": true
+      }
+    },
+    {
+      "endpoint": "ws-local",
+      "model": "gpt-oss:120b",
+      "created": 1792133040.0,
+      "capabilities": {
+        "native_tools": true,
+        "parallel_tools": true,
+        "json_schema": true,
+        "streaming": true,
+        "reasoning_field": true,
+        "prefix_cache": true
+      }
+    },
+    {
+      "endpoint": "managed",
+      "model": "qwen3-4b-instruct-2507",
+      "created": 1792133940.0,
+      "capabilities": {
+        "native_tools": true,
+        "parallel_tools": true,
+        "json_schema": true,
+        "streaming": true,
+        "reasoning_field": true,
+        "prefix_cache": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "workers": [
+    {
+      "id": "managed/qwen3-4b-instruct-2507",
+      "endpoint": "managed",
+      "model": "qwen3-4b-instruct-2507",
+      "format": "chat-completions",
+      "tier": "cpu",
+      "level": 0,
+      "family": "qwen3",
+      "local": true,
+      "roles": [
+        "router",
+        "summarizer"
+      ],
+      "tool_protocol": "native",
+      "tool_parser": null,
+      "context": 8192,
+      "gpu": false,
+      "pin_only": false,
+      "prefill_tps": 148.0,
+      "decode_tps": 14.2
+    },
+    {
+      "id": "managed/smollm2-1.7b-instruct",
+      "endpoint": "managed",
+      "model": "smollm2-1.7b-instruct",
+      "format": "chat-completions",
+      "tier": "cpu",
+      "level": 0,
+      "family": "smollm2",
+      "local": true,
+      "roles": [
+        "summarizer"
+      ],
+      "tool_protocol": "fallback",
+      "tool_parser": null,
+      "context": 8192,
+      "gpu": false,
+      "pin_only": false,
+      "prefill_tps": 210.0,
+      "decode_tps": 22.5
+    },
+    {
+      "id": "ws-local/qwen2.5-coder:32b",
+      "endpoint": "ws-local",
+      "model": "qwen2.5-coder:32b",
+      "format": "chat-completions",
+      "tier": "t2",
+      "level": 1,
+      "family": "qwen2.5",
+      "local": true,
+      "roles": [
+        "coder"
+      ],
+      "tool_protocol": "native",
+      "tool_parser": null,
+      "context": 32768,
+      "gpu": true,
+      "pin_only": false,
+      "prefill_tps": 2480.0,
+      "decode_tps": 34.0
+    },
+    {
+      "id": "ws-local/gpt-oss:120b",
+      "endpoint": "ws-local",
+      "model": "gpt-oss:120b",
+      "format": "chat-completions",
+      "tier": "t3",
+      "level": 2,
+      "family": "gpt-oss",
+      "local": true,
+      "roles": [
+        "coder",
+        "reviewer"
+      ],
+      "tool_protocol": "native",
+      "tool_parser": null,
+      "context": 131072,
+      "gpu": true,
+      "pin_only": false,
+      "prefill_tps": 3900.0,
+      "decode_tps": 58.0
+    },
+    {
+      "id": "lab-gpu/qwen3-coder:480b",
+      "endpoint": "lab-gpu",
+      "model": "qwen3-coder:480b",
+      "format": "chat-completions",
+      "tier": "remote",
+      "level": 3,
+      "family": "qwen3",
+      "local": false,
+      "roles": [
+        "coder"
+      ],
+      "tool_protocol": "native",
+      "tool_parser": "qwen3_coder",
+      "context": 262144,
+      "gpu": true,
+      "pin_only": false,
+      "prefill_tps": null,
+      "decode_tps": null
+    }
+  ],
+  "notes": [
+    "lab-gpu is remote: tasks use it only with allow_remote."
+  ]
+}

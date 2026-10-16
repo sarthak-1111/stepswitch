@@ -1,0 +1,166 @@
+{
+  "endpoints": [
+    {
+      "name": "ws-local",
+      "engine": "ollama",
+      "format": "chat-completions",
+      "formats": [
+        "chat-completions",
+        "responses",
+        "ollama-chat"
+      ],
+      "local": true,
+      "url": "http://127.0.0.1:11434",
+      "auth": "none",
+      "models": [
+        "qwen2.5-coder:32b",
+        "gpt-oss:120b"
+      ],
+      "tool_parser": null,
+      "probes": {
+        "qwen2.5-coder:32b": {
+          "created": 1792132800.0,
+          "format": "chat-completions",
+          "capabilities": {
+            "native_tools": true,
+            "parallel_tools": true,
+            "json_schema": true,
+            "streaming": true,
+            "reasoning_field": false,
+            "prefix_cache": true
+          }
+        },
+        "gpt-oss:120b": {
+          "created": 1792133040.0,
+          "format": "chat-completions",
+          "capabilities": {
+            "native_tools": true,
+            "parallel_tools": true,
+            "json_schema": true,
+            "streaming": true,
+            "reasoning_field": true,
+            "prefix_cache": true
+          }
+        }
+      }
+    },
+    {
+      "name": "bench-box",
+      "engine": "llamacpp",
+      "format": "chat-completions",
+      "formats": [
+        "chat-completions"
+      ],
+      "local": true,
+      "url": "http://127.0.0.1:8080",
+      "auth": "none",
+      "models": [
+        "granite-3.3-2b-instruct"
+      ],
+      "tool_parser": "granite",
+      "probes": {}
+    },
+    {
+      "name": "lab-gpu",
+      "engine": "vllm",
+      "format": "chat-completions",
+      "formats": [
+        "chat-completions",
+        "responses"
+      ],
+      "local": false,
+      "url": null,
+      "auth": "bearer",
+      "models": [
+        "qwen3-coder:480b"
+      ],
+      "tool_parser": "qwen3_coder",
+      "probes": {
+        "qwen3-coder:480b": {
+          "created": 1792037700.0,
+          "format": "chat-completions",
+          "capabilities": {
+            "native_tools": true,
+            "parallel_tools": false,
+            "json_schema": true,
+            "streaming": true
+          }
+        }
+      }
+    }
+  ],
+  "managed": [
+    {
+      "model": "qwen3-4b-instruct-2507",
+      "engine": "llamacpp",
+      "base_url": "http://127.0.0.1:50342",
+      "alive": null,
+      "started": 1792133880.0,
+      "last_used": 1792142564.0
+    },
+    {
+      "model": "smollm2-1.7b-instruct",
+      "engine": "llamacpp",
+      "base_url": "http://127.0.0.1:50355",
+      "alive": null,
+      "started": 1792133910.0,
+      "last_used": 1792138200.0
+    }
+  ],
+  "installed": [
+    {
+      "id": "qwen3-4b-instruct-2507",
+      "name": "Qwen3-4B-Instruct-2507",
+      "ram_gb": 3.1,
+      "roles": [
+        "router",
+        "summarizer"
+      ],
+      "running": true,
+      "state": "running"
+    },
+    {
+      "id": "smollm2-1.7b-instruct",
+      "name": "SmolLM2-1.7B-Instruct",
+      "ram_gb": 2.67,
+      "roles": [
+        "summarizer"
+      ],
+      "running": true,
+      "state": "running"
+    },
+    {
+      "id": "phi-3.5-mini-instruct",
+      "name": "Phi-3.5-mini-instruct",
+      "ram_gb": 5.61,
+      "roles": [
+        "worker"
+      ],
+      "running": false,
+      "state": "failed"
+    },
+    {
+      "id": "granite-3.3-2b-instruct",
+      "name": "Granite-3.3-2B-Instruct",
+      "ram_gb": 2.22,
+      "roles": [
+        "worker"
+      ],
+      "running": false,
+      "state": "stopped"
+    },
+    {
+      "id": "qwen3-embedding-0.6b",
+      "name": "Qwen3-Embedding-0.6B",
+      "ram_gb": 0.87,
+      "roles": [
+        "embeddings"
+      ],
+      "running": false,
+      "state": "stopped"
+    }
+  ],
+  "model_errors": {
+    "phi-3.5-mini-instruct": "llama-server exited with code 1 before it answered: not enough free memory for the context size"
+  }
+}

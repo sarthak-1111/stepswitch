@@ -1,0 +1,276 @@
+{
+  "task": {
+    "id": "t20261016-091200-5c1e9a",
+    "created": 1792141920.0,
+    "updated": 1792142044.3,
+    "status": "running",
+    "stop_reason": null,
+    "track": "general",
+    "instruction": "Fix the failing date parsing test in utils/dates.py",
+    "worker": null,
+    "steps": 8,
+    "escalations": 1,
+    "switches": 1,
+    "tokens": {
+      "input": 35950,
+      "output": 1520,
+      "cached_input": 24400,
+      "reasoning": 0
+    },
+    "wall_seconds": 124.3,
+    "gpu_seconds": 25.9,
+    "summary": "",
+    "cancel_requested": false
+  },
+  "trajectory": {
+    "task_id": "t20261016-091200-5c1e9a",
+    "seq": 33,
+    "ts": 1792142044.3,
+    "type": "step",
+    "step": 8
+  },
+  "ledger": {
+    "task_id": "t20261016-091200-5c1e9a",
+    "step": 8,
+    "ts": 1792142044.3,
+    "step_type": "run",
+    "endpoint": "ws-local",
+    "model": "qwen2.5-coder:32b",
+    "input_tokens": 6600,
+    "output_tokens": 55,
+    "cached_input_tokens": 6000,
+    "reasoning_tokens": 0,
+    "wall_seconds": 2.6,
+    "gpu_seconds": 2.6,
+    "usage_source": "server"
+  },
+  "decision": {
+    "task_id": "t20261016-091200-5c1e9a",
+    "step": 8,
+    "ts": 1792142041.5,
+    "step_type": "run",
+    "chosen": "ws-local/qwen2.5-coder:32b",
+    "previous": "ws-local/qwen2.5-coder:32b",
+    "switched": false,
+    "reason": "stay on ws-local/qwen2.5-coder:32b: switching would not pay off",
+    "rule": null,
+    "level": 1,
+    "seed": 0,
+    "expected_gain": null,
+    "switch_cost": null,
+    "estimate": {
+      "input_tokens": 6600,
+      "output_tokens": 55,
+      "seconds": 1.86,
+      "tokens": 6655
+    },
+    "candidates": [
+      {
+        "worker": "managed/qwen3-4b-instruct-2507",
+        "endpoint": "managed",
+        "model": "qwen3-4b-instruct-2507",
+        "tier": "cpu",
+        "level": 0,
+        "estimate": {
+          "input_tokens": 6600,
+          "output_tokens": 55,
+          "seconds": 18.74,
+          "tokens": 6655
+        },
+        "score": null,
+        "excluded": "below the current rung (T1/T2) for run steps"
+      },
+      {
+        "worker": "managed/smollm2-1.7b-instruct",
+        "endpoint": "managed",
+        "model": "smollm2-1.7b-instruct",
+        "tier": "cpu",
+        "level": 0,
+        "estimate": {
+          "input_tokens": 6600,
+          "output_tokens": 55,
+          "seconds": 12.92,
+          "tokens": 6655
+        },
+        "score": null,
+        "excluded": "below the current rung (T1/T2) for run steps"
+      },
+      {
+        "worker": "ws-local/qwen2.5-coder:32b",
+        "endpoint": "ws-local",
+        "model": "qwen2.5-coder:32b",
+        "tier": "t2",
+        "level": 1,
+        "estimate": {
+          "input_tokens": 6600,
+          "output_tokens": 55,
+          "seconds": 2.5,
+          "tokens": 6655
+        },
+        "score": 0.75,
+        "excluded": null
+      },
+      {
+        "worker": "ws-local/gpt-oss:120b",
+        "endpoint": "ws-local",
+        "model": "gpt-oss:120b",
+        "tier": "t3",
+        "level": 2,
+        "estimate": {
+          "input_tokens": 6600,
+          "output_tokens": 55,
+          "seconds": 1.51,
+          "tokens": 6655
+        },
+        "score": null,
+        "excluded": "above the current rung (T1/T2)"
+      },
+      {
+        "worker": "lab-gpu/qwen3-coder:480b",
+        "endpoint": "lab-gpu",
+        "model": "qwen3-coder:480b",
+        "tier": "remote",
+        "level": 3,
+        "estimate": {
+          "input_tokens": 6600,
+          "output_tokens": 55,
+          "seconds": 1.65,
+          "tokens": 6655
+        },
+        "score": null,
+        "excluded": "remote endpoints are opt-in (top of the escalation ladder)"
+      }
+    ],
+    "notes": []
+  },
+  "events": [
+    {
+      "seq": 32,
+      "ts": 1792142041.5,
+      "type": "decision",
+      "step": 8,
+      "data": {
+        "step_type": "run",
+        "chosen": "ws-local/qwen2.5-coder:32b",
+        "previous": "ws-local/qwen2.5-coder:32b",
+        "switched": false,
+        "reason": "stay on ws-local/qwen2.5-coder:32b: switching would not pay off",
+        "rule": null,
+        "level": 1,
+        "seed": 0,
+        "expected_gain": null,
+        "switch_cost": null,
+        "estimate": {
+          "input_tokens": 6600,
+          "output_tokens": 55,
+          "seconds": 1.86,
+          "tokens": 6655
+        },
+        "candidates": [
+          {
+            "worker": "managed/qwen3-4b-instruct-2507",
+            "endpoint": "managed",
+            "model": "qwen3-4b-instruct-2507",
+            "tier": "cpu",
+            "level": 0,
+            "estimate": {
+              "input_tokens": 6600,
+              "output_tokens": 55,
+              "seconds": 18.74,
+              "tokens": 6655
+            },
+            "score": null,
+            "excluded": "below the current rung (T1/T2) for run steps"
+          },
+          {
+            "worker": "managed/smollm2-1.7b-instruct",
+            "endpoint": "managed",
+            "model": "smollm2-1.7b-instruct",
+            "tier": "cpu",
+            "level": 0,
+            "estimate": {
+              "input_tokens": 6600,
+              "output_tokens": 55,
+              "seconds": 12.92,
+              "tokens": 6655
+            },
+            "score": null,
+            "excluded": "below the current rung (T1/T2) for run steps"
+          },
+          {
+            "worker": "ws-local/qwen2.5-coder:32b",
+            "endpoint": "ws-local",
+            "model": "qwen2.5-coder:32b",
+            "tier": "t2",
+            "level": 1,
+            "estimate": {
+              "input_tokens": 6600,
+              "output_tokens": 55,
+              "seconds": 2.5,
+              "tokens": 6655
+            },
+            "score": 0.75,
+            "excluded": null
+          },
+          {
+            "worker": "ws-local/gpt-oss:120b",
+            "endpoint": "ws-local",
+            "model": "gpt-oss:120b",
+            "tier": "t3",
+            "level": 2,
+            "estimate": {
+              "input_tokens": 6600,
+              "output_tokens": 55,
+              "seconds": 1.51,
+              "tokens": 6655
+            },
+            "score": null,
+            "excluded": "above the current rung (T1/T2)"
+          },
+          {
+            "worker": "lab-gpu/qwen3-coder:480b",
+            "endpoint": "lab-gpu",
+            "model": "qwen3-coder:480b",
+            "tier": "remote",
+            "level": 3,
+            "estimate": {
+              "input_tokens": 6600,
+              "output_tokens": 55,
+              "seconds": 1.65,
+              "tokens": 6655
+            },
+            "score": null,
+            "excluded": "remote endpoints are opt-in (top of the escalation ladder)"
+          }
+        ],
+        "notes": []
+      }
+    },
+    {
+      "seq": 33,
+      "ts": 1792142044.3,
+      "type": "step",
+      "step": 8,
+      "data": {
+        "step_type": "run",
+        "worker": "ws-local/qwen2.5-coder:32b",
+        "endpoint": "ws-local",
+        "model": "qwen2.5-coder:32b",
+        "tool_calls": [
+          "run_tests"
+        ],
+        "text": "Running the full test file once more after the regression test.",
+        "finish_reason": "tool_calls",
+        "usage": {
+          "input_tokens": 6600,
+          "output_tokens": 55,
+          "cached_input_tokens": 6000,
+          "reasoning_tokens": 0,
+          "usage_source": "server"
+        },
+        "wall_seconds": 2.6,
+        "gpu_seconds": 2.6
+      }
+    }
+  ]
+}

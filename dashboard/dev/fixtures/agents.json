@@ -1,0 +1,40 @@
+{
+  "agents": [
+    {
+      "task_id": "t20261016-092230-0b9d44",
+      "status": "routing",
+      "worker": "managed/qwen3-4b-instruct-2507",
+      "step": 1,
+      "step_type": "plan",
+      "tokens_per_s": 13.2,
+      "context_used": 1500,
+      "context": 8192,
+      "cache_hit": 0.0,
+      "since": 1792142550.0
+    },
+    {
+      "task_id": "t20261016-091845-a71f03",
+      "status": "verifying",
+      "worker": "ws-local/gpt-oss:120b",
+      "step": 12,
+      "step_type": "review",
+      "tokens_per_s": 42.3,
+      "context_used": 17300,
+      "context": 131072,
+      "cache_hit": 0.942,
+      "since": 1792142325.0
+    },
+    {
+      "task_id": "t20261016-091200-5c1e9a",
+      "status": "running",
+      "worker": "ws-local/qwen2.5-coder:32b",
+      "step": 7,
+      "step_type": "edit",
+      "tokens_per_s": 30.4,
+      "context_used": 6100,
+      "context": 32768,
+      "cache_hit": 0.902,
+      "since": 1792141920.0
+    }
+  ]
+}

@@ -1,0 +1,279 @@
+{
+  "runs": [
+    {
+      "name": "2026-10-16-mini-general",
+      "suite": "mini-general",
+      "started": "2026-10-16T03:10:02+00:00",
+      "finished": "2026-10-16T05:42:10+00:00",
+      "contestants": [
+        "ws-local/gpt-oss:120b",
+        "router",
+        "ws-local/qwen2.5-coder:32b",
+        "managed/qwen3-4b-instruct-2507"
+      ],
+      "rows": 120
+    },
+    {
+      "name": "2026-10-12-mini-science",
+      "suite": "mini-science",
+      "started": "2026-10-12T19:58:31+00:00",
+      "finished": "2026-10-12T21:05:44+00:00",
+      "contestants": [
+        "router",
+        "ws-local/gpt-oss:120b"
+      ],
+      "rows": 24
+    }
+  ],
+  "boards": {
+    "2026-10-16-mini-general": {
+      "schema": 1,
+      "suite": "mini-general",
+      "results_file": "results.jsonl",
+      "command": "ssw bench run --suite mini-general --workers router,ws-local/gpt-oss:120b,ws-local/qwen2.5-coder:32b,managed/qwen3-4b-instruct-2507 --seeds 2",
+      "date": "2026-10-16T05:42:10+00:00",
+      "hardware": {
+        "os": "Linux",
+        "arch": "x86_64",
+        "cpu_cores": 16,
+        "ram_gb": 64.0,
+        "gpus": 1
+      },
+      "version": "0.1.0.dev0",
+      "commit": "4766b79",
+      "seeds": [
+        0,
+        1
+      ],
+      "tasks": 15,
+      "runs": 120,
+      "prices": null,
+      "interval": {
+        "confidence": 0.95,
+        "resamples": 2000,
+        "seed": 0
+      },
+      "scoring": "passes when every acceptance command exits with 0 on a fresh copy with the run's diff applied and the suite's protected paths restored",
+      "router_pool": [
+        "managed/qwen3-4b-instruct-2507",
+        "ws-local/qwen2.5-coder:32b",
+        "ws-local/gpt-oss:120b"
+      ],
+      "contestants": [
+        {
+          "rank": 1,
+          "contestant": "ws-local/gpt-oss:120b",
+          "pass_rate": 0.967,
+          "passed": 29,
+          "runs": 30,
+          "tasks": 15,
+          "ci": {
+            "low": 0.9,
+            "high": 1.0,
+            "confidence": 0.95,
+            "method": "cluster bootstrap over tasks (percentile)",
+            "resamples": 2000
+          },
+          "median_wall_seconds": 57.8,
+          "median_tokens": 36201.5,
+          "input_tokens": 1358541,
+          "output_tokens": 66457,
+          "cached_input_tokens": 1092998,
+          "cache_hit_rate": 0.805,
+          "gpu_seconds": 1511.3,
+          "escalation_rate": 0.0,
+          "reference_cost": null,
+          "tests_modified": 0,
+          "statuses": {
+            "done": 29,
+            "failed": 1
+          }
+        },
+        {
+          "rank": 2,
+          "contestant": "router",
+          "pass_rate": 0.9,
+          "passed": 27,
+          "runs": 30,
+          "tasks": 15,
+          "ci": {
+            "low": 0.8,
+            "high": 1.0,
+            "confidence": 0.95,
+            "method": "cluster bootstrap over tasks (percentile)",
+            "resamples": 2000
+          },
+          "median_wall_seconds": 71.2,
+          "median_tokens": 28410.0,
+          "input_tokens": 1120400,
+          "output_tokens": 51210,
+          "cached_input_tokens": 902300,
+          "cache_hit_rate": 0.805,
+          "gpu_seconds": 820.4,
+          "escalation_rate": 0.233,
+          "reference_cost": null,
+          "tests_modified": 0,
+          "statuses": {
+            "done": 27,
+            "failed": 3
+          }
+        },
+        {
+          "rank": 3,
+          "contestant": "ws-local/qwen2.5-coder:32b",
+          "pass_rate": 0.733,
+          "passed": 22,
+          "runs": 30,
+          "tasks": 15,
+          "ci": {
+            "low": 0.567,
+            "high": 0.867,
+            "confidence": 0.95,
+            "method": "cluster bootstrap over tasks (percentile)",
+            "resamples": 2000
+          },
+          "median_wall_seconds": 64.1,
+          "median_tokens": 31890.0,
+          "input_tokens": 1210800,
+          "output_tokens": 58830,
+          "cached_input_tokens": 950100,
+          "cache_hit_rate": 0.785,
+          "gpu_seconds": 1290.7,
+          "escalation_rate": 0.0,
+          "reference_cost": null,
+          "tests_modified": 1,
+          "statuses": {
+            "done": 22,
+            "failed": 8
+          }
+        },
+        {
+          "rank": 4,
+          "contestant": "managed/qwen3-4b-instruct-2507",
+          "pass_rate": 0.3,
+          "passed": 9,
+          "runs": 30,
+          "tasks": 15,
+          "ci": {
+            "low": 0.167,
+            "high": 0.467,
+            "confidence": 0.95,
+            "method": "cluster bootstrap over tasks (percentile)",
+            "resamples": 2000
+          },
+          "median_wall_seconds": 212.6,
+          "median_tokens": 24100.5,
+          "input_tokens": 820300,
+          "output_tokens": 40210,
+          "cached_input_tokens": 610900,
+          "cache_hit_rate": 0.745,
+          "gpu_seconds": 0.0,
+          "escalation_rate": 0.0,
+          "reference_cost": null,
+          "tests_modified": 0,
+          "statuses": {
+            "done": 9,
+            "failed": 21
+          }
+        }
+      ]
+    },
+    "2026-10-12-mini-science": {
+      "schema": 1,
+      "suite": "mini-science",
+      "results_file": "results.jsonl",
+      "command": "ssw bench run --suite mini-science --workers router,ws-local/gpt-oss:120b --seeds 2",
+      "date": "2026-10-12T21:05:44+00:00",
+      "hardware": {
+        "os": "Linux",
+        "arch": "x86_64",
+        "cpu_cores": 16,
+        "ram_gb": 64.0,
+        "gpus": 1
+      },
+      "version": "0.1.0.dev0",
+      "commit": "cbebc2a",
+      "seeds": [
+        0,
+        1
+      ],
+      "tasks": 6,
+      "runs": 24,
+      "prices": {
+        "input_per_million": 3.0,
+        "output_per_million": 15.0
+      },
+      "interval": {
+        "confidence": 0.95,
+        "resamples": 2000,
+        "seed": 0
+      },
+      "scoring": "passes when every acceptance command exits with 0 on a fresh copy with the run's diff applied and the suite's protected paths restored",
+      "router_pool": [
+        "managed/qwen3-4b-instruct-2507",
+        "ws-local/qwen2.5-coder:32b",
+        "ws-local/gpt-oss:120b"
+      ],
+      "contestants": [
+        {
+          "rank": 1,
+          "contestant": "router",
+          "pass_rate": 0.917,
+          "passed": 11,
+          "runs": 12,
+          "tasks": 6,
+          "ci": {
+            "low": 0.75,
+            "high": 1.0,
+            "confidence": 0.95,
+            "method": "cluster bootstrap over tasks (percentile)",
+            "resamples": 2000
+          },
+          "median_wall_seconds": 96.4,
+          "median_tokens": 41200.0,
+          "input_tokens": 512300,
+          "output_tokens": 21400,
+          "cached_input_tokens": 401200,
+          "cache_hit_rate": 0.783,
+          "gpu_seconds": 640.2,
+          "escalation_rate": 0.333,
+          "reference_cost": 1.8579,
+          "tests_modified": 0,
+          "statuses": {
+            "done": 11,
+            "failed": 1
+          }
+        },
+        {
+          "rank": 2,
+          "contestant": "ws-local/gpt-oss:120b",
+          "pass_rate": 0.833,
+          "passed": 10,
+          "runs": 12,
+          "tasks": 6,
+          "ci": {
+            "low": 0.583,
+            "high": 1.0,
+            "confidence": 0.95,
+            "method": "cluster bootstrap over tasks (percentile)",
+            "resamples": 2000
+          },
+          "median_wall_seconds": 88.0,
+          "median_tokens": 45110.0,
+          "input_tokens": 560100,
+          "output_tokens": 24900,
+          "cached_input_tokens": 452000,
+          "cache_hit_rate": 0.807,
+          "gpu_seconds": 702.9,
+          "escalation_rate": 0.0,
+          "reference_cost": 2.0538,
+          "tests_modified": 0,
+          "statuses": {
+            "done": 10,
+            "failed": 2
+          }
+        }
+      ]
+    }
+  }
+}

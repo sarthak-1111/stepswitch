@@ -1,0 +1,135 @@
+{
+  "source": "claims/prove-report.json",
+  "report": {
+    "mode": "quick",
+    "created": "2026-10-16T07:53:27+00:00",
+    "duration_s": 364.21,
+    "summary": {
+      "pending": 2,
+      "passing": 7,
+      "failing": 0
+    },
+    "platform": {
+      "os": "windows",
+      "machine": "amd64",
+      "release": "11",
+      "python": "3.12.15",
+      "ci": false,
+      "runner_label": null,
+      "image_os": null,
+      "image_version": null
+    },
+    "selection": {
+      "phase": 2,
+      "claims": [],
+      "skip": []
+    }
+  },
+  "claims": [
+    {
+      "id": "C-001",
+      "text": "Runs end to end on a CPU-only machine with 8 GB RAM.",
+      "phase": 2,
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c001_cpu_only_8gb.py::test_toy_task_runs_in_cpu_only_8gb_container": "passed"
+      },
+      "notes": {},
+      "parts": []
+    },
+    {
+      "id": "C-002",
+      "text": "Switches models between steps inside a single task.",
+      "phase": 2,
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c002_step_switching.py::test_single_task_switches_endpoints_with_logged_reasons": "passed"
+      },
+      "notes": {},
+      "parts": []
+    },
+    {
+      "id": "C-004",
+      "text": "Speaks the chat-completions, responses, messages and generate-content API formats, plus engine-native formats.",
+      "phase": 1,
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c004_api_formats.py::test_conformance_against_mock_servers": "passed",
+        "tests/claims/test_c004_api_formats.py::test_round_trip_preserves_messages_and_tool_calls": "passed"
+      },
+      "notes": {},
+      "parts": []
+    },
+    {
+      "id": "C-005",
+      "text": "Works with any open-weight model your installed engines can serve, including models without native tool calling.",
+      "phase": 2,
+      "status": "pending",
+      "tests": {
+        "tests/claims/test_c005_fallback.py::test_model_without_native_tools_completes_task_via_fallback": "passed"
+      },
+      "notes": {},
+      "parts": [
+        "fallback"
+      ]
+    },
+    {
+      "id": "C-007",
+      "text": "Sends no telemetry.",
+      "phase": 1,
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c007_no_telemetry.py::test_default_flow_opens_no_outbound_connections": "passed"
+      },
+      "notes": {},
+      "parts": []
+    },
+    {
+      "id": "C-008",
+      "text": "The science gate catches numerical regressions beyond your tolerances.",
+      "phase": 2,
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c008_science_gate.py::test_mutations_above_tolerance_caught_below_not_flagged": "passed"
+      },
+      "notes": {},
+      "parts": []
+    },
+    {
+      "id": "C-009",
+      "text": "Changes to protected constants fail verification unless explicitly allowed.",
+      "phase": 2,
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c009_protected_constants.py::test_protected_change_fails_without_allow_flag": "passed",
+        "tests/claims/test_c009_protected_constants.py::test_protected_change_passes_with_allow_flag": "passed"
+      },
+      "notes": {},
+      "parts": []
+    },
+    {
+      "id": "C-016",
+      "text": "Runs on macOS, Linux and Windows.",
+      "phase": 1,
+      "status": "pending",
+      "tests": {
+        "tests/claims/test_c016_platforms.py::test_prove_quick_passed_on_linux_macos_windows": "skipped"
+      },
+      "notes": {
+        "tests/claims/test_c016_platforms.py::test_prove_quick_passed_on_linux_macos_windows": "pending: no platform evidence yet; the CI workflow writes claims/evidence/C-016.json after `ssw prove --quick` ran on all three platforms"
+      },
+      "parts": []
+    },
+    {
+      "id": "C-020",
+      "text": "Stops at the budget you set.",
+      "phase": 2,
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c020_budgets.py::test_tiny_budgets_stop_with_status_and_bounded_overrun": "passed"
+      },
+      "notes": {},
+      "parts": []
+    }
+  ]
+}

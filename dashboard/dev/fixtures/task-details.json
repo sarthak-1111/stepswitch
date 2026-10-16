@@ -1,0 +1,527 @@
+{
+  "t20261016-091200-5c1e9a": {
+    "spec": {
+      "instruction": "Fix the failing date parsing test in utils/dates.py",
+      "repo": "C:/work/project",
+      "track": "general",
+      "acceptance": [
+        "python -m pytest -q tests/test_dates.py"
+      ],
+      "budgets": {
+        "tokens": null,
+        "wall_seconds": 900,
+        "gpu_seconds": null,
+        "escalations": null
+      },
+      "best_of": 1,
+      "offline": false,
+      "worker": null,
+      "workers": [],
+      "seed": 0,
+      "max_steps": 40,
+      "allow_protected": [],
+      "gate_attempts": 2,
+      "review": true,
+      "apply": false,
+      "include_uncommitted": false,
+      "allow_remote": false
+    },
+    "result": null
+  },
+  "t20261016-091845-a71f03": {
+    "spec": {
+      "instruction": "Speed up the baseline correction in spectra/baseline.py without changing results beyond tolerance",
+      "repo": "C:/work/project",
+      "track": "science",
+      "acceptance": [
+        "python -m pytest -q",
+        "python scripts/check_baseline.py"
+      ],
+      "budgets": {
+        "tokens": null,
+        "wall_seconds": 1800,
+        "gpu_seconds": null,
+        "escalations": null
+      },
+      "best_of": 1,
+      "offline": false,
+      "worker": null,
+      "workers": [],
+      "seed": 0,
+      "max_steps": 40,
+      "allow_protected": [],
+      "gate_attempts": 2,
+      "review": true,
+      "apply": false,
+      "include_uncommitted": false,
+      "allow_remote": false
+    },
+    "result": null
+  },
+  "t20261016-092230-0b9d44": {
+    "spec": {
+      "instruction": "Add type hints to the config loader",
+      "repo": "C:/work/project",
+      "track": "general",
+      "acceptance": [],
+      "budgets": {
+        "tokens": null,
+        "wall_seconds": 900,
+        "gpu_seconds": null,
+        "escalations": null
+      },
+      "best_of": 1,
+      "offline": false,
+      "worker": null,
+      "workers": [],
+      "seed": 0,
+      "max_steps": 40,
+      "allow_protected": [],
+      "gate_attempts": 2,
+      "review": true,
+      "apply": false,
+      "include_uncommitted": false,
+      "allow_remote": false
+    },
+    "result": null
+  },
+  "t20261016-092301-e3c8f2": {
+    "spec": {
+      "instruction": "Write a docstring for every public function in cli.py",
+      "repo": "C:/work/project",
+      "track": "general",
+      "acceptance": [
+        "python -m pytest -q tests/test_cli.py"
+      ],
+      "budgets": {
+        "tokens": null,
+        "wall_seconds": 900,
+        "gpu_seconds": null,
+        "escalations": null
+      },
+      "best_of": 1,
+      "offline": false,
+      "worker": "managed/qwen3-4b-instruct-2507",
+      "workers": [],
+      "seed": 0,
+      "max_steps": 40,
+      "allow_protected": [],
+      "gate_attempts": 2,
+      "review": true,
+      "apply": false,
+      "include_uncommitted": false,
+      "allow_remote": false
+    },
+    "result": null
+  },
+  "t20261016-083015-19d0be": {
+    "spec": {
+      "instruction": "Fix the off-by-one error in the pagination helper",
+      "repo": "C:/work/project",
+      "track": "general",
+      "acceptance": [
+        "python -m pytest -q tests/test_pager.py"
+      ],
+      "budgets": {
+        "tokens": null,
+        "wall_seconds": 900,
+        "gpu_seconds": null,
+        "escalations": null
+      },
+      "best_of": 1,
+      "offline": false,
+      "worker": null,
+      "workers": [],
+      "seed": 0,
+      "max_steps": 40,
+      "allow_protected": [],
+      "gate_attempts": 2,
+      "review": true,
+      "apply": false,
+      "include_uncommitted": false,
+      "allow_remote": false
+    },
+    "result": {
+      "task_id": "t20261016-083015-19d0be",
+      "status": "done",
+      "stop_reason": null,
+      "summary": "Fixed the off-by-one in paginate(): the last page now includes its final item. The acceptance tests pass.",
+      "steps": 9,
+      "endpoints": [
+        "managed",
+        "ws-local"
+      ],
+      "switches": 2,
+      "escalations": 1,
+      "changed_files": [
+        "src/pager.py",
+        "tests/test_pager.py"
+      ],
+      "diff": "diff --git a/src/pager.py b/src/pager.py\nindex 3f2a1c4..8b7e9d0 100644\n--- a/src/pager.py\n+++ b/src/pager.py\n@@ -38,9 +38,11 @@ def paginate(items, page, size):\n     if size <= 0:\n         raise ValueError(\"size must be positive\")\n-    start = page * size\n-    end = start + size - 1\n+    # Pages are 1-based; the end index is exclusive.\n+    start = (page - 1) * size\n+    end = start + size\n     return items[start:end]\ndiff --git a/tests/test_pager.py b/tests/test_pager.py\nindex 3f2a1c4..8b7e9d0 100644\n--- a/tests/test_pager.py\n+++ b/tests/test_pager.py\n@@ -38,9 +38,11 @@ def paginate(items, page, size):\n     if size <= 0:\n         raise ValueError(\"size must be positive\")\n-    start = page * size\n-    end = start + size - 1\n+    # Pages are 1-based; the end index is exclusive.\n+    start = (page - 1) * size\n+    end = start + size\n     return items[start:end]\n",
+      "verdict": {
+        "passed": true,
+        "failed_gate": null,
+        "report": "",
+        "results": [
+          {
+            "name": "format",
+            "status": "passed",
+            "seconds": 0.4,
+            "summary": "ruff format: no changes",
+            "details": {},
+            "report": ""
+          },
+          {
+            "name": "lint",
+            "status": "passed",
+            "seconds": 0.9,
+            "summary": "ruff: no issues",
+            "details": {},
+            "report": ""
+          },
+          {
+            "name": "tests",
+            "status": "passed",
+            "seconds": 6.8,
+            "summary": "41 passed",
+            "details": {},
+            "report": ""
+          }
+        ]
+      },
+      "tokens": {
+        "input": 32500,
+        "output": 1335,
+        "cached_input": 20000,
+        "reasoning": 0
+      },
+      "budget": {},
+      "wall_seconds": 91.2,
+      "run_dir": ".stepswitch/runs/t20261016-083015-19d0be",
+      "worktree": null,
+      "branch": "ssw/t20261016-083015-19d0be"
+    }
+  },
+  "t20261016-080502-77aa21": {
+    "spec": {
+      "instruction": "Port the peak fitting routine to numpy 2 without changing fitted values",
+      "repo": "C:/work/project",
+      "track": "science",
+      "acceptance": [
+        "python -m pytest -q tests/test_peaks.py"
+      ],
+      "budgets": {
+        "tokens": null,
+        "wall_seconds": 1800,
+        "gpu_seconds": null,
+        "escalations": null
+      },
+      "best_of": 1,
+      "offline": false,
+      "worker": null,
+      "workers": [],
+      "seed": 0,
+      "max_steps": 40,
+      "allow_protected": [],
+      "gate_attempts": 2,
+      "review": true,
+      "apply": false,
+      "include_uncommitted": false,
+      "allow_remote": false
+    },
+    "result": {
+      "task_id": "t20261016-080502-77aa21",
+      "status": "done",
+      "stop_reason": null,
+      "summary": "Ported fit_peaks() to numpy 2. Golden comparisons are within tolerance on the second gate run.",
+      "steps": 9,
+      "endpoints": [
+        "managed",
+        "ws-local"
+      ],
+      "switches": 1,
+      "escalations": 0,
+      "changed_files": [
+        "src/spectra/peaks.py"
+      ],
+      "diff": "diff --git a/src/spectra/peaks.py b/src/spectra/peaks.py\nindex 3f2a1c4..8b7e9d0 100644\n--- a/src/spectra/peaks.py\n+++ b/src/spectra/peaks.py\n@@ -38,9 +38,11 @@ def paginate(items, page, size):\n     if size <= 0:\n         raise ValueError(\"size must be positive\")\n-    start = page * size\n-    end = start + size - 1\n+    # Pages are 1-based; the end index is exclusive.\n+    start = (page - 1) * size\n+    end = start + size\n     return items[start:end]\n",
+      "verdict": {
+        "passed": true,
+        "failed_gate": null,
+        "report": "",
+        "results": [
+          {
+            "name": "format",
+            "status": "passed",
+            "seconds": 0.4,
+            "summary": "ruff format: no changes",
+            "details": {},
+            "report": ""
+          },
+          {
+            "name": "lint",
+            "status": "passed",
+            "seconds": 0.9,
+            "summary": "ruff: no issues",
+            "details": {},
+            "report": ""
+          },
+          {
+            "name": "tests",
+            "status": "passed",
+            "seconds": 6.8,
+            "summary": "41 passed",
+            "details": {},
+            "report": ""
+          },
+          {
+            "name": "golden",
+            "status": "passed",
+            "seconds": 11.4,
+            "summary": "6 quantities within tolerance in 2 case(s)",
+            "details": {
+              "status": "passed"
+            },
+            "report": ""
+          }
+        ]
+      },
+      "tokens": {
+        "input": 70100,
+        "output": 2195,
+        "cached_input": 55000,
+        "reasoning": 0
+      },
+      "budget": {},
+      "wall_seconds": 82.9,
+      "run_dir": ".stepswitch/runs/t20261016-080502-77aa21",
+      "worktree": null,
+      "branch": "ssw/t20261016-080502-77aa21"
+    }
+  },
+  "t20261016-074410-c4e5f6": {
+    "spec": {
+      "instruction": "Refactor the cache layer to use the new storage interface",
+      "repo": "C:/work/project",
+      "track": "general",
+      "acceptance": [
+        "python -m pytest -q tests/test_cache.py"
+      ],
+      "budgets": {
+        "tokens": null,
+        "wall_seconds": 900,
+        "gpu_seconds": null,
+        "escalations": null
+      },
+      "best_of": 1,
+      "offline": false,
+      "worker": null,
+      "workers": [],
+      "seed": 0,
+      "max_steps": 40,
+      "allow_protected": [],
+      "gate_attempts": 2,
+      "review": true,
+      "apply": false,
+      "include_uncommitted": false,
+      "allow_remote": false
+    },
+    "result": {
+      "task_id": "t20261016-074410-c4e5f6",
+      "status": "failed",
+      "stop_reason": "gates_failed",
+      "summary": "Gates failed at tests on the highest local rung: 3 tests in tests/test_cache.py still fail.",
+      "steps": 9,
+      "endpoints": [
+        "ws-local"
+      ],
+      "switches": 1,
+      "escalations": 1,
+      "changed_files": [
+        "src/cache/store.py",
+        "src/cache/__init__.py"
+      ],
+      "diff": "diff --git a/src/cache/store.py b/src/cache/store.py\nindex 3f2a1c4..8b7e9d0 100644\n--- a/src/cache/store.py\n+++ b/src/cache/store.py\n@@ -38,9 +38,11 @@ def paginate(items, page, size):\n     if size <= 0:\n         raise ValueError(\"size must be positive\")\n-    start = page * size\n-    end = start + size - 1\n+    # Pages are 1-based; the end index is exclusive.\n+    start = (page - 1) * size\n+    end = start + size\n     return items[start:end]\ndiff --git a/src/cache/__init__.py b/src/cache/__init__.py\nindex 3f2a1c4..8b7e9d0 100644\n--- a/src/cache/__init__.py\n+++ b/src/cache/__init__.py\n@@ -38,9 +38,11 @@ def paginate(items, page, size):\n     if size <= 0:\n         raise ValueError(\"size must be positive\")\n-    start = page * size\n-    end = start + size - 1\n+    # Pages are 1-based; the end index is exclusive.\n+    start = (page - 1) * size\n+    end = start + size\n     return items[start:end]\n",
+      "verdict": {
+        "passed": false,
+        "failed_gate": "tests",
+        "report": "FAILED tests/test_dates.py::test_parse_iso_week - AssertionError: 53 != 1",
+        "results": [
+          {
+            "name": "format",
+            "status": "passed",
+            "seconds": 0.4,
+            "summary": "ruff format: no changes",
+            "details": {},
+            "report": ""
+          },
+          {
+            "name": "lint",
+            "status": "passed",
+            "seconds": 0.8,
+            "summary": "ruff: no issues",
+            "details": {},
+            "report": ""
+          },
+          {
+            "name": "tests",
+            "status": "failed",
+            "seconds": 7.2,
+            "summary": "2 failed, 39 passed",
+            "details": {},
+            "report": "FAILED tests/test_dates.py::test_parse_iso_week - AssertionError: 53 != 1"
+          }
+        ]
+      },
+      "tokens": {
+        "input": 130600,
+        "output": 4460,
+        "cached_input": 95200,
+        "reasoning": 2400
+      },
+      "budget": {},
+      "wall_seconds": 141.2,
+      "run_dir": ".stepswitch/runs/t20261016-074410-c4e5f6",
+      "worktree": null,
+      "branch": "ssw/t20261016-074410-c4e5f6"
+    }
+  },
+  "t20261016-072000-9f8e7d": {
+    "spec": {
+      "instruction": "Update the README install section for Windows",
+      "repo": "C:/work/project",
+      "track": "general",
+      "acceptance": [],
+      "budgets": {
+        "tokens": null,
+        "wall_seconds": 900,
+        "gpu_seconds": null,
+        "escalations": null
+      },
+      "best_of": 1,
+      "offline": false,
+      "worker": null,
+      "workers": [],
+      "seed": 0,
+      "max_steps": 40,
+      "allow_protected": [],
+      "gate_attempts": 2,
+      "review": true,
+      "apply": false,
+      "include_uncommitted": false,
+      "allow_remote": false
+    },
+    "result": {
+      "task_id": "t20261016-072000-9f8e7d",
+      "status": "needs-human",
+      "stop_reason": null,
+      "summary": "The review found issues the workers could not resolve; a person should check the install steps.",
+      "steps": 3,
+      "endpoints": [
+        "managed"
+      ],
+      "switches": 0,
+      "escalations": 0,
+      "changed_files": [
+        "README.md"
+      ],
+      "diff": "diff --git a/README.md b/README.md\nindex 3f2a1c4..8b7e9d0 100644\n--- a/README.md\n+++ b/README.md\n@@ -38,9 +38,11 @@ def paginate(items, page, size):\n     if size <= 0:\n         raise ValueError(\"size must be positive\")\n-    start = page * size\n-    end = start + size - 1\n+    # Pages are 1-based; the end index is exclusive.\n+    start = (page - 1) * size\n+    end = start + size\n     return items[start:end]\n",
+      "verdict": {
+        "passed": true,
+        "failed_gate": null,
+        "report": "",
+        "results": [
+          {
+            "name": "format",
+            "status": "passed",
+            "seconds": 0.4,
+            "summary": "ruff format: no changes",
+            "details": {},
+            "report": ""
+          },
+          {
+            "name": "lint",
+            "status": "passed",
+            "seconds": 0.9,
+            "summary": "ruff: no issues",
+            "details": {},
+            "report": ""
+          },
+          {
+            "name": "tests",
+            "status": "passed",
+            "seconds": 6.8,
+            "summary": "41 passed",
+            "details": {},
+            "report": ""
+          }
+        ]
+      },
+      "tokens": {
+        "input": 7400,
+        "output": 940,
+        "cached_input": 3800,
+        "reasoning": 0
+      },
+      "budget": {},
+      "wall_seconds": 69.1,
+      "run_dir": ".stepswitch/runs/t20261016-072000-9f8e7d",
+      "worktree": null,
+      "branch": "ssw/t20261016-072000-9f8e7d"
+    }
+  },
+  "t20261016-070000-3d2c1b": {
+    "spec": {
+      "instruction": "Rewrite the plotting module",
+      "repo": "C:/work/project",
+      "track": "general",
+      "acceptance": [],
+      "budgets": {
+        "tokens": 50000,
+        "wall_seconds": 900,
+        "gpu_seconds": null,
+        "escalations": null
+      },
+      "best_of": 1,
+      "offline": false,
+      "worker": null,
+      "workers": [],
+      "seed": 0,
+      "max_steps": 40,
+      "allow_protected": [],
+      "gate_attempts": 2,
+      "review": true,
+      "apply": false,
+      "include_uncommitted": false,
+      "allow_remote": false
+    },
+    "result": {
+      "task_id": "t20261016-070000-3d2c1b",
+      "status": "stopped",
+      "stop_reason": "budget_tokens",
+      "summary": "Stopped: the token budget of 50,000 was reached.",
+      "steps": 4,
+      "endpoints": [
+        "ws-local"
+      ],
+      "switches": 0,
+      "escalations": 0,
+      "changed_files": [
+        "src/plotting.py"
+      ],
+      "diff": "diff --git a/src/plotting.py b/src/plotting.py\nindex 3f2a1c4..8b7e9d0 100644\n--- a/src/plotting.py\n+++ b/src/plotting.py\n@@ -38,9 +38,11 @@ def paginate(items, page, size):\n     if size <= 0:\n         raise ValueError(\"size must be positive\")\n-    start = page * size\n-    end = start + size - 1\n+    # Pages are 1-based; the end index is exclusive.\n+    start = (page - 1) * size\n+    end = start + size\n     return items[start:end]\n",
+      "verdict": {},
+      "tokens": {
+        "input": 50100,
+        "output": 3100,
+        "cached_input": 32800,
+        "reasoning": 0
+      },
+      "budget": {},
+      "wall_seconds": 100.8,
+      "run_dir": ".stepswitch/runs/t20261016-070000-3d2c1b",
+      "worktree": null,
+      "branch": "ssw/t20261016-070000-3d2c1b"
+    }
+  }
+}

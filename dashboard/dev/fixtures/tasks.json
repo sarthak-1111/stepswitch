@@ -1,0 +1,211 @@
+{
+  "tasks": [
+    {
+      "id": "t20261016-092301-e3c8f2",
+      "created": 1792142581.0,
+      "updated": 1792142584.4,
+      "status": "queued",
+      "stop_reason": null,
+      "track": "general",
+      "instruction": "Write a docstring for every public function in cli.py",
+      "worker": "managed/qwen3-4b-instruct-2507",
+      "steps": 0,
+      "escalations": 0,
+      "switches": 0,
+      "tokens": {
+        "input": 0,
+        "output": 0,
+        "cached_input": 0,
+        "reasoning": 0
+      },
+      "wall_seconds": 3.4,
+      "gpu_seconds": 0,
+      "summary": "",
+      "cancel_requested": false
+    },
+    {
+      "id": "t20261016-092230-0b9d44",
+      "created": 1792142550.0,
+      "updated": 1792142568.1,
+      "status": "routing",
+      "stop_reason": null,
+      "track": "general",
+      "instruction": "Add type hints to the config loader",
+      "worker": null,
+      "steps": 1,
+      "escalations": 0,
+      "switches": 0,
+      "tokens": {
+        "input": 1500,
+        "output": 180,
+        "cached_input": 0,
+        "reasoning": 0
+      },
+      "wall_seconds": 18.1,
+      "gpu_seconds": 0.0,
+      "summary": "",
+      "cancel_requested": true
+    },
+    {
+      "id": "t20261016-091845-a71f03",
+      "created": 1792142325.0,
+      "updated": 1792142495.8,
+      "status": "verifying",
+      "stop_reason": null,
+      "track": "science",
+      "instruction": "Speed up the baseline correction in spectra/baseline.py without changing results beyond tolerance",
+      "worker": null,
+      "steps": 12,
+      "escalations": 1,
+      "switches": 1,
+      "tokens": {
+        "input": 145200,
+        "output": 4160,
+        "cached_input": 112900,
+        "reasoning": 2100
+      },
+      "wall_seconds": 170.8,
+      "gpu_seconds": 127.1,
+      "summary": "",
+      "cancel_requested": false
+    },
+    {
+      "id": "t20261016-091200-5c1e9a",
+      "created": 1792141920.0,
+      "updated": 1792142038.9,
+      "status": "running",
+      "stop_reason": null,
+      "track": "general",
+      "instruction": "Fix the failing date parsing test in utils/dates.py",
+      "worker": null,
+      "steps": 7,
+      "escalations": 1,
+      "switches": 1,
+      "tokens": {
+        "input": 29350,
+        "output": 1465,
+        "cached_input": 18400,
+        "reasoning": 0
+      },
+      "wall_seconds": 118.9,
+      "gpu_seconds": 23.3,
+      "summary": "",
+      "cancel_requested": false
+    },
+    {
+      "id": "t20261016-083015-19d0be",
+      "created": 1792139415.0,
+      "updated": 1792139546.5,
+      "status": "done",
+      "stop_reason": null,
+      "track": "general",
+      "instruction": "Fix the off-by-one error in the pagination helper",
+      "worker": null,
+      "steps": 9,
+      "escalations": 1,
+      "switches": 2,
+      "tokens": {
+        "input": 32500,
+        "output": 1335,
+        "cached_input": 20000,
+        "reasoning": 0
+      },
+      "wall_seconds": 131.5,
+      "gpu_seconds": 15.6,
+      "summary": "Fixed the off-by-one in paginate(): the last page now includes its final item. The acceptance tests pass.",
+      "cancel_requested": false
+    },
+    {
+      "id": "t20261016-080502-77aa21",
+      "created": 1792137902.0,
+      "updated": 1792138015.9,
+      "status": "done",
+      "stop_reason": null,
+      "track": "science",
+      "instruction": "Port the peak fitting routine to numpy 2 without changing fitted values",
+      "worker": null,
+      "steps": 9,
+      "escalations": 0,
+      "switches": 1,
+      "tokens": {
+        "input": 70100,
+        "output": 2195,
+        "cached_input": 55000,
+        "reasoning": 0
+      },
+      "wall_seconds": 113.9,
+      "gpu_seconds": 72.0,
+      "summary": "Ported fit_peaks() to numpy 2. Golden comparisons are within tolerance on the second gate run.",
+      "cancel_requested": false
+    },
+    {
+      "id": "t20261016-074410-c4e5f6",
+      "created": 1792136650.0,
+      "updated": 1792136841.3,
+      "status": "failed",
+      "stop_reason": "gates_failed",
+      "track": "general",
+      "instruction": "Refactor the cache layer to use the new storage interface",
+      "worker": null,
+      "steps": 9,
+      "escalations": 1,
+      "switches": 1,
+      "tokens": {
+        "input": 130600,
+        "output": 4460,
+        "cached_input": 95200,
+        "reasoning": 2400
+      },
+      "wall_seconds": 191.3,
+      "gpu_seconds": 141.2,
+      "summary": "Gates failed at tests on the highest local rung: 3 tests in tests/test_cache.py still fail.",
+      "cancel_requested": false
+    },
+    {
+      "id": "t20261016-072000-9f8e7d",
+      "created": 1792135200.0,
+      "updated": 1792135285.1,
+      "status": "needs-human",
+      "stop_reason": null,
+      "track": "general",
+      "instruction": "Update the README install section for Windows",
+      "worker": null,
+      "steps": 3,
+      "escalations": 0,
+      "switches": 0,
+      "tokens": {
+        "input": 7400,
+        "output": 940,
+        "cached_input": 3800,
+        "reasoning": 0
+      },
+      "wall_seconds": 85.1,
+      "gpu_seconds": 0.0,
+      "summary": "The review found issues the workers could not resolve; a person should check the install steps.",
+      "cancel_requested": false
+    },
+    {
+      "id": "t20261016-070000-3d2c1b",
+      "created": 1792134000.0,
+      "updated": 1792134109.3,
+      "status": "stopped",
+      "stop_reason": "budget_tokens",
+      "track": "general",
+      "instruction": "Rewrite the plotting module",
+      "worker": null,
+      "steps": 4,
+      "escalations": 0,
+      "switches": 0,
+      "tokens": {
+        "input": 50100,
+        "output": 3100,
+        "cached_input": 32800,
+        "reasoning": 0
+      },
+      "wall_seconds": 109.3,
+      "gpu_seconds": 100.8,
+      "summary": "Stopped: the token budget of 50,000 was reached.",
+      "cancel_requested": false
+    }
+  ]
+}
