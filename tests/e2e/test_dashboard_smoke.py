@@ -11,18 +11,19 @@ Needs:
 - the `e2e` dependency group (`uv sync --group e2e`);
 - the installed Chrome, or `uv run playwright install chromium`.
 
-Skipped when any of these is missing.
+Skipped when any of these is missing, unless STEPSWITCH_E2E_REQUIRED=1 (CI) makes that a failure.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import threading
 import time
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 import pytest
 
@@ -32,7 +33,19 @@ from stepswitch.state import open_project_state
 from tests.unit.test_api import TOKEN, _bench_run, make_config, seed
 from tests.unit.test_api_live import free_port, serving
 
-sync_api = pytest.importorskip("playwright.sync_api")
+REQUIRED = os.environ.get("STEPSWITCH_E2E_REQUIRED") == "1"
+
+
+def _missing(reason: str) -> NoReturn:
+    if REQUIRED:
+        pytest.fail(f"{reason} (STEPSWITCH_E2E_REQUIRED=1)")
+    pytest.skip(reason, allow_module_level=True)
+
+
+try:
+    from playwright import sync_api
+except ImportError:  # pragma: no cover - depends on the e2e dependency group
+    _missing("Playwright is not installed (uv sync --group e2e)")
 expect = sync_api.expect
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -64,7 +77,7 @@ VIEW_TEXT = {
 @pytest.fixture(scope="module")
 def browser() -> Iterator[Any]:
     if not (DIST / "index.html").is_file():
-        pytest.skip("the dashboard is not built (cd dashboard && npm ci && npm run build)")
+        _missing("the dashboard is not built (cd dashboard && npm ci && npm run build)")
     with sync_api.sync_playwright() as playwright:
         launched = None
         for options in ({"channel": "chrome"}, {}):
@@ -74,9 +87,7 @@ def browser() -> Iterator[Any]:
             except sync_api.Error:
                 continue
         if launched is None:
-            pytest.skip(
-                "no Chromium-family browser: install Chrome or `playwright install chromium`"
-            )
+            _missing("no Chromium-family browser: install Chrome or `playwright install chromium`")
         yield launched
         launched.close()
 

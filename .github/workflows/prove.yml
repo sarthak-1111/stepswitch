@@ -52,6 +52,32 @@ jobs:
             claims/evidence/
           if-no-files-found: warn
 
+  dashboard:
+    # The dashboard is built with npm, then served by `ssw dash` code to the runner's Chrome
+    # (tests/e2e). Node 24 is the active LTS line (checked 2026-10-16).
+    name: dashboard build and browser smoke test
+    runs-on: ubuntu-24.04
+    env:
+      STEPSWITCH_E2E_REQUIRED: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - name: Build the dashboard
+        working-directory: dashboard
+        run: |
+          npm ci
+          npm run build
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - run: uv sync --locked --group e2e
+      - name: Browser smoke test
+        run: uv run --group e2e pytest tests/e2e -q
+      - name: Phase 4 checks
+        run: uv run --group e2e python scripts/phase_check.py 4
+
   platforms:
     name: platform evidence (C-016)
     needs: quick

@@ -3034,3 +3034,22 @@ Sources: `vllm/parser/granite.py`, `vllm/tool_parsers/granite_engine_tool_parser
 - The smoke test launches the installed Chrome with `chromium.launch(channel="chrome")`. It
   falls back to Playwright's own Chromium build (`playwright install chromium`) and skips when
   neither starts.
+
+### CI for the dashboard (checked 2026-10-16)
+
+- `actions/setup-node`:
+  - Latest release v7.1.0 (2026-10-08). The tag ref `v7.1.0` points to commit
+    `949feb2413d6458794dcd2491c4babbbce0c15c1` (a lightweight tag).
+  - Inputs at that commit include `node-version`, `node-version-file`, `cache` (npm, yarn,
+    pnpm), `package-manager-cache` (default true) and `cache-dependency-path`. It runs on
+    `node24`.
+- Node.js releases (nodejs.org/dist/index.json):
+  - v26.12.0 (2026-10-14, current, not LTS);
+  - v24.22.0 (2026-10-14, LTS "Krypton");
+  - v22.23.3 (2026-09-23, LTS "Jod").
+
+  The CI job uses Node 24.
+- GitHub's `ubuntu-24.04` image 20261012.334.1 lists Chrome 155.0.8059.39, Chromium
+  155.0.8059.0 and Node.js 22.23.3 (cached: 22.23.3, 24.21.0). The smoke test uses the
+  installed Chrome (`channel="chrome"`), so CI downloads no browser.
+  Source: actions/runner-images, `images/ubuntu/Ubuntu2404-Readme.md`.
