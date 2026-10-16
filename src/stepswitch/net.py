@@ -194,8 +194,10 @@ class Egress:
             timeout=timeout,
             transport=audited,
             follow_redirects=follow_redirects,
-            # Proxy settings from the environment are honoured, except in offline mode.
-            trust_env=not self.policy.offline,
+            # No proxies or .netrc credentials from the environment: requests go exactly where
+            # the policy allowed them, with only the credentials Stepswitch was given. (httpx
+            # ignores proxy variables anyway whenever a transport is passed, as it is here.)
+            trust_env=False,
         )
 
 
