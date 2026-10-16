@@ -5,6 +5,9 @@ primary source on that date: project repositories and release pages, package ind
 hub, and official references. Sources are listed per project under "Details". Anything that could
 not be confirmed is marked `verified: no` with the reason. Facts age quickly: re-check anything
 older than a few weeks before code depends on it (working rule 1), and update the date here.
+The project has since been renamed Stepswitch (ADR 0001); the Phase 0 notes keep the working
+name. Facts checked while building later phases are in "Verified during Phase 1" at the end, and
+entries they supersede are marked where they stand.
 
 The work was split into thirteen parallel research tasks: one per SPEC §22 row, plus the two
 tables that the compatibility claim depends on (API formats, open-weight model families), the
@@ -15,7 +18,7 @@ before this file was assembled.
 Contents: Index · API formats · Format conversion notes · Engines · Tool-call formats ·
 Engine-side tool parsers · Open-weight model families · Default model candidates (SPEC §5) ·
 Harnesses · Multi-agent orchestration · Positioning check (SPEC §1) · Token counting ·
-Network isolation · Name check · Stack · Details · SPEC corrections.
+Network isolation · Name check · Stack · Details · SPEC corrections · Verified during Phase 1.
 
 ## Index
 
@@ -133,7 +136,7 @@ What cannot be carried across formats; the codec layer reports these instead of 
 | generate-content -> responses | `thoughtSignature`; `thought` parts; `candidateCount` > 1; `stopSequences`, `topK`, seed and penalties; safety and grounding metadata; `cachedContent`; `continuationToken` | signature: drop, report; thoughts: approximate as `reasoning` item `summary` without `encrypted_content`, report; `candidateCount`: reject or fan out; stop: approximate client-side; `topK`, seed, penalties: report; metadata: report; `cachedContent`: reject; continuation: report |
 | messages -> generate-content | `thinking.signature`, `redacted_thinking` (not interchangeable with `thoughtSignature`); server tools; per-block `cache_control`; `tool_result` string and `is_error` (target needs an object `response`); `disable_parallel_tool_use`; URL `document` sources; `citations`; effort `xhigh`, `max` | signatures: drop, report; server tools: reject, report; cache: report (target caching is a separate `cachedContent` resource); wrap result as `{"result": ...}` or `{"error": ...}` (approximate); parallel flag: report; URL docs: approximate by inlining, report; citations: report; effort: approximate to `high` |
 | generate-content -> messages | `thoughtSignature`; `thought` parts (target thinking blocks need target signatures); `candidateCount` > 1; seed, penalties, logprobs; safety and grounding metadata; built-in tools and their parts; `functionResponse.response` object (target `content` is string or blocks); `functionCall` without `id`; `cachedContent`; finish reasons | signatures and thoughts: drop, report; `candidateCount`: reject or fan out; extras: report; built-ins: reject, report; serialize `response` as JSON text (approximate); synthesize `tool_use` ids; `cachedContent`: reject; finish: `STOP` -> `end_turn` or `tool_use`, `MAX_TOKENS` -> `max_tokens`, safety family -> `refusal`, others report |
-| any -> Ollama native API | tool-call ids (none documented); `arguments` string vs object; `tool_choice`; image URLs (base64 only); documents; signed reasoning; `n`; logit bias; per-request cache markers | keep an id map in the codec (ids synthesized on the way back); parse/serialize arguments, report invalid JSON; `tool_choice`: approximate with `format` (JSON Schema) for forced calls, else report; fetch and inline images; documents: reject; reasoning: report; `n`: reject |
+| any -> Ollama native API | tool-call ids (absent from the documented schema and from older servers; current servers send them, see "Verified during Phase 1"); `arguments` string vs object; `tool_choice`; image URLs (base64 only); documents; signed reasoning; `n`; logit bias; per-request cache markers | keep the server's ids, synthesize missing ones, and send `tool_call_id` next to `tool_name` on results; parse/serialize arguments, report invalid JSON; `tool_choice`: approximate with `format` (JSON Schema) for forced calls, else report; fetch and inline images; documents: reject; reasoning: report; `n`: reject |
 | any -> llama.cpp `/completion` or raw text-completion | everything structured (roles, tools, images, reasoning fields) | render with the model's chat template (`/apply-template` on llama.cpp, or local Jinja); tools go into the fallback text protocol; constrain with `grammar`/`json_schema`; parse think tags and tool syntax from text (approximate, report parser used) |
 | responses <-> Open Responses | hosted-only items, tools and events (built-ins, compaction details, `phase`, moderation, prompt-cache options); reasoning event name (`response.reasoning_text.delta` vs `response.reasoning.delta`); stateful features absent in stateless implementations | pass unknown items through as `slug:type` extensions or report; translate the reasoning event name both ways; state: expand or reject |
 | usage, all pairs | cached-token semantics (`prompt_tokens` and `input_tokens` in chat-completions/responses include cached tokens; messages-format `input_tokens` excludes cache reads and writes); reasoning tokens separate (`reasoning_tokens`, `thoughtsTokenCount`) vs folded (`output_tokens` inclusive); engine metrics in time units (Ollama ns, llama.cpp ms) | normalize to internal `{input_total, input_cached_read, input_cache_write, output_total, output_reasoning}` plus raw provider usage; mark derived values |
@@ -805,13 +808,13 @@ Recommendation: rename to **Stepswitch** (distribution and import name `stepswit
 - link: https://docs.ollama.com/api/chat
 - request: `/api/chat`: `model`, `messages`, `tools`, `format`, `options`, `stream`, `think`, `keep_alive` (string such as `5m` or number, `0` unloads), `logprobs`, `top_logprobs`. `/api/generate`: `model`, `prompt`, `suffix`, `images`, `think`, `format`, `options`, `system`, `template`, `stream`, `raw`, `keep_alive`, `context` (deprecated). Options include `num_ctx`, `num_predict`, `temperature`, `top_k`, `top_p`, `min_p`, `stop`, `seed`, `repeat_penalty`, `num_keep`, `num_batch`, `num_gpu`, `num_thread`, `presence_penalty`, `frequency_penalty` (`typical_p` deprecated). Images are base64 strings inside messages.
 - response: chat `{model, created_at, message{role: "assistant", content, thinking, tool_calls, images}, done, done_reason, total_duration, load_duration, prompt_eval_count, prompt_eval_cached_count, prompt_eval_duration, eval_count, eval_duration, logprobs}`; generate returns `response` instead of `message`. Throughput = `eval_count / eval_duration * 10^9`.
-- streaming: NDJSON, content type `application/x-ndjson`; every chunk has `model`, `created_at`, `done`; final chunk adds `done_reason` and metrics. Whether tool calls arrive whole per chunk is not stated.
-- tool calls: see table. No call `id` and no `index` in the documented schema; `arguments` is an object; the result is a `tool` role message with `tool_name`.
+- streaming: NDJSON, content type `application/x-ndjson`; every chunk has `model`, `created_at`, `done`; final chunk adds `done_reason` and metrics. Whether tool calls arrive whole per chunk is not stated (on 0.34.4 they do, one call per line; see "Verified during Phase 1").
+- tool calls: see table. No call `id` and no `index` in the documented schema (superseded: current servers send both, see "Verified during Phase 1"); `arguments` is an object; the result is a `tool` role message with `tool_name`.
 - reasoning: `think` true, false, null (model default) or a model-defined string matching `/api/show`; output in `thinking`. Compat-layer effort mapping: models without metadata map `minimal` to `low` and `xhigh` or `ultra` to `max`; gpt-oss maps `minimal` to `low`, `xhigh` or `ultra` to `high`, `none` to no thinking output.
 - usage: counts and durations (ns) listed above; no reasoning-token count.
 - errors: `{"error": "..."}`; 400, 404, 429, 500, 502; mid-stream errors are an NDJSON object with `error` and the original status.
 - compat layers: chat-completions at `/v1/chat/completions` (supports `model`, `messages`, `frequency_penalty`, `presence_penalty`, `response_format`, `seed`, `stop`, `stream`, `stream_options.include_usage`, `temperature`, `top_p`, `max_tokens`, `tools`, `reasoning_effort`, `reasoning.effort`; not `tool_choice`, `logit_bias`, `user`, `n`, logprobs; image URLs not supported), `/v1/completions` (prompt string only, `suffix`; not `best_of`, `echo`, `logit_bias`, `user`, `n`), `/v1/embeddings`, `/v1/models`, `/v1/models/{model}`; responses at `/v1/responses` (stateless: `previous_response_id`, `conversation`, `truncation` unsupported; extension `think`); messages at `/v1/messages` (not `tool_choice`, `metadata`, `cache_control`, `count_tokens`, batches, citations, PDF documents; `budget_tokens` accepted but not enforced; token counts approximate; the local server validates no key).
-- risks: no tool-call ids; `tool_choice` unsupported in every compat layer; effort names are per model; docs migrating from the repo to docs.ollama.com.
+- risks: tool-call ids undocumented (current servers send them, older ones do not); `tool_choice` unsupported in every compat layer; effort names are per model; docs migrating from the repo to docs.ollama.com.
 - sources: https://raw.githubusercontent.com/ollama/ollama/main/docs/api.md ; https://docs.ollama.com/api/chat ; https://docs.ollama.com/api/streaming ; https://docs.ollama.com/api/errors ; https://docs.ollama.com/api/openai-compatibility ; https://docs.ollama.com/api/anthropic-compatibility
 
 #### llama.cpp native API
@@ -2210,7 +2213,7 @@ Recorded for later phases (no SPEC change needed):
 
 - SPEC §4.1: "generate-content format" -> the generate-content guides are now titled "Gemini Generate Content API (Legacy)"; the interactions format is GA since June 2026 and "recommended for all new projects", while generateContent "remains fully supported" -> keep the generate-content codec; add the interactions format as a tracked format and defer its codec until the version path settles (guides show `v1beta`, the migration guide `v1beta2`) (https://ai.google.dev/gemini-api/docs/interactions-overview ; https://ai.google.dev/gemini-api/docs/migrate-to-interactions ; https://ai.google.dev/gemini-api/docs/generate-content/thinking)
 - SPEC §4.1: "responses format" (no normative reference named) -> a vendor-neutral spec derived from it exists: Open Responses, version 2026-04-24, Apache-2.0, with an OpenAPI reference and compliance tests; it names the reasoning delta `response.reasoning.delta` where the hosted reference uses `response.reasoning_text.delta` -> base the responses codec on Open Responses, treat hosted-only items and events as extensions, accept both reasoning event names, and run its compliance tests against `sy proxy` (https://www.openresponses.org/specification ; https://www.openresponses.org/reference ; https://github.com/openresponses/openresponses)
-- SPEC §4.1: "Conversion between any two formats is lossless for messages and tool calls" -> not achievable for every pair: custom grammar tools exist only in chat-completions and responses; tool-result payloads differ (chat-completions tool messages take text only, messages-format `tool_result` takes images and documents, generate-content `functionResponse.response` is an object); Ollama tool calls carry no ids; built-in and server tools are format-specific -> "lossless for text and image messages, JSON-Schema function tools, function calls and text tool results (ids synthesized where absent); every other feature follows the conversion matrix and is reported or rejected" (https://developers.openai.com/api/reference/resources/chat ; https://raw.githubusercontent.com/anthropics/anthropic-sdk-python/main/src/anthropic/types/tool_result_block_param.py ; https://ai.google.dev/gemini-api/docs/generate-content/function-calling ; https://docs.ollama.com/api/chat)
+- SPEC §4.1: "Conversion between any two formats is lossless for messages and tool calls" -> not achievable for every pair: custom grammar tools exist only in chat-completions and responses; tool-result payloads differ (chat-completions tool messages take text only, messages-format `tool_result` takes images and documents, generate-content `functionResponse.response` is an object); Ollama tool calls carry no ids (superseded in Phase 1: the documented schema has none, but current servers send them); built-in and server tools are format-specific -> "lossless for text and image messages, JSON-Schema function tools, function calls and text tool results (ids synthesized where absent); every other feature follows the conversion matrix and is reported or rejected" (https://developers.openai.com/api/reference/resources/chat ; https://raw.githubusercontent.com/anthropics/anthropic-sdk-python/main/src/anthropic/types/tool_result_block_param.py ; https://ai.google.dev/gemini-api/docs/generate-content/function-calling ; https://docs.ollama.com/api/chat)
 - SPEC §4.1: "engine-native formats: Ollama native API, llama.cpp server native endpoints (completion, slots)" -> llama.cpp also exposes `/infill`, `/tokenize`, `/detokenize`, `/apply-template`, `/props`, `/v1/chat/completions/control`; llama.cpp, Ollama and vLLM all serve `/v1/messages` and `/v1/responses` (stateless or converted to chat) -> add those llama.cpp endpoints to the codec scope and record per-endpoint format support in the probe profile (https://raw.githubusercontent.com/ggml-org/llama.cpp/master/tools/server/README.md ; https://docs.ollama.com/api/anthropic-compatibility ; https://docs.vllm.ai/en/latest/serving/online_serving/)
 - SPEC §4.1: "raw text-completion endpoints (no chat template applied server-side)" -> Ollama `/api/generate` applies the model template unless `raw` is set; llama.cpp `/apply-template` renders a chat template without generating -> the raw codec sets `raw: true` on Ollama and can use `/apply-template` for prompt rendering (https://raw.githubusercontent.com/ollama/ollama/main/docs/api.md ; https://raw.githubusercontent.com/ggml-org/llama.cpp/master/tools/server/README.md)
 - SPEC §4.4: "force a JSON action object with grammar or JSON-Schema constrained decoding" -> correct, but forcing via tools is not portable: several current hosted messages-format models return 400 for `tool_choice` `any`/`tool` and for assistant prefill; Ollama's compat layers do not support `tool_choice` -> never rely on `tool_choice` or prefill in the fallback; use `format` (Ollama), `json_schema`/`grammar` (llama.cpp), `response_format`/`output_config.format` (hosted); add "forced tool choice" and "assistant prefill" checks to the §4.6 probe (https://platform.claude.com/docs/en/api/errors ; https://docs.ollama.com/api/openai-compatibility ; https://docs.ollama.com/api/anthropic-compatibility)
@@ -2370,3 +2373,93 @@ Checked against docs/SPEC.md v0.3 draft (2026-10-16). Parser choice by hub ID pl
 - SPEC §21: `adapters/omp/` "TypeScript extension" -> TypeScript 7.0 (the current `latest`) has no compiler API until 7.1. -> Pin TypeScript 6.0 (`@typescript/typescript6`) for any adapter code or lint tooling that imports the compiler API. (https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/)
 - SPEC §20: "`claims/claims.yaml` (committed): claims registry" (no YAML library stated) -> PyYAML drops comments on a round trip; ruamel.yaml 0.19.1 preserves them and ships a pure-Python wheel. -> Specify ruamel.yaml in round-trip mode for any tool that rewrites claims.yaml. (https://pypi.org/pypi/ruamel.yaml/json, https://pypi.org/pypi/pyyaml/json)
 - SPEC §3: "one SQLite file per project at `.switchyard/state.db`" -> WAL does not work on network filesystems. The WAL-reset corruption bug affects SQLite 3.7.0 through 3.51.2 (fixed in 3.51.3). This workstation's Pythons ship SQLite 3.39.4 and 3.43.1. -> `sy doctor` checks the SQLite version and the volume type, falls back to `journal_mode=DELETE` on network drives, and docs recommend uv-managed Python. (https://www.sqlite.org/wal.html, https://raw.githubusercontent.com/astral-sh/python-build-standalone/main/pythonbuild/downloads.json)
+
+## Verified during Phase 1
+
+Facts checked while building Phase 1, each with its source and date. Where one supersedes an
+earlier entry in this file, that entry is marked where it stands.
+
+### Default CPU model files (registry entries)
+
+Checked 2026-10-16 against the model hub API, then by downloading each file at the pinned revision
+and hashing it locally; all three sha256 values matched the hub's LFS object IDs.
+
+| Registry id | Hub repo @ revision | File | Bytes | sha256 | GGUF metadata (hub `gguf` field) |
+|---|---|---|---|---|---|
+| qwen3-4b-instruct-2507 | `unsloth/Qwen3-4B-Instruct-2507-GGUF` @ `a06e946bb6b655725eafa393f4a9745d460374c9` | `Qwen3-4B-Instruct-2507-Q4_K_M.gguf` | 2,497,281,120 | `3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597` | arch qwen3, ctx 262,144, 4,022,468,096 params, eos `<\|im_end\|>` |
+| qwen3-embedding-0.6b | `Qwen/Qwen3-Embedding-0.6B-GGUF` @ `370f27d7550e0def9b39c1f16d3fbaa13aa67728` | `Qwen3-Embedding-0.6B-Q8_0.gguf` | 639,150,592 | `06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e439` | arch qwen3, ctx 32,768, 595,776,512 params, pooling type 3 (last token) |
+| qwen2.5-coder-1.5b | `ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF` @ `8be1b8a895a84beea772817caaa71eba6b6e0d07` | `qwen2.5-coder-1.5b-q8_0.gguf` | 1,646,573,056 | `29871c94d15727a6e243f79a37113d4ae625a6215b5e800bf41a23af2da32832` | arch qwen2, ctx 32,768, 1,543,714,304 params |
+
+Sources: https://huggingface.co/api/models/unsloth/Qwen3-4B-Instruct-2507-GGUF/tree/main ;
+https://huggingface.co/api/models/unsloth/Qwen3-4B-Instruct-2507-GGUF ;
+https://huggingface.co/api/models/Qwen/Qwen3-Embedding-0.6B-GGUF/tree/main ;
+https://huggingface.co/api/models/Qwen/Qwen3-Embedding-0.6B-GGUF ;
+https://huggingface.co/api/models/ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF/tree/main ;
+https://huggingface.co/api/models/ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF. All three repos are
+tagged `license:apache-2.0`.
+
+### Ollama native API (supersedes parts of "Ollama native API" above)
+
+Checked 2026-10-16 against the request and response structs on main
+(https://raw.githubusercontent.com/ollama/ollama/main/api/types.go), https://docs.ollama.com/api/chat
+and a local Ollama 0.34.4 server.
+
+- Tool calls are `{"id", "function": {"index", "name", "arguments"}}`. Current servers send an
+  `id` (`call_` plus 8 characters on 0.34.4) and a `function.index`; the documented examples and
+  older servers have neither. Tool results are `tool` messages with `tool_name` and
+  `tool_call_id`.
+- Streams send each tool call whole, one call per line (0.34.4).
+- `prompt_eval_count` is the whole prompt, cached tokens included; `prompt_eval_cached_count` is
+  the cached part (0.34.4 reported 20 and 19 for a repeated prompt).
+- `think`: the server accepts true, false, "low", "medium", "high" and "max" and resolves the
+  levels per model (gpt-oss renders "max" as its "high"); "minimal" and "xhigh" get HTTP 400.
+  A model without thinking accepts only `false`.
+
+### llama.cpp server native API (adds to "llama.cpp native API" above)
+
+Checked 2026-10-16 against `tools/server/README.md` and the server sources at tag v0.7.0
+(build b11669) of the llama.cpp repository.
+
+- `tokens_evaluated` is the whole prompt, cached tokens included (the same value the server
+  reports as chat-completions `prompt_tokens`). `timings.cache_n` counts prompt tokens reused
+  from the cache and `timings.prompt_n` the ones processed. `tokens_cached` is the slot's cache
+  size after the request (prompt plus generated tokens), not a prompt count.
+- `/completion` streams `data: {json}` events and ends with a `stop: true` event that carries
+  `stop_type` (`eos`, `word`, `limit` or `none`), the counts and `timings`; there is no `[DONE]`
+  line.
+
+### CI actions (for `.github/workflows/prove.yml`)
+
+Latest releases on 2026-10-16, pinned by commit:
+
+| Action | Release | Commit |
+|---|---|---|
+| actions/checkout | v7.0.1 (2026-07-20) | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
+| actions/upload-artifact | v7.0.2 (2026-10-07) | `cf430e030ddbb5b0abf93d22962f4752f3646cd9` |
+| actions/download-artifact | v8.0.2 (2026-10-07) | `9000827ccba6bdab643e8b6fd33ac0654aef8333` |
+| astral-sh/setup-uv | v10.3.0 (2026-10-09) | `1c37ad07a6a961277cf70c0d37d6f313000f5884` |
+| actions/setup-node | v7.1.0 (2026-10-08) | not used yet |
+
+Sources: https://api.github.com/repos/actions/checkout/releases/latest and the matching
+`releases/latest` and `git/ref/tags/<tag>` endpoints for each action.
+
+### Python packages considered
+
+- tomlkit 0.15.2 was released on 2026-10-16, the day of the check (0.15.1 on 2026-07-17). Not
+  adopted: Stepswitch writes only generated TOML and managed blocks, which a small writer covers
+  (`stepswitch.tomlw`), and a same-day release would not meet the seven-day cooling period used
+  for other dependencies. https://pypi.org/pypi/tomlkit/json
+- For later phases: numpy 2.5.4 (2026-10-10) requires Python >= 3.12; pygls 2.1.1; lsprotocol
+  2025.0.0; pytest-testmon 2.2.0; hypothesis 6.170.0; jupytext 1.19.6; playwright 1.64.0
+  (2026-10-13). https://pypi.org/pypi/<name>/json
+
+### Interpreter audit hooks on a host with endpoint-security software
+
+Observed 2026-10-16 on a Windows 11 workstation: after `sys.addaudithook(...)` with any hook (even
+`lambda e, a: None`), importing a module from cached bytecode fails with `AttributeError: 'bytes'
+object has no attribute 'co_filename'` (or `TypeError: bad argument type for built-in
+operation`), in every CPython installed there (3.10 to 3.14). The Python hook is never called; a
+behaviour-monitor library that the endpoint-security software injects into every process is
+loaded in the failing interpreters. The same code works in a clean `python:3.13-slim` container
+(3.13.16). Consequence: the C-007 recorder falls back to wrapping the socket and process
+functions on such hosts and records which mode ran (ADR 0013).
