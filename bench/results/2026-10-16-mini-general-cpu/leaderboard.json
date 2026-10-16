@@ -1,0 +1,98 @@
+{
+  "command": "ssw bench run --suite mini-general --workers managed/qwen3-4b-instruct-2507,managed/phi-3.5-mini-instruct --seeds 2 --budget-seconds 900.0",
+  "commit": "cd9ffff3f77c",
+  "contestants": [
+    {
+      "cache_hit_rate": 0.8167347387314786,
+      "cached_input_tokens": 445929,
+      "ci": {
+        "confidence": 0.95,
+        "high": 0.5,
+        "low": 0.1,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "managed/qwen3-4b-instruct-2507",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 0.0,
+      "input_tokens": 545990,
+      "median_tokens": 18563.0,
+      "median_wall_seconds": 69.5855,
+      "output_tokens": 25452,
+      "pass_rate": 0.3,
+      "passed": 9,
+      "rank": 1,
+      "reference_cost": null,
+      "runs": 30,
+      "statuses": {
+        "done": 3,
+        "failed": 27
+      },
+      "tasks": 15,
+      "tests_modified": 0
+    },
+    {
+      "cache_hit_rate": 0.8943012684476155,
+      "cached_input_tokens": 1252426,
+      "ci": {
+        "confidence": 0.95,
+        "high": 0.26666666666666666,
+        "low": 0.0,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "managed/phi-3.5-mini-instruct",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 0.0,
+      "input_tokens": 1400452,
+      "median_tokens": 42674.0,
+      "median_wall_seconds": 451.1875,
+      "output_tokens": 133772,
+      "pass_rate": 0.1,
+      "passed": 3,
+      "rank": 2,
+      "reference_cost": null,
+      "runs": 30,
+      "statuses": {
+        "done": 3,
+        "failed": 24,
+        "stopped": 3
+      },
+      "tasks": 15,
+      "tests_modified": 0
+    }
+  ],
+  "date": "2026-10-16T13:12:41+00:00",
+  "hardware": {
+    "arch": "x86_64",
+    "cpu_cores": 32,
+    "gpu_memory_gb": [
+      51.53,
+      48.31,
+      51.53,
+      51.53
+    ],
+    "gpus": 4,
+    "os": "Windows",
+    "ram_gb": 1098.43
+  },
+  "interval": {
+    "confidence": 0.95,
+    "resamples": 10000,
+    "seed": 0
+  },
+  "prices": null,
+  "results_file": "results.jsonl",
+  "router_pool": null,
+  "runs": 60,
+  "schema": 1,
+  "scoring": "passes when every acceptance command exits with 0 on a fresh copy with the run's diff applied and the suite's protected paths restored",
+  "seeds": [
+    0,
+    1
+  ],
+  "sources": null,
+  "suite": "mini-general",
+  "tasks": 15,
+  "version": "0.1.0.dev0"
+}

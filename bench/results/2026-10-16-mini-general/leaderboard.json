@@ -1,0 +1,333 @@
+{
+  "command": "ssw bench report 2026-10-16-mini-general-gpu 2026-10-16-mini-general-gpt-oss 2026-10-16-mini-general-cpu 2026-10-16-mini-general-router --out 2026-10-16-mini-general",
+  "commit": null,
+  "contestants": [
+    {
+      "cache_hit_rate": 0.8045381037451207,
+      "cached_input_tokens": 1092998,
+      "ci": {
+        "confidence": 0.95,
+        "high": 1.0,
+        "low": 0.9,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "ws-ollama-local/gpt-oss:120b",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 1511.27,
+      "input_tokens": 1358541,
+      "median_tokens": 36201.5,
+      "median_wall_seconds": 57.797,
+      "output_tokens": 66457,
+      "pass_rate": 0.9666666666666667,
+      "passed": 29,
+      "rank": 1,
+      "reference_cost": null,
+      "runs": 30,
+      "statuses": {
+        "done": 29,
+        "failed": 1
+      },
+      "tasks": 15,
+      "tests_modified": 0
+    },
+    {
+      "cache_hit_rate": 0.8332346632294906,
+      "cached_input_tokens": 1382108,
+      "ci": {
+        "confidence": 0.95,
+        "high": 1.0,
+        "low": 0.8333333333333334,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "router",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 1343.732,
+      "input_tokens": 1658726,
+      "median_tokens": 35392.0,
+      "median_wall_seconds": 49.164,
+      "output_tokens": 78267,
+      "pass_rate": 0.9333333333333333,
+      "passed": 28,
+      "rank": 2,
+      "reference_cost": null,
+      "runs": 30,
+      "statuses": {
+        "done": 28,
+        "failed": 2
+      },
+      "tasks": 15,
+      "tests_modified": 0
+    },
+    {
+      "cache_hit_rate": 0.8510463423577449,
+      "cached_input_tokens": 1162811,
+      "ci": {
+        "confidence": 0.95,
+        "high": 0.7666666666666667,
+        "low": 0.36666666666666664,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "ws-ollama-local/qwen2.5:32b",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 3767.02,
+      "input_tokens": 1366331,
+      "median_tokens": 11760.0,
+      "median_wall_seconds": 58.594,
+      "output_tokens": 79824,
+      "pass_rate": 0.5666666666666667,
+      "passed": 17,
+      "rank": 3,
+      "reference_cost": null,
+      "runs": 30,
+      "statuses": {
+        "done": 17,
+        "failed": 13
+      },
+      "tasks": 15,
+      "tests_modified": 9
+    },
+    {
+      "cache_hit_rate": 0.8167347387314786,
+      "cached_input_tokens": 445929,
+      "ci": {
+        "confidence": 0.95,
+        "high": 0.5,
+        "low": 0.1,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "managed/qwen3-4b-instruct-2507",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 0.0,
+      "input_tokens": 545990,
+      "median_tokens": 18563.0,
+      "median_wall_seconds": 69.5855,
+      "output_tokens": 25452,
+      "pass_rate": 0.3,
+      "passed": 9,
+      "rank": 4,
+      "reference_cost": null,
+      "runs": 30,
+      "statuses": {
+        "done": 3,
+        "failed": 27
+      },
+      "tasks": 15,
+      "tests_modified": 0
+    },
+    {
+      "cache_hit_rate": 0.8943012684476155,
+      "cached_input_tokens": 1252426,
+      "ci": {
+        "confidence": 0.95,
+        "high": 0.26666666666666666,
+        "low": 0.0,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "managed/phi-3.5-mini-instruct",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 0.0,
+      "input_tokens": 1400452,
+      "median_tokens": 42674.0,
+      "median_wall_seconds": 451.1875,
+      "output_tokens": 133772,
+      "pass_rate": 0.1,
+      "passed": 3,
+      "rank": 5,
+      "reference_cost": null,
+      "runs": 30,
+      "statuses": {
+        "done": 3,
+        "failed": 24,
+        "stopped": 3
+      },
+      "tasks": 15,
+      "tests_modified": 0
+    }
+  ],
+  "date": "2026-10-16T13:12:41+00:00",
+  "hardware": {
+    "arch": "x86_64",
+    "cpu_cores": 32,
+    "gpu_memory_gb": [
+      51.53,
+      48.31,
+      51.53,
+      51.53
+    ],
+    "gpus": 4,
+    "os": "Windows",
+    "ram_gb": 1098.43
+  },
+  "interval": {
+    "confidence": 0.95,
+    "resamples": 10000,
+    "seed": 0
+  },
+  "prices": null,
+  "results_file": "results.jsonl",
+  "router_pool": [
+    "ws-ollama-local/gpt-oss:120b",
+    "ws-ollama-local/qwen2.5:32b"
+  ],
+  "runs": 150,
+  "schema": 1,
+  "scoring": "passes when every acceptance command exits with 0 on a fresh copy with the run's diff applied and the suite's protected paths restored",
+  "seeds": [
+    0,
+    1
+  ],
+  "sources": [
+    {
+      "command": "ssw bench run --suite mini-general --workers ws-ollama-local/qwen2.5:32b,ws-ollama-local/gpt-oss:120b --seeds 2 --budget-seconds 900.0",
+      "commit": "cd9ffff3f77c",
+      "contestants": [
+        "ws-ollama-local/qwen2.5:32b",
+        "ws-ollama-local/gpt-oss:120b"
+      ],
+      "finished": null,
+      "hardware": {
+        "arch": "x86_64",
+        "cpu_cores": 32,
+        "gpu_memory_gb": [
+          51.53,
+          48.31,
+          51.53,
+          51.53
+        ],
+        "gpus": 4,
+        "os": "Windows",
+        "ram_gb": 1098.43
+      },
+      "rescored": {
+        "at": "2026-10-16T13:13:53+00:00",
+        "commit": null,
+        "from": "passed only without changes to protected paths",
+        "rows_changed": 4
+      },
+      "router_pool": null,
+      "run": "2026-10-16-mini-general-gpu",
+      "scoring": "passes when every acceptance command exits with 0 on a fresh copy with the run's diff applied and the suite's protected paths restored",
+      "seeds": [
+        0,
+        1
+      ],
+      "started": "2026-10-16T08:23:35+00:00",
+      "version": "0.1.0.dev0"
+    },
+    {
+      "command": "ssw bench run --suite mini-general --workers ws-ollama-local/gpt-oss:120b --seeds 2 --budget-seconds 900.0",
+      "commit": "cd9ffff3f77c",
+      "contestants": [
+        "ws-ollama-local/gpt-oss:120b"
+      ],
+      "finished": "2026-10-16T09:33:09+00:00",
+      "hardware": {
+        "arch": "x86_64",
+        "cpu_cores": 32,
+        "gpu_memory_gb": [
+          51.53,
+          48.31,
+          51.53,
+          51.53
+        ],
+        "gpus": 4,
+        "os": "Windows",
+        "ram_gb": 1098.43
+      },
+      "rescored": {
+        "at": "2026-10-16T13:13:54+00:00",
+        "commit": null,
+        "from": "passed only without changes to protected paths",
+        "rows_changed": 0
+      },
+      "router_pool": null,
+      "run": "2026-10-16-mini-general-gpt-oss",
+      "scoring": "passes when every acceptance command exits with 0 on a fresh copy with the run's diff applied and the suite's protected paths restored",
+      "seeds": [
+        0,
+        1
+      ],
+      "started": "2026-10-16T09:02:19+00:00",
+      "version": "0.1.0.dev0"
+    },
+    {
+      "command": "ssw bench run --suite mini-general --workers managed/qwen3-4b-instruct-2507,managed/phi-3.5-mini-instruct --seeds 2 --budget-seconds 900.0",
+      "commit": "cd9ffff3f77c",
+      "contestants": [
+        "managed/qwen3-4b-instruct-2507",
+        "managed/phi-3.5-mini-instruct"
+      ],
+      "finished": "2026-10-16T13:12:41+00:00",
+      "hardware": {
+        "arch": "x86_64",
+        "cpu_cores": 32,
+        "gpu_memory_gb": [
+          51.53,
+          48.31,
+          51.53,
+          51.53
+        ],
+        "gpus": 4,
+        "os": "Windows",
+        "ram_gb": 1098.43
+      },
+      "rescored": {
+        "at": "2026-10-16T13:13:56+00:00",
+        "commit": null,
+        "from": "passed only without changes to protected paths",
+        "rows_changed": 0
+      },
+      "router_pool": null,
+      "run": "2026-10-16-mini-general-cpu",
+      "scoring": "passes when every acceptance command exits with 0 on a fresh copy with the run's diff applied and the suite's protected paths restored",
+      "seeds": [
+        0,
+        1
+      ],
+      "started": "2026-10-16T08:23:36+00:00",
+      "version": "0.1.0.dev0"
+    },
+    {
+      "command": "ssw bench run --suite mini-general --workers router --seeds 2 --router-pool ws-ollama-local/qwen2.5:32b,ws-ollama-local/gpt-oss:120b --budget-seconds 900.0",
+      "commit": "4766b7969e9a",
+      "contestants": [
+        "router"
+      ],
+      "finished": "2026-10-16T11:01:15+00:00",
+      "hardware": {
+        "arch": "x86_64",
+        "cpu_cores": 32,
+        "gpu_memory_gb": [
+          51.53,
+          48.31,
+          51.53,
+          51.53
+        ],
+        "gpus": 4,
+        "os": "Windows",
+        "ram_gb": 1098.43
+      },
+      "rescored": null,
+      "router_pool": [
+        "ws-ollama-local/gpt-oss:120b",
+        "ws-ollama-local/qwen2.5:32b"
+      ],
+      "run": "2026-10-16-mini-general-router",
+      "scoring": "passes when every acceptance command exits with 0 on a fresh copy with the run's diff applied and the suite's protected paths restored",
+      "seeds": [
+        0,
+        1
+      ],
+      "started": "2026-10-16T10:33:16+00:00",
+      "version": "0.1.0.dev0"
+    }
+  ],
+  "suite": "mini-general",
+  "tasks": 15,
+  "version": "0.1.0.dev0"
+}

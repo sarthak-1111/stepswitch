@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "suite": "mini-general",
+  "suite_file": "mini-general.yaml",
+  "command": "ssw bench run --suite mini-general --workers managed/qwen3-4b-instruct-2507,managed/phi-3.5-mini-instruct --seeds 2 --budget-seconds 900.0",
+  "started": "2026-10-16T08:23:36+00:00",
+  "finished": "2026-10-16T13:12:41+00:00",
+  "hardware": {
+    "os": "Windows",
+    "arch": "x86_64",
+    "cpu_cores": 32,
+    "ram_gb": 1098.43,
+    "gpus": 4,
+    "gpu_memory_gb": [
+      51.53,
+      48.31,
+      51.53,
+      51.53
+    ]
+  },
+  "version": "0.1.0.dev0",
+  "commit": "cd9ffff3f77c",
+  "seeds": [
+    0,
+    1
+  ],
+  "contestants": [
+    "managed/qwen3-4b-instruct-2507",
+    "managed/phi-3.5-mini-instruct"
+  ],
+  "tasks": [
+    "pager-first-page",
+    "restock-report-threshold",
+    "agenda-time-order",
+    "tags-ignore-case",
+    "playlist-own-tracks",
+    "notes-corrupt-file",
+    "billing-month-end",
+    "recipe-scaling",
+    "post-slugs",
+    "temperature-units",
+    "todo-priority",
+    "rename-format-duration",
+    "entry-from-line",
+    "upload-limits",
+    "calc-bug"
+  ],
+  "review": true,
+  "prices": null,
+  "rescored": {
+    "from": "passed only without changes to protected paths",
+    "rows_changed": 0,
+    "at": "2026-10-16T13:13:56+00:00",
+    "commit": null
+  },
+  "scoring": "passes when every acceptance command exits with 0 on a fresh copy with the run's diff applied and the suite's protected paths restored"
+}
