@@ -125,3 +125,36 @@ def test_pull_needs_names_or_tier() -> None:
     result = runner.invoke(app, ["models", "pull"])
     assert result.exit_code == 1
     assert "--tier" in result.output
+
+
+def _fake_report(problems: list[str]) -> dict[str, object]:
+    return {"profile": {"tier": "cpu", "reason": "test"}, "problems": problems}
+
+
+def test_doctor_exits_1_when_the_report_lists_problems(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from stepswitch import doctor
+
+    monkeypatch.setattr(doctor, "collect", lambda **_: _fake_report(["sqlite has the WAL bug"]))
+    monkeypatch.setattr(doctor, "write_profile", lambda *_: None)
+    result = runner.invoke(app, ["-C", str(tmp_path), "doctor", "--json"])
+    assert result.exit_code == 1
+    assert json.loads(result.output)["problems"] == ["sqlite has the WAL bug"]
+
+
+def test_doctor_warns_when_the_profile_cannot_be_recorded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from stepswitch import doctor
+
+    runner.invoke(app, ["-C", str(tmp_path), "init", "--no-detect"])
+
+    def conflict(*_: object) -> None:
+        raise tomllib.TOMLDecodeError("Cannot declare ('profile',) twice")
+
+    monkeypatch.setattr(doctor, "collect", lambda **_: _fake_report([]))
+    monkeypatch.setattr(doctor, "write_profile", conflict)
+    result = runner.invoke(app, ["-C", str(tmp_path), "doctor", "--json"])
+    assert result.exit_code == 0, result.output
+    assert "profile not recorded" in result.stderr

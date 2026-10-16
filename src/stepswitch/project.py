@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -63,11 +64,15 @@ def init(root: Path, *, force: bool = False, detect: bool = True) -> dict[str, A
 
         loaded = config.load(root)
         report = doctor.collect(models_dir=loaded.models_dir(), project_root=root)
-        doctor.write_profile(local_config, report)
         profile = report["profile"]
+        try:
+            doctor.write_profile(local_config, report)
+        except tomllib.TOMLDecodeError as exc:
+            messages.append(f"Hardware profile not recorded ({local_config} unchanged): {exc}")
         messages.append(
             f"Hardware profile: tier {profile['tier']} ({profile.get('reason', '')}); "
             "details with `ssw doctor`"
         )
+        messages += [f"Problem: {problem}" for problem in report.get("problems", [])]
     messages.append("Next: `ssw models pull --tier cpu` installs the CPU model set.")
     return {"root": str(root), "created": created, "profile": profile, "messages": messages}

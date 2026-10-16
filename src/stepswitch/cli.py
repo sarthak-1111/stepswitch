@@ -187,7 +187,13 @@ def cmd_doctor(
         ),
     ] = True,
 ) -> None:
-    """Report OS, CPU, RAM, GPUs, disk, engines and a recommended profile."""
+    """Report OS, CPU, RAM, GPUs, disk, engines and a recommended profile.
+
+    Exits with status 1 when the report lists problems (for example a SQLite build with the
+    WAL-reset bug, ADR 0002).
+    """
+    import tomllib
+
     from stepswitch import doctor, paths
 
     state = _state(ctx)
@@ -195,12 +201,19 @@ def cmd_doctor(
         report = doctor.collect(
             models_dir=state.config.models_dir(), project_root=state.root, egress=state.egress()
         )
+        local_config = paths.local_config_path(state.root)
         if write and paths.state_dir(state.root).is_dir():
-            doctor.write_profile(paths.local_config_path(state.root), report)
+            try:
+                doctor.write_profile(local_config, report)
+            except tomllib.TOMLDecodeError as exc:
+                message = f"warning: profile not recorded ({local_config} unchanged): {exc}"
+                typer.echo(message, err=True)
     if json_out:
         _print_json(report)
     else:
         typer.echo(doctor.format_report(report))
+    if report.get("problems"):
+        raise typer.Exit(1)
 
 
 @models_app.command("list")
