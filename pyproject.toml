@@ -1,32 +1,53 @@
 [project]
-name = "switchyard"
-version = "0.0.0"
-description = "Model-selective, multi-agent coding orchestrator (working name)."
+name = "stepswitch"
+version = "0.1.0.dev0"
+description = "Model-selective, multi-agent coding orchestrator that picks a model and harness per task and per step."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-dependencies = []
+dependencies = [
+  "typer>=0.26",
+  "fastapi>=0.135",
+  "uvicorn>=0.54",
+  "pydantic>=2.14,<3",
+  "httpx>=0.28.1,<1",
+  "ruamel.yaml>=0.19.1",
+  "jsonschema>=4.26",
+]
+
+[project.scripts]
+ssw = "stepswitch.cli:main"
+stepswitch = "stepswitch.cli:main"
 
 [dependency-groups]
 dev = [
   "pytest>=9.1",
-  "ruamel.yaml>=0.19.1",
   "ruff>=0.17",
   "mypy>=2.4",
 ]
 
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/stepswitch"]
+
+[tool.hatch.build.targets.wheel.force-include]
+# The model and worker registry ships inside the package (ADR 0002, ADR 0012).
+"registry" = "stepswitch/_registry"
+
 [tool.uv]
-# Phase 0 has no product code. Phase 1 adds the package, a build backend and the CLI entry
-# point (ADR 0001, ADR 0002), and removes this line.
-package = false
 # uv-managed interpreters bundle a SQLite without the WAL-reset bug (ADR 0002).
 python-preference = "only-managed"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = ["-ra", "--strict-markers", "--import-mode=importlib"]
 markers = [
   "claim(id): links a claim test to an entry in claims/claims.yaml (SPEC §18.2)",
+  "live: needs a running local model server; skipped when none is reachable",
 ]
 
 [tool.ruff]
@@ -39,3 +60,5 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "PTH"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
+mypy_path = "src"
+packages = ["stepswitch"]
