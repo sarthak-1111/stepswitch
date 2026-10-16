@@ -404,7 +404,12 @@ def models_serve(
     ctx: typer.Context,
     model: Annotated[str, typer.Argument(help="Registry id or name of an installed model.")],
     engine: Annotated[
-        str | None, typer.Option("--engine", help="llamacpp or ollama (default: by install).")
+        str | None,
+        typer.Option(
+            "--engine",
+            help="llamacpp, ollama, vllm, sglang, mlx or transformers"
+            " (default: chosen by what is installed).",
+        ),
     ] = None,
     port: Annotated[int | None, typer.Option("--port", help="Port (default: a free one).")] = None,
     ctx_size: Annotated[
@@ -415,13 +420,20 @@ def models_serve(
     ] = False,
     json_out: Annotated[bool, typer.Option("--json", help="Print the server as JSON.")] = False,
 ) -> None:
-    """Start a local server for a model (llama.cpp) or load it into a running engine."""
+    """Start a local server for a model (llama.cpp, vLLM, SGLang, MLX-LM or transformers) or
+    load it into a running engine."""
+    from stepswitch import registry
     from stepswitch.serve import install, llamacpp
     from stepswitch.serve.manager import ServerManager
 
     state = _state(ctx)
     with _user_errors():
-        if engine in (None, "llamacpp") and llamacpp.LlamaCppEngine().find_binary() is None:
+        entry = registry.find(model)
+        # Offer to install llama.cpp only when it is the engine that would serve the model.
+        wants = engine == "llamacpp" or (
+            engine is None and entry is not None and "llamacpp" in entry.engines
+        )
+        if wants and llamacpp.LlamaCppEngine().find_binary() is None:
             install.install_llamacpp(
                 confirm=None if yes else typer.confirm, echo=typer.echo, egress=state.egress()
             )

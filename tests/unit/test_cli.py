@@ -4,6 +4,8 @@ import json
 import re
 import tomllib
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
@@ -198,3 +200,38 @@ def test_doctor_warns_when_the_profile_cannot_be_recorded(
     result = runner.invoke(app, ["-C", str(tmp_path), "doctor", "--json"])
     assert result.exit_code == 0, result.output
     assert "profile not recorded" in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("engines", "engine", "installs"),
+    [
+        ({"vllm": {}}, None, False),  # only vLLM can serve it: no llama.cpp offer
+        ({"llamacpp": {}, "vllm": {}}, None, True),
+        ({"vllm": {}}, "llamacpp", True),
+    ],
+)
+def test_models_serve_offers_llamacpp_only_when_it_would_serve(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    engines: dict[str, Any],
+    engine: str | None,
+    installs: bool,
+) -> None:
+    from stepswitch import registry
+    from stepswitch.serve import install, llamacpp
+    from stepswitch.serve.manager import ServerManager
+
+    offered: list[bool] = []
+    monkeypatch.setattr(registry, "find", lambda name, dirs=None: SimpleNamespace(engines=engines))
+    monkeypatch.setattr(llamacpp.LlamaCppEngine, "find_binary", lambda self: None)
+    monkeypatch.setattr(install, "install_llamacpp", lambda **kwargs: offered.append(True))
+    served = SimpleNamespace(model="m", engine="vllm", base_url="http://127.0.0.1:1", pid=1)
+    monkeypatch.setattr(ServerManager, "start", lambda self, model, **kwargs: served)
+    args = ["-C", str(tmp_path), "models", "serve", "m", "--yes"]
+    result = runner.invoke(
+        app,
+        [*args, *(["--engine", engine] if engine else [])],
+        env={"STEPSWITCH_HOME": str(tmp_path)},
+    )
+    assert result.exit_code == 0, result.output
+    assert offered == ([True] if installs else [])
