@@ -69,7 +69,6 @@ def test_phase_2_commands_exist_with_their_options(command: str, options: list[s
     ("args", "phase"),
     [
         (["proxy"], 8),
-        (["dash"], 4),
         (["replay", "run-1"], 7),
     ],
 )
@@ -235,3 +234,37 @@ def test_models_serve_offers_llamacpp_only_when_it_would_serve(
     )
     assert result.exit_code == 0, result.output
     assert offered == ([True] if installs else [])
+
+
+def test_dash_prints_a_loopback_link_with_a_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import uvicorn
+
+    served: list[Any] = []
+
+    def fake_run(self: Any, sockets: Any = None) -> None:
+        served.append(self.config)
+
+    monkeypatch.setattr(uvicorn.Server, "run", fake_run)
+    (tmp_path / ".stepswitch").mkdir()
+    result = runner.invoke(
+        app, ["-C", str(tmp_path), "dash", "--no-open", "--port", "7791", "--max-tasks", "2"]
+    )
+    assert result.exit_code == 0, result.output
+    (config,) = served
+    assert (config.host, config.port, config.access_log) == ("127.0.0.1", 7791, False)
+    link = re.search(r"http://127\.0\.0\.1:7791/\?token=([\w-]+)", result.output)
+    assert link is not None and len(link.group(1)) >= 32
+
+
+def test_dash_refuses_a_port_in_use(tmp_path: Path) -> None:
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        sock.listen()
+        port = sock.getsockname()[1]
+        result = runner.invoke(app, ["-C", str(tmp_path), "dash", "--no-open", "--port", str(port)])
+    assert result.exit_code == 1
+    assert f"port {port} is in use" in result.output

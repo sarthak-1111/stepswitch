@@ -31,6 +31,11 @@ dev = [
   "ruff>=0.17",
   "mypy>=2.4",
 ]
+# Browser smoke test of the dashboard (tests/e2e): `uv sync --group e2e`, then a Chrome install
+# or `uv run playwright install chromium`.
+e2e = [
+  "playwright>=1.64",
+]
 
 [build-system]
 requires = ["hatchling>=1.27"]
@@ -48,6 +53,9 @@ packages = ["src/stepswitch"]
 "bench/suites" = "stepswitch/_bench/suites"
 "bench/repos" = "stepswitch/_bench/repos"
 "bench/golden" = "stepswitch/_bench/golden"
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+# hatch_build.py adds the built dashboard (dashboard/dist) as stepswitch/_dashboard when it exists.
 
 [tool.uv]
 # uv-managed interpreters bundle a SQLite without the WAL-reset bug (ADR 0002).

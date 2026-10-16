@@ -11,7 +11,7 @@ import json
 import os
 import sys
 from collections.abc import Iterator, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, NoReturn
@@ -1190,15 +1190,147 @@ def bench_report(
     typer.echo((target / name).read_text(encoding="utf-8"))
 
 
+def _port_free(host: str, port: int) -> bool:
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            sock.bind((host, port))
+        except OSError:
+            return False
+    return True
+
+
+def _open_when_ready(server: Any, url: str) -> None:
+    import threading
+    import time
+    import webbrowser
+
+    def run() -> None:
+        deadline = time.monotonic() + 15.0
+        while not server.started and not server.should_exit and time.monotonic() < deadline:
+            time.sleep(0.1)
+        if server.started and not server.should_exit:
+            webbrowser.open(url)
+
+    threading.Thread(target=run, name="ssw-open-browser", daemon=True).start()
+
+
+class _Terminated(Exception):
+    """SIGTERM (or Ctrl+Break on Windows) arrived: leave without waiting for tasks."""
+
+
+@contextmanager
+def _terminate_on_signal() -> Iterator[None]:
+    """Turn SIGTERM and SIGBREAK into _Terminated while the server runs. uvicorn shuts down on
+    them and then raises the signal again, which would otherwise end the process at once."""
+    import signal
+
+    def handler(signum: int, frame: Any) -> None:
+        raise _Terminated
+
+    previous: dict[int, Any] = {}
+    for name in ("SIGTERM", "SIGBREAK"):
+        number = getattr(signal, name, None)
+        if number is not None:
+            previous[number] = signal.signal(number, handler)
+    try:
+        yield
+    finally:
+        for number, old_handler in previous.items():
+            signal.signal(number, old_handler)
+
+
+def _stop_tasks(services: Any) -> None:
+    """Let the tasks the dashboard started stop at their next step; a second Ctrl+C records
+    them as stopped and leaves at once."""
+    pending = services.shutdown()
+    if pending:
+        typer.echo(
+            f"Waiting for {len(pending)} task(s) to stop at their next step"
+            " (press Ctrl+C again to leave now)."
+        )
+        try:
+            while not services.wait(0.5):
+                pass
+        except KeyboardInterrupt:
+            services.abandon()
+            services.close()
+            typer.echo("Left without waiting; the tasks are recorded as stopped.", err=True)
+            os._exit(130)
+    services.close()
+
+
 @app.command("dash")
 def cmd_dash(
-    port: Annotated[int, typer.Option("--port", help="Port to listen on.")] = 7777,
+    ctx: typer.Context,
+    port: Annotated[
+        int, typer.Option("--port", min=1, max=65535, help="Port to listen on.")
+    ] = 7777,
     open_browser: Annotated[
         bool, typer.Option("--open/--no-open", help="Open the dashboard in a browser.")
     ] = True,
+    max_tasks: Annotated[
+        int, typer.Option("--max-tasks", min=1, max=16, help="Tasks to run at the same time.")
+    ] = 1,
 ) -> None:
-    """Start the task API and the dashboard."""
-    _not_yet("dash", 4)
+    """Start the task API and the dashboard on this computer (127.0.0.1 only)."""
+    import secrets
+
+    import uvicorn
+
+    from stepswitch.api.app import HOST, create_app
+
+    state = _state(ctx)
+    if not _port_free(HOST, port):
+        _fail(f"port {port} is in use; choose another with --port")
+    token = secrets.token_urlsafe(32)
+    holder: list[Any] = []
+    with _user_errors():
+        app_ = create_app(
+            state.root,
+            token=token,
+            port=port,
+            egress=state.egress(),
+            max_tasks=max_tasks,
+            stopping=lambda: bool(holder) and bool(holder[0].should_exit),
+        )
+    services = app_.state.services
+    server = uvicorn.Server(
+        uvicorn.Config(
+            app_,
+            host=HOST,
+            port=port,
+            log_level="warning",
+            access_log=False,
+            server_header=False,
+            timeout_graceful_shutdown=3,
+            lifespan="on",
+        )
+    )
+    holder.append(server)
+    url = f"http://{HOST}:{port}/?token={token}"
+    typer.echo(f"Stepswitch dashboard for {state.root}")
+    typer.echo(f"  {url}")
+    typer.echo("The link carries this session's access token. Press Ctrl+C to stop.")
+    if services.static_dir is None:
+        typer.echo(
+            "note: the dashboard is not built (cd dashboard && npm ci && npm run build);"
+            " the task API works without it",
+            err=True,
+        )
+    if open_browser:
+        _open_when_ready(server, url)
+    try:
+        # uvicorn shuts down on Ctrl+C, then raises the interrupt again for the caller.
+        with _terminate_on_signal(), suppress(KeyboardInterrupt):
+            server.run()
+    except _Terminated:
+        services.shutdown()
+        services.abandon()
+        services.close()
+        raise typer.Exit(143) from None
+    _stop_tasks(services)
 
 
 @app.command("replay")

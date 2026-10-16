@@ -2980,3 +2980,57 @@ Sources: `vllm/parser/granite.py`, `vllm/tool_parsers/granite_engine_tool_parser
   vLLM never reads bare arrays, because it sees the marker's token id. Stepswitch, reading text
   over HTTP, reads a bare array only when the granite syntax is configured and the whole reply
   is a strict call list (ADR 0022).
+
+## Verified during Phase 4
+
+### Web server stack for `ssw dash` (installed versions, checked 2026-10-16)
+
+- **FastAPI 0.143.2.**
+  - `FastAPI(docs_url=None, redoc_url=None, openapi_url="/api/openapi.json", lifespan=...)` is
+    used.
+  - `fastapi.sse` exists (`EventSourceResponse`, `ServerSentEvent`, `format_sse_event`). Path
+    operations that `yield` with `response_class=EventSourceResponse` get `: ping` keep-alive
+    comments after 15 idle seconds (`fastapi.sse._PING_INTERVAL`).
+  - Not used: the stream is written with `StreamingResponse` (ADR 0023), and the dependency
+    floor stays `fastapi>=0.135`.
+- **Starlette 1.8.0.**
+  - `starlette.testclient.TestClient` warns "Using `httpx` with `starlette.testclient` is
+    deprecated; install `httpx2` instead." (`StarletteDeprecationWarning`).
+  - Tests call the app through `httpx.ASGITransport` (httpx 0.28.1) with `httpx.AsyncClient`.
+    That transport does not run the lifespan.
+  - `MutableHeaders(scope=message)` edits response headers in a pure ASGI middleware.
+- **uvicorn 0.54.0.**
+  - `uvicorn.Config` accepts `timeout_graceful_shutdown`, `access_log`, `server_header` and
+    `lifespan`. `Server.started` and `Server.should_exit` are plain attributes.
+  - `Server.capture_signals` handles SIGINT and SIGTERM (plus SIGBREAK on Windows) only in the
+    main thread. After a graceful shutdown it re-raises each captured signal with
+    `signal.raise_signal`. A caller therefore sees `KeyboardInterrupt` after Ctrl+C, and the
+    process's own SIGTERM handler after SIGTERM.
+  - In a worker thread no signals are captured: tests run the server in a thread and stop it
+    with `should_exit`.
+- **Python 3.12.15, `concurrent.futures`** (observed in tests).
+  - Futures cancelled by `ThreadPoolExecutor.shutdown(cancel_futures=True)` stay `CANCELLED`
+    and are never notified. `concurrent.futures.wait` on them blocks until its timeout, so the
+    task runner leaves cancelled futures out before waiting.
+
+### Wheel build hook (hatchling docs, checked 2026-10-16)
+
+- Custom hook: `[tool.hatch.build.targets.wheel.hooks.custom]`; the default file is
+  `hatch_build.py`. Subclass `hatchling.builders.hooks.plugin.interface.BuildHookInterface`.
+  `initialize(version: str, build_data: dict[str, Any]) -> None` runs before the build.
+  Sources: https://hatch.pypa.io/latest/plugins/build-hook/custom/ and
+  https://hatch.pypa.io/latest/plugins/build-hook/reference/.
+- Build data: `force_include` (`dict[str, str]`, "a mapping of extra forced inclusion paths")
+  and `artifacts` (`list[str]`). The hook attribute `root` is the project root.
+- Wheel versions are `standard` and `editable` ("only ships `.pth` files or import hooks").
+  `force_include_editable` applies to editable builds only.
+  Source: https://hatch.pypa.io/latest/plugins/builder/wheel/.
+- `hatch_build.py` adds `dashboard/dist` as `stepswitch/_dashboard` to standard wheels when the
+  dashboard has been built. A wheel built without it serves a page explaining how to build it.
+
+### Playwright for Python (PyPI, checked 2026-10-16)
+
+- `playwright` 1.64.0 resolves with `greenlet` 3.5.6 and `pyee` 14.0.0 (`uv add --group e2e`).
+- The smoke test launches the installed Chrome with `chromium.launch(channel="chrome")`. It
+  falls back to Playwright's own Chromium build (`playwright install chromium`) and skips when
+  neither starts.
