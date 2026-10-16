@@ -1,0 +1,97 @@
+"""Normalized model-server errors and the retry policy shared by every codec."""
+
+from __future__ import annotations
+
+from typing import Any, Literal
+
+ErrorKind = Literal[
+    "bad_request",
+    "authentication",
+    "permission",
+    "not_found",
+    "too_large",
+    "rate_limit",
+    "overloaded",
+    "server",
+    "timeout",
+    "connection",
+    "blocked",
+    "unsupported",
+    "invalid_response",
+]
+
+RETRYABLE: frozenset[str] = frozenset(
+    {"rate_limit", "overloaded", "server", "timeout", "connection"}
+)
+
+STATUS_KINDS: dict[int, ErrorKind] = {
+    400: "bad_request",
+    401: "authentication",
+    403: "permission",
+    404: "not_found",
+    408: "timeout",
+    409: "bad_request",
+    413: "too_large",
+    422: "bad_request",
+    429: "rate_limit",
+    500: "server",
+    502: "server",
+    503: "overloaded",
+    504: "timeout",
+    529: "overloaded",
+}
+
+
+class ModelError(Exception):
+    """An error reported by (or while talking to) a model endpoint."""
+
+    def __init__(
+        self,
+        kind: ErrorKind,
+        message: str,
+        *,
+        status: int | None = None,
+        code: str | None = None,
+        retry_after: float | None = None,
+        raw: Any = None,
+    ) -> None:
+        super().__init__(message)
+        self.kind: ErrorKind = kind
+        self.message = message
+        self.status = status
+        self.code = code
+        self.retry_after = retry_after
+        self.raw = raw
+
+    @property
+    def retryable(self) -> bool:
+        return self.kind in RETRYABLE
+
+    def __repr__(self) -> str:
+        return f"ModelError({self.kind!r}, {self.message!r}, status={self.status})"
+
+
+def kind_for_status(status: int) -> ErrorKind:
+    if status in STATUS_KINDS:
+        return STATUS_KINDS[status]
+    if 500 <= status < 600:
+        return "server"
+    return "bad_request"
+
+
+def parse_retry_after(value: str | None) -> float | None:
+    if not value:
+        return None
+    try:
+        return max(0.0, float(value))
+    except ValueError:
+        return None
+
+
+def backoff_delay(
+    attempt: int, retry_after: float | None = None, base: float = 0.5, cap: float = 20.0
+) -> float:
+    """Exponential backoff (0.5 s, 1 s, 2 s, ...), honouring a server's Retry-After."""
+    if retry_after is not None:
+        return min(retry_after, 60.0)
+    return float(min(cap, base * (2**attempt)))
