@@ -331,3 +331,29 @@ def test_sensitive_values_from_local_config() -> None:
         "abc123secret",
         "0123456789abcdef0123456789abcdef",
     } | {"E:/models"}
+
+
+def _strings(node: Any) -> list[str]:
+    if isinstance(node, dict):
+        return [s for key, value in node.items() for s in [*_strings(key), *_strings(value)]]
+    if isinstance(node, list):
+        return [s for item in node for s in _strings(item)]
+    return [node] if isinstance(node, str) else []
+
+
+def test_evidence_writer_scrubs_machine_specific_values() -> None:
+    from tests.claims.evidence import scrub
+
+    home = Path.home()
+    sample = {
+        "executable": str(home / "tools" / "engine.exe"),
+        "argv": [f"{home.as_posix()}/bin/engine", "--version", str(ROOT / "claims")],
+        "host": socket.gethostname(),
+        str(home): "a path as a key",
+        "kept": "runner_label ubuntu-24.04 127.0.0.1:11434",
+    }
+    scrubbed = scrub(sample)
+    text = "\n".join(_strings(scrubbed)).lower()
+    assert not [_redact(v) for v in machine_specific_values() if v.lower() in text]
+    assert scrubbed["kept"] == sample["kept"]
+    assert scrubbed["executable"].startswith("~")
