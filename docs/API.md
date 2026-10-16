@@ -9,11 +9,13 @@ and the JSON it returns. Times are Unix epoch seconds (floats); token counts are
 - The server listens on `127.0.0.1` (default port 7777) and nowhere else.
 - `ssw dash` creates a random token for the session and prints the URL to open:
   `http://127.0.0.1:7777/?token=<token>`. Opening it stores the token in an `HttpOnly`,
-  `SameSite=Strict` cookie (`ssw_token`) and redirects to the same page without the token.
+  `SameSite=Strict` cookie (`ssw_token_<port>`: cookies are shared by every port of a host) and
+  redirects to the same page without the token. A wrong token redirects without the cookie.
 - Every `/api/` route needs that cookie or an `Authorization: Bearer <token>` header; without
   it the answer is `401 {"error": "unauthorized"}`. The dashboard's own files need no token.
-- Requests whose `Host` header is not the server's loopback address and port get `403`, and so
-  do `POST` requests whose `Origin` header names another site.
+- Requests whose `Host` header is not `127.0.0.1:<port>` or `localhost:<port>` get `403`, and
+  so do `POST` requests whose `Origin` header names another site.
+- The OpenAPI document is at `/api/openapi.json` (token required); there are no docs pages.
 - Errors are JSON: `{"error": "<message>"}` with a 4xx or 5xx status.
 - The server makes no network connections of its own: tasks and model servers it starts use the
   egress layer and its audit log like the CLI does, and endpoint status checks happen only on
@@ -55,8 +57,9 @@ Newest first. `status` filters by one status. `TaskSummary`:
 ```
 
 `worker` is the pinned worker, if any. `steps`, `switches` and `escalations` come from the
-router decisions so far; `tokens`, `wall_seconds` (model time) and `gpu_seconds` from the
-ledger. `summary` is the final summary once the task has ended.
+router decisions so far (from the result once the task has ended); `tokens` and `gpu_seconds`
+from the ledger. `wall_seconds` is the task's elapsed time: so far while it runs, the measured
+total once it has ended. `summary` is the final summary once the task has ended.
 
 ### `POST /api/tasks`
 
@@ -78,9 +81,10 @@ Body (only `instruction` is required):
 }
 ```
 
-`repo` defaults to the project the server runs in. Answer: `201 {"id": "...", "status":
-"queued"}`. Invalid bodies get `422`. Tasks run one at a time by default (`ssw dash
---max-tasks N`).
+`repo` defaults to the project the server runs in; a relative path is taken from there, and it
+must be a directory. Answer: `201 {"id": "...", "status": "queued"}`. Invalid bodies (unknown
+fields included) get `422`. Tasks run one at a time by default (`ssw dash --max-tasks N`); a
+task whose run fails unexpectedly ends as `failed` with `stop_reason: "error"`.
 
 ### `GET /api/tasks/{id}`
 
@@ -264,7 +268,7 @@ what the local model work would have cost at those prices.
   "endpoints": [
     {"name": "ws-local", "engine": "ollama", "format": "chat-completions", "formats": ["..."],
      "local": true, "url": "http://127.0.0.1:11434", "auth": "none", "models": ["qwen2.5:32b"],
-     "tool_parser": null, "reachable": true,
+     "tool_parser": null, "reachable": true, "http_status": 200, "error": null,
      "probes": {"qwen2.5:32b": {"created": 1760600000.0, "format": "chat-completions",
                                 "capabilities": {"native_tools": true}}}}
   ],
@@ -273,18 +277,24 @@ what the local model work would have cost at those prices.
      "alive": true, "started": 1760600000.0, "last_used": 1760600100.0}
   ],
   "installed": [{"id": "qwen3-4b-instruct-2507", "name": "Qwen3-4B-Instruct-2507", "ram_gb": 3.1,
-                 "roles": ["router"], "running": true}]
+                 "roles": ["router"], "running": true, "state": "running"}],
+  "model_errors": {"phi-3.5-mini-instruct": "EngineError: ..."}
 }
 ```
 
 `url` is shown for local endpoints only (null for remote ones); keys are never returned.
-`reachable` is present only with `check=true`.
+`reachable`, `http_status` and `error` are present only with `check=true`: the server sends one
+read-only model-listing request to each endpoint through the egress layer, without credentials,
+and any HTTP answer counts as reachable; `error` names the kind of failure only.
+`managed[].alive` is null unless `check=true` (the check asks each engine). `installed[].state`
+is `running`, `starting`, `failed` (see `model_errors`) or `stopped`.
 
 ### `POST /api/models/{id}/start` and `POST /api/models/{id}/stop`
 
 Start or stop the managed server of an installed registry model. Start answers `202
-{"model": "...", "status": "starting"}` and loads the model in the background; stop answers
-`200 {"model": "...", "stopped": true}`.
+{"model": "...", "status": "starting"}` and loads the model in the background (`404` for an
+unknown model, `409` if it is not installed); stop answers `200 {"model": "...", "stopped":
+true}` (`false` if it was not running).
 
 ## Bench, claims, compatibility
 
@@ -343,13 +353,15 @@ The newest prove report (`prove-report.json` at the project root, else
      "tool_parser": null, "checks": {"basic_chat": "yes", "json_schema": "error"}}
   ],
   "local": [{"endpoint": "ws-local", "model": "qwen2.5:32b", "created": 1760600000.0,
-             "capabilities": {"native_tools": true}}]
+             "capabilities": {"native_tools": true}}],
+  "problems": ["broken.json: ..."]
 }
 ```
 
 `results` are the committed probe results in `probes/` (in a Stepswitch source checkout);
 `local` holds the latest probe of each endpoint and model in this project. Check cells are
-`yes`, `no`, `skipped` or `error`.
+`yes`, `no`, `skipped` or `error`. Files in `probes/` that cannot be read are listed in
+`problems`.
 
 ## Audit and science
 
@@ -384,7 +396,8 @@ Numerical diff reports from the science gates (`golden`), newest first.
 ### `GET /api/runs/{task_id}/files/{path}`
 
 A file from a task's run directory (`.stepswitch/runs/<task id>/`), such as a plot. Paths
-outside that directory are refused.
+outside that directory get `404`. Images (PNG, JPEG, GIF, WebP) are sent as they are, text files
+as `text/plain`, anything else as a download; all with a `sandbox` Content-Security-Policy.
 
 ## Live events
 
@@ -397,6 +410,8 @@ One stream for the whole dashboard. Event types:
 - `ledger`: `{"task_id", ...LedgerRow}` for each model call;
 - `decision`: a `Decision` for each routing decision.
 
-Each event carries an `id`; a client that reconnects with `Last-Event-ID` continues after it. A
-comment line is sent every 15 seconds to keep the connection open. The stream starts with the
-current state of tasks that have not ended.
+Each event carries an `id`; a client that reconnects with `Last-Event-ID` continues after it
+(a resumed stream may repeat a recent `task` event: replace tasks by `id`). A comment line is
+sent after 15 quiet seconds to keep the connection open, and the stream starts with
+`retry: 2000` and the current state of the tasks that have not ended. The server reads new rows
+twice a second, so tasks started by `ssw run` in a terminal appear too.
