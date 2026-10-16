@@ -2620,3 +2620,32 @@ and, at llama.cpp tag v0.7.0, `include/llama.h`, `gguf-py/gguf/constants.py`,
   `-NNNNN-of-NNNNN.gguf` and merged with `llama-gguf-split --merge`.
 - The chat template in `tokenizer.chat_template` of the Qwen3-4B-Instruct-2507 file matched
   the hub's `gguf.chat_template`, and the parameter count matched `gguf.total`.
+
+### Capability probe and calibration (live runs)
+
+Checked 2026-10-16 against https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md
+and live runs on the development workstation (Ollama 0.34.4; llama.cpp b11669, CPU only).
+
+- llama.cpp server: `GET /props` has `build_info`, `model_path` and
+  `default_generation_settings.n_ctx`; `GET /v1/models` ids default to the `-m` path and carry
+  `meta.n_ctx_train`; `/health` answers 503 while the model loads. Responses carry `timings`
+  (`prompt_n`, `prompt_ms`, `predicted_n`, `predicted_ms`, `cache_n`); on `/v1/chat/completions`
+  the object sits at the top level of the response, next to `usage`.
+- Ollama: native durations are in nanoseconds and the native response has
+  `prompt_eval_cached_count`; `/health` answers 404.
+- Observed live: for an assistant prefill, llama.cpp b11669 returns the prefill plus the
+  continuation, Ollama only the continuation. llama.cpp b11669 accepts a named `tool_choice`
+  but does not enforce it; no engine tested enforced a named tool choice. Both engines report an
+  input token count that includes cached tokens.
+- A reasoning preamble before schema-constrained JSON can use up a small output budget on a
+  CPU model; the probe retries a reply cut at the limit that contains reasoning once with 1,024
+  more tokens.
+- Full probe of a 4B instruct model (Q4_K_M) on CPU only (`-ngl 0`, context 4096) with
+  llama.cpp b11669: 60.0 s for the whole battery (SPEC §4.6 asks for under 3 minutes); 18
+  checks passed; prefill 309 tokens/s, decode 23.5 tokens/s, time to first token 133 ms.
+- A 32B model on Ollama (GPU): full probe 16.4 s (native) and 27.1 s (chat-completions);
+  calibration prefill about 1,250 tokens/s and decode about 31 tokens/s (server timings),
+  time to first token about 190 ms.
+- A 120B mixture-of-experts reasoning model on Ollama answers one tool call per reply (no
+  parallel calls), reasons in `thinking` (native) or `reasoning` (chat-completions), and keeps
+  reasoning for tool turns only.
