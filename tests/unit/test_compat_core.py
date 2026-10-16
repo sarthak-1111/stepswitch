@@ -23,9 +23,14 @@ from stepswitch.compat.framing import (
 from stepswitch.compat.ir import (
     FinishDelta,
     Message,
+    Origin,
     ReasoningDelta,
+    ReasoningPart,
+    RefusalDelta,
+    RefusalPart,
     Request,
     Response,
+    StartDelta,
     TextDelta,
     TextPart,
     ToolCallArgsDelta,
@@ -36,7 +41,7 @@ from stepswitch.compat.ir import (
     UsageDelta,
     synthetic_call_id,
 )
-from stepswitch.compat.stream import assemble, merge_usage, response_to_deltas
+from stepswitch.compat.stream import StreamAssembler, assemble, merge_usage, response_to_deltas
 from stepswitch.compat.toolcall import parsers
 from stepswitch.compat.toolcall.streaming import StreamingToolCallExtractor, extract_calls
 from stepswitch.config import EndpointConfig
@@ -253,6 +258,49 @@ def test_assemble_builds_text_reasoning_calls_and_usage() -> None:
     assert (response.usage.output_tokens, response.usage.cached_input_tokens) == (5, 4)
 
 
+def test_assembler_labels_streamed_reasoning_and_splits_blocks() -> None:
+    assembler = StreamAssembler(origin=Origin(format="messages", endpoint="local"))
+    for delta in [
+        StartDelta(id="r1", model="m-1"),
+        ReasoningDelta(text="first "),
+        ReasoningDelta(text="block"),
+        ReasoningDelta(opaque="sig-1", opaque_kind="signature"),
+        ReasoningDelta(text="second block"),  # a signature closed the first block
+        ReasoningDelta(text="third", item_id="rs_3"),
+        ReasoningDelta(text="fourth", item_id="rs_4"),  # a new item id is a new block
+        RefusalDelta(text="I can't "),
+        RefusalDelta(text="help with that."),
+    ]:
+        assembler.feed(delta)
+    response = assembler.result()
+    reasoning = response.message.reasoning()
+    assert [(r.text, r.opaque, r.item_id) for r in reasoning] == [
+        ("first block", "sig-1", None),
+        ("second block", None, None),
+        ("third", None, "rs_3"),
+        ("fourth", None, "rs_4"),
+    ]
+    expected = Origin(format="messages", endpoint="local", model="m-1")
+    assert all(r.origin == expected for r in reasoning)
+    refusals = [p for p in response.message.content if isinstance(p, RefusalPart)]
+    assert [p.text for p in refusals] == ["I can't help with that."]
+
+
+def test_delta_origin_wins_over_the_assembler_origin() -> None:
+    own = Origin(format="responses", endpoint="upstream", model="m-2")
+    response = assemble([ReasoningDelta(text="t", origin=own)])
+    assert response.message.reasoning()[0].origin == own
+
+
+def test_refusal_streams_as_text_where_the_format_has_no_refusal_event() -> None:
+    from stepswitch.compat.codecs import get_codec
+
+    events = get_codec("ollama-native").encode_stream(
+        [StartDelta(model="m"), RefusalDelta(text="No."), FinishDelta(reason="content_filter")]
+    )
+    assert any('"No."' in event.data for event in events)
+
+
 def test_merge_usage_keeps_known_values() -> None:
     merged = merge_usage(Usage(input_tokens=10, cached_input_tokens=3), Usage(output_tokens=4))
     assert (merged.input_tokens, merged.output_tokens, merged.cached_input_tokens) == (10, 4, 3)
@@ -277,6 +325,18 @@ def test_response_to_deltas_round_trips() -> None:
     assert again.message.tool_calls()[0].arguments == '{"x": [1, 2]}'
     assert again.finish_reason == "tool_calls"
     assert again.usage is not None and again.usage.output_tokens == 4
+
+
+def test_response_to_deltas_keeps_reasoning_blocks_and_refusals() -> None:
+    origin = Origin(format="responses", endpoint="e", model="m")
+    parts: list[ReasoningPart | RefusalPart] = [
+        ReasoningPart(text="one", opaque="enc-1", opaque_kind="encrypted", origin=origin),
+        ReasoningPart(summary="two", item_id="rs_2", origin=origin),
+        RefusalPart(text="Not that."),
+    ]
+    response = Response(message=Message(role="assistant", content=list(parts)))
+    again = assemble(response_to_deltas(response, chunk=2))
+    assert again.message.content == parts
 
 
 # --------------------------------------------------------------------------------------------

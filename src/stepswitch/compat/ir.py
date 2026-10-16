@@ -262,10 +262,22 @@ class TextDelta(_Model):
 
 
 class ReasoningDelta(_Model):
+    """A piece of reasoning. An opaque payload arrives whole and closes its reasoning block;
+    `item_id` separates blocks of formats that number them; `origin` is set by whoever knows
+    where the reasoning came from (a decoding codec or the client)."""
+
     type: Literal["reasoning"] = "reasoning"
     text: str = ""
+    summary: str | None = None
     opaque: str | None = None
     opaque_kind: Literal["signature", "encrypted", "redacted"] | None = None
+    item_id: str | None = None
+    origin: Origin | None = None
+
+
+class RefusalDelta(_Model):
+    type: Literal["refusal"] = "refusal"
+    text: str
 
 
 class ToolCallStartDelta(_Model):
@@ -309,6 +321,7 @@ Delta = Annotated[
     StartDelta
     | TextDelta
     | ReasoningDelta
+    | RefusalDelta
     | ToolCallStartDelta
     | ToolCallArgsDelta
     | ToolCallEndDelta

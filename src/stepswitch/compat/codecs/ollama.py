@@ -30,7 +30,14 @@ from collections.abc import Iterable, Iterator
 from datetime import UTC, datetime
 from typing import Any, ClassVar
 
-from stepswitch.compat.codecs.base import Codec, CodecOptions, Framing, HttpCall, StreamState
+from stepswitch.compat.codecs.base import (
+    Codec,
+    CodecOptions,
+    Framing,
+    HttpCall,
+    StreamState,
+    refusal_as_text,
+)
 from stepswitch.compat.errors import ModelError
 from stepswitch.compat.framing import StreamEvent, sse_json
 from stepswitch.compat.ir import (
@@ -349,7 +356,7 @@ class OllamaCodec(Codec):
             wire = _wire_call(call_id, name, "".join(pieces) or "{}", index)
             return line({"role": "assistant", "content": "", "tool_calls": [wire]})
 
-        for delta in deltas:
+        for delta in map(refusal_as_text, deltas):
             if isinstance(delta, StartDelta):
                 model = delta.model or model
             elif isinstance(delta, TextDelta):

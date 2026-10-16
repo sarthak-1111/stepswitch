@@ -208,7 +208,7 @@ def case_tool_call() -> None:
     assert (reasoning.opaque, reasoning.opaque_kind, reasoning.origin) == (
         SIGNATURE,
         "signature",
-        OWN,
+        OWN.model_copy(update={"endpoint": "mock"}),  # the client adds the endpoint name
     )
 
     # Streamed: the format sends each function call whole, in one chunk.

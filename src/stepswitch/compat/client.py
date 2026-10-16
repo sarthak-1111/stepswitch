@@ -18,7 +18,14 @@ from stepswitch.compat.codecs import get_codec
 from stepswitch.compat.codecs.base import Codec, CodecOptions, HttpCall
 from stepswitch.compat.errors import ModelError, backoff_delay
 from stepswitch.compat.framing import iter_lines, parse_ndjson, parse_sse
-from stepswitch.compat.ir import ConversionReport, Delta, Request, Response
+from stepswitch.compat.ir import (
+    ConversionReport,
+    Delta,
+    Origin,
+    ReasoningPart,
+    Request,
+    Response,
+)
 from stepswitch.compat.stream import StreamAssembler
 
 
@@ -137,6 +144,25 @@ class ModelClient:
         except httpx.TransportError as exc:
             raise ModelError("connection", f"cannot reach {self.endpoint.name}: {exc}") from exc
 
+    def origin(self, model: str | None = None) -> Origin:
+        """Where reasoning from this endpoint comes from; replayed only to the same origin."""
+        model = model or self.endpoint.model
+        return Origin(format=self.codec.format, endpoint=self.endpoint.name, model=model)
+
+    def _label_reasoning(self, response: Response, request: Request) -> Response:
+        """Give every reasoning part the full origin: format, endpoint name and model."""
+        model = response.model or request.model or self.endpoint.model
+        for part in response.message.content:
+            if isinstance(part, ReasoningPart):
+                origin = part.origin or self.origin(model)
+                part.origin = origin.model_copy(
+                    update={
+                        "endpoint": origin.endpoint or self.endpoint.name,
+                        "model": origin.model or model,
+                    }
+                )
+        return response
+
     def _error_from(self, response: httpx.Response, codec: Codec) -> ModelError:
         try:
             body: Any = response.json()
@@ -161,7 +187,7 @@ class ModelClient:
                         body = response.json()
                     except json.JSONDecodeError as exc:
                         raise ModelError("invalid_response", f"non-JSON body: {exc}") from exc
-                    result = codec.decode_response(body)
+                    result = self._label_reasoning(codec.decode_response(body), request)
                     return Completion(result, report, time.perf_counter() - started, attempt + 1)
                 except ModelError as exc:
                     if not exc.retryable or attempt >= self._max_retries:
@@ -219,7 +245,7 @@ class ModelClient:
     def stream_complete(self, request: Request) -> Completion:
         """Stream and assemble; useful when a server only reports some fields while streaming."""
         started = time.perf_counter()
-        assembler = StreamAssembler()
+        assembler = StreamAssembler(origin=self.origin(None).model_copy(update={"model": None}))
         _, report = self.prepare(request)
         for delta in self.stream(request):
             assembler.feed(delta)
@@ -231,4 +257,5 @@ class ModelClient:
                 assembler.error.message,
                 status=assembler.error.status,
             )
-        return Completion(assembler.result(), report, time.perf_counter() - started)
+        result = self._label_reasoning(assembler.result(), request)
+        return Completion(result, report, time.perf_counter() - started)

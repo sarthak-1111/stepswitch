@@ -29,7 +29,14 @@ from collections.abc import Iterable, Iterator, Sequence
 from typing import Any, ClassVar, Literal
 
 from stepswitch.compat import templates
-from stepswitch.compat.codecs.base import Codec, CodecOptions, Framing, HttpCall, StreamState
+from stepswitch.compat.codecs.base import (
+    Codec,
+    CodecOptions,
+    Framing,
+    HttpCall,
+    StreamState,
+    refusal_as_text,
+)
 from stepswitch.compat.errors import ErrorKind, ModelError, kind_for_status
 from stepswitch.compat.framing import StreamEvent, sse_json
 from stepswitch.compat.ir import (
@@ -341,7 +348,7 @@ class LlamaCppCodec(Codec):
         def piece(text: str) -> StreamEvent:
             return sse_json({"index": 0, "content": text, "tokens": [], "stop": False})
 
-        for delta in deltas:
+        for delta in map(refusal_as_text, deltas):
             if isinstance(delta, StartDelta):
                 model = delta.model or model
             elif isinstance(delta, ReasoningDelta):

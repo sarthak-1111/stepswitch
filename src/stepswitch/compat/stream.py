@@ -10,9 +10,12 @@ from stepswitch.compat.ir import (
     ErrorDelta,
     FinishDelta,
     Message,
+    Origin,
     Part,
     ReasoningDelta,
     ReasoningPart,
+    RefusalDelta,
+    RefusalPart,
     Response,
     StartDelta,
     TextDelta,
@@ -38,10 +41,17 @@ def merge_usage(current: Usage | None, update: Usage) -> Usage:
 
 
 class StreamAssembler:
-    """Folds a delta stream into a `Response`, preserving part order."""
+    """Folds a delta stream into a `Response`, preserving part order.
 
-    def __init__(self) -> None:
+    `origin` labels reasoning whose deltas carry none (the client passes the endpoint's format,
+    name and model), so streamed reasoning can be replayed to its own model like reasoning
+    from a non-streamed response. A reasoning block ends at its opaque payload or when the
+    `item_id` changes.
+    """
+
+    def __init__(self, origin: Origin | None = None) -> None:
         self.response = Response()
+        self._origin = origin
         self._parts: list[Part] = []
         self._tool_args: dict[int, list[str]] = {}
         self._tool_parts: dict[int, ToolCallPart] = {}
@@ -51,24 +61,20 @@ class StreamAssembler:
         if isinstance(delta, StartDelta):
             self.response.id = delta.id or self.response.id
             self.response.model = delta.model or self.response.model
+            if self._origin is not None and self._origin.model is None and delta.model:
+                self._origin = self._origin.model_copy(update={"model": delta.model})
         elif isinstance(delta, TextDelta):
             if self._parts and isinstance(self._parts[-1], TextPart):
                 self._parts[-1].text += delta.text
             else:
                 self._parts.append(TextPart(text=delta.text))
         elif isinstance(delta, ReasoningDelta):
-            last = self._parts[-1] if self._parts else None
-            if isinstance(last, ReasoningPart):
-                last.text = (last.text or "") + delta.text if delta.text else last.text
-                if delta.opaque:
-                    last.opaque = (last.opaque or "") + delta.opaque
-                    last.opaque_kind = delta.opaque_kind or last.opaque_kind
+            self._reasoning(delta)
+        elif isinstance(delta, RefusalDelta):
+            if self._parts and isinstance(self._parts[-1], RefusalPart):
+                self._parts[-1].text += delta.text
             else:
-                self._parts.append(
-                    ReasoningPart(
-                        text=delta.text or None, opaque=delta.opaque, opaque_kind=delta.opaque_kind
-                    )
-                )
+                self._parts.append(RefusalPart(text=delta.text))
         elif isinstance(delta, ToolCallStartDelta):
             part = ToolCallPart(
                 id=delta.id, name=delta.name, arguments="", synthetic=delta.synthetic
@@ -87,6 +93,34 @@ class StreamAssembler:
             self.response.raw_finish_reason = delta.raw
         elif isinstance(delta, ErrorDelta):
             self.error = delta
+
+    def _reasoning(self, delta: ReasoningDelta) -> None:
+        last = self._parts[-1] if self._parts else None
+        origin = delta.origin or self._origin
+        if (
+            isinstance(last, ReasoningPart)
+            and last.opaque is None
+            and (delta.item_id is None or delta.item_id == last.item_id)
+        ):
+            if delta.text:
+                last.text = (last.text or "") + delta.text
+            if delta.summary:
+                last.summary = (last.summary or "") + delta.summary
+            if delta.opaque:
+                last.opaque, last.opaque_kind = delta.opaque, delta.opaque_kind
+            last.item_id = last.item_id or delta.item_id
+            last.origin = last.origin or origin
+            return
+        self._parts.append(
+            ReasoningPart(
+                text=delta.text or None,
+                summary=delta.summary or None,
+                opaque=delta.opaque,
+                opaque_kind=delta.opaque_kind,
+                item_id=delta.item_id,
+                origin=origin,
+            )
+        )
 
     def _close_tool(self, index: int) -> None:
         part = self._tool_parts.get(index)
@@ -134,11 +168,19 @@ def response_to_deltas(response: Response, chunk: int = 0) -> Iterator[Delta]:
             for piece in pieces(part.text):
                 yield TextDelta(text=piece)
         elif isinstance(part, ReasoningPart):
+            item_id, origin = part.item_id, part.origin
             if part.text:
                 for piece in pieces(part.text):
-                    yield ReasoningDelta(text=piece)
+                    yield ReasoningDelta(text=piece, item_id=item_id, origin=origin)
+            if part.summary:
+                yield ReasoningDelta(summary=part.summary, item_id=item_id, origin=origin)
             if part.opaque:
-                yield ReasoningDelta(text="", opaque=part.opaque, opaque_kind=part.opaque_kind)
+                yield ReasoningDelta(
+                    opaque=part.opaque, opaque_kind=part.opaque_kind, item_id=item_id, origin=origin
+                )
+        elif isinstance(part, RefusalPart):
+            for piece in pieces(part.text):
+                yield RefusalDelta(text=piece)
         elif isinstance(part, ToolCallPart):
             yield ToolCallStartDelta(
                 index=tool_index, id=part.id, name=part.name, synthetic=part.synthetic

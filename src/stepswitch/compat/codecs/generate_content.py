@@ -48,7 +48,7 @@ import zlib
 from collections.abc import Iterable, Iterator
 from typing import Any, ClassVar, Literal
 
-from stepswitch.compat.codecs.base import Codec, Framing, HttpCall, StreamState
+from stepswitch.compat.codecs.base import Codec, Framing, HttpCall, StreamState, refusal_as_text
 from stepswitch.compat.errors import ErrorKind, ModelError, kind_for_status, parse_retry_after
 from stepswitch.compat.framing import StreamEvent, sse_json
 from stepswitch.compat.ir import (
@@ -1217,6 +1217,7 @@ class _ChunkWriter:
         self.chunk([part])
 
     def feed(self, delta: Delta) -> None:
+        delta = refusal_as_text(delta)
         if self.closed:
             return
         if isinstance(delta, StartDelta):

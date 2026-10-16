@@ -30,7 +30,14 @@ from collections.abc import Iterable, Iterator
 from typing import Any, ClassVar
 
 from stepswitch.compat import templates
-from stepswitch.compat.codecs.base import Codec, CodecOptions, Framing, HttpCall, StreamState
+from stepswitch.compat.codecs.base import (
+    Codec,
+    CodecOptions,
+    Framing,
+    HttpCall,
+    StreamState,
+    refusal_as_text,
+)
 from stepswitch.compat.codecs.chat import (
     apply_extensions,
     as_dict,
@@ -491,6 +498,7 @@ class _TextWriter:
         return out
 
     def feed(self, delta: Delta) -> list[StreamEvent]:
+        delta = refusal_as_text(delta)
         if isinstance(delta, UsageDelta):
             self.usage = merge_usage(self.usage, delta.usage)
             return []

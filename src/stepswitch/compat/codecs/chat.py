@@ -60,6 +60,7 @@ from stepswitch.compat.ir import (
     Part,
     ReasoningDelta,
     ReasoningPart,
+    RefusalDelta,
     RefusalPart,
     Request,
     Response,
@@ -910,7 +911,7 @@ class ChatCompletionsCodec(Codec):
                 out.append(TextDelta(text=content))
             refusal = delta.get("refusal")
             if isinstance(refusal, str) and refusal:
-                out.append(TextDelta(text=refusal))  # the IR has no refusal delta
+                out.append(RefusalDelta(text=refusal))
             for fragment in as_list(delta.get("tool_calls")):
                 out.extend(self._tool_fragment(as_dict(fragment), state))
             finish = as_str(choice.get("finish_reason"))
@@ -1373,6 +1374,8 @@ class _ChunkWriter:
             return self._start()
         if isinstance(delta, TextDelta):
             return [*self._start(), self._chunk({"content": delta.text})] if delta.text else []
+        if isinstance(delta, RefusalDelta):
+            return [*self._start(), self._chunk({"refusal": delta.text})] if delta.text else []
         if isinstance(delta, ReasoningDelta):
             if not delta.text:
                 return []  # opaque payloads have no field in this format

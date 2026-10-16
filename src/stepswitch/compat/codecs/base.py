@@ -18,7 +18,14 @@ from typing import Any, ClassVar, Literal
 
 from stepswitch.compat.errors import ModelError, kind_for_status
 from stepswitch.compat.framing import StreamEvent
-from stepswitch.compat.ir import ConversionReport, Delta, Request, Response
+from stepswitch.compat.ir import (
+    ConversionReport,
+    Delta,
+    RefusalDelta,
+    Request,
+    Response,
+    TextDelta,
+)
 
 Framing = Literal["sse", "ndjson"]
 
@@ -127,6 +134,12 @@ class Codec(ABC):
     def encode_error(self, error: ModelError) -> tuple[int, Any]:
         status = error.status or 500
         return status, {"error": {"message": error.message, "type": error.kind, "code": error.code}}
+
+
+def refusal_as_text(delta: Delta) -> Delta:
+    """For stream encoders without a refusal event: a refusal streams as text, which is how
+    their non-streamed encoders send it too."""
+    return TextDelta(text=delta.text) if isinstance(delta, RefusalDelta) else delta
 
 
 def _error_message(body: Any) -> str | None:

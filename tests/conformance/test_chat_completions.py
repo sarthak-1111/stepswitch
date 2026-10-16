@@ -605,7 +605,8 @@ def test_reasoning_under_both_engine_field_names(field: str) -> None:
     response = client_for(FMT, serve_json(body)).complete(text_request()).response
     reasoning = response.message.reasoning()
     assert [part.text for part in reasoning] == ["The user wants a greeting."]
-    assert reasoning[0].origin == Origin(format=FMT, model=MODEL)
+    # The client adds the endpoint, so signed reasoning goes back only where it came from.
+    assert reasoning[0].origin == Origin(format=FMT, endpoint="mock", model=MODEL)
     assert response.message.text_content() == ANSWER
     # Reasoning comes first, as the model produced it.
     assert isinstance(response.message.content[0], ReasoningPart)

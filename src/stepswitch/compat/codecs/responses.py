@@ -44,7 +44,7 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, cast
 
-from stepswitch.compat.codecs.base import Codec, Framing, HttpCall, StreamState
+from stepswitch.compat.codecs.base import Codec, Framing, HttpCall, StreamState, refusal_as_text
 from stepswitch.compat.errors import ErrorKind, ModelError, parse_retry_after
 from stepswitch.compat.framing import StreamEvent, sse_json
 from stepswitch.compat.ir import (
@@ -1254,6 +1254,7 @@ class _StreamWriter:
     # ---- deltas ----
 
     def feed(self, delta: Delta) -> list[StreamEvent]:
+        delta = refusal_as_text(delta)
         if isinstance(delta, StartDelta):
             if not self.started:
                 self.response_id = delta.id or self.response_id
