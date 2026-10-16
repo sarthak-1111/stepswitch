@@ -167,6 +167,8 @@ class ToolSpec(_Model):
     description: str | None = None
     parameters: dict[str, Any] = Field(default_factory=lambda: {"type": "object", "properties": {}})
     strict: bool | None = None
+    # Example argument objects. No wire format carries them; the fallback protocol shows them.
+    examples: list[dict[str, Any]] | None = None
 
 
 class NamedToolChoice(_Model):
