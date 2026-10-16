@@ -2121,12 +2121,14 @@ def run(
 
 
 def hardware_summary(report: Mapping[str, Any]) -> dict[str, Any]:
-    """The few hardware facts an export shares, from a `stepswitch.doctor.collect()` report."""
+    """The few hardware facts an export shares, from a `stepswitch.doctor.collect()` report.
+
+    Counts, sizes and the GPU backend only: processor and GPU product names are left out,
+    because they carry manufacturer names and exports are committed (ADR 0007)."""
     system = _dict(report.get("os"))
     cpu = _dict(report.get("cpu"))
     gpus = [
         {
-            "name": _str(_dict(gpu).get("name")),
             "vram_gb": _num(_dict(gpu).get("vram_gb")),
             "backend": _str(_dict(gpu).get("backend")),
         }
@@ -2135,7 +2137,6 @@ def hardware_summary(report: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "os": {"system": _str(system.get("system")), "machine": _str(system.get("machine"))},
         "cpu": {
-            "model": _str(cpu.get("model")),
             "cores_physical": _int(cpu.get("cores_physical")),
             "cores_logical": _int(cpu.get("cores_logical")),
         },

@@ -450,10 +450,11 @@ def test_profile_and_export_hold_no_key_url_or_home_path(tmp_path: Path) -> None
     assert exported["endpoint"] == {"scheme": "http", "local": True}
     assert exported["hardware"] == {
         "os": {"system": "Linux", "machine": "x86_64"},
-        "cpu": {"model": "Some CPU", "cores_physical": 8, "cores_logical": 16},
+        "cpu": {"cores_physical": 8, "cores_logical": 16},
         "ram_gb": 31.2,
-        "gpus": [{"name": "Some GPU", "vram_gb": 24.0, "backend": "cuda"}],
+        "gpus": [{"vram_gb": 24.0, "backend": "cuda"}],
     }
+    assert "Some CPU" not in export_text and "Some GPU" not in export_text
 
 
 def test_model_paths_are_cut_to_the_file_name() -> None:

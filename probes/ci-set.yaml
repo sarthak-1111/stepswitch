@@ -1,0 +1,10 @@
+# The CI model set (SPEC §4.7, ADR 0021): tiny chat models from different families, served by
+# the llama.cpp server on CPU. `ssw probe --ci-set` probes each one and writes its result next to
+# this file; claim C-005 needs at least four families to pass the probe suite.
+schema: 1
+engine: llamacpp
+models:
+  - qwen3-4b-instruct-2507
+  - phi-3.5-mini-instruct
+  - smollm2-1.7b-instruct
+  - granite-3.3-2b-instruct

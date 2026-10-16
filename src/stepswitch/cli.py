@@ -538,9 +538,36 @@ def cmd_probe(
         ),
     ] = None,
     json_out: Annotated[bool, typer.Option("--json", help="Print the profile as JSON.")] = False,
+    ci_set: Annotated[
+        bool,
+        typer.Option(
+            "--ci-set",
+            help="Probe every model of the CI model set (probes/ci-set.yaml) on managed"
+            " servers and write their results to probes/.",
+        ),
+    ] = False,
+    render_matrix: Annotated[
+        bool,
+        typer.Option(
+            "--render-matrix",
+            help="Write docs/COMPATIBILITY.md from the probe results in probes/.",
+        ),
+    ] = False,
+    check: Annotated[
+        bool,
+        typer.Option(
+            "--check", help="With --render-matrix: fail if the file is out of date, change nothing."
+        ),
+    ] = False,
 ) -> None:
-    """Probe an endpoint's capabilities and store its profile."""
+    """Probe an endpoint's capabilities and store its profile; or probe the CI model set and
+    render the compatibility matrix (in a Stepswitch source checkout)."""
     state = _state(ctx)
+    if ci_set or render_matrix:
+        _probe_matrix(state, ci_set=ci_set, render=render_matrix, check=check)
+        return
+    if check:
+        _fail("--check goes with --render-matrix")
     if endpoint is None:
         _fail("give an endpoint name or URL")
     with _user_errors():
@@ -555,6 +582,26 @@ def cmd_probe(
         )
     if json_out:
         _print_json(profile)
+
+
+def _probe_matrix(state: AppState, *, ci_set: bool, render: bool, check: bool) -> None:
+    from stepswitch.compat import matrix
+
+    with _user_errors():
+        root = _find_source_root(state.root)
+        if ci_set:
+            written = matrix.probe_ci_set(
+                root, config=state.config, egress=state.egress(), echo=typer.echo
+            )
+            for path in written:
+                typer.echo(f"Wrote {path.relative_to(root).as_posix()}")
+        if check:
+            if not matrix.is_current(root):
+                _fail(f"{matrix.MATRIX_FILE} is out of date; run `ssw probe --render-matrix`")
+            typer.echo(f"{matrix.MATRIX_FILE} matches the probe results.")
+        elif render or ci_set:
+            path = matrix.write(root)
+            typer.echo(f"Wrote {path.relative_to(root).as_posix()}")
 
 
 @app.command("calibrate")
@@ -609,7 +656,7 @@ def _find_source_root(start: Path) -> Path:
         ).is_dir():
             return directory
     raise ValueError(
-        "`ssw prove` runs in a Stepswitch source checkout (claims/claims.yaml and tests/claims)"
+        "this command runs in a Stepswitch source checkout (claims/claims.yaml and tests/claims)"
     )
 
 
