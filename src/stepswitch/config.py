@@ -173,7 +173,7 @@ wall_seconds = 1800
 gates = ["format", "lint", "typecheck", "impacted_tests", "full_tests"]
 
 [tracks.science]
-gates = ["format", "lint", "impacted_tests", "golden", "full_tests"]
+gates = ["format", "lint", "protected", "impacted_tests", "golden", "full_tests"]
 offline = true
 """
 

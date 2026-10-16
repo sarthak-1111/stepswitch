@@ -1,0 +1,7 @@
+# Same numbers as modes.json, as a CSV with a comment line before the header.
+x,e,a
+0.0,1.0,1.0
+0.5,2.0,2.5
+1.0,4.0,4.0
+1.5,2.0,2.0
+2.0,1.0,1.0
