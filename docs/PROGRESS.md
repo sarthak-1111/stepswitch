@@ -4,6 +4,125 @@ Newest phase first. Each phase records what was done, what research changed, ope
 actions that only the maintainer can take. Phase checks: `uv run python scripts/phase_check.py N`
 (one phase) or `--upto N` (phases 0 to N).
 
+## Phase 3: Bench, leaderboard, compatibility matrix
+
+Status: done on 2026-10-16, except C-016, which still needs hosted CI (Phase 1, maintainer
+action 1). `scripts/phase_check.py 3` passes 6 of 6 checks (`--upto 3`:
+29 of 30, the one failure being C-016). `uv run pytest -q` with the CPU models present: 1520 passed,
+6 skipped (C-016 pending, and tests that need an Ollama server with a small model, ripgrep, POSIX
+file modes or `STEPSWITCH_LIVE_HUB=1`).
+`ssw prove --quick --phase 3` (639 s): C-001, C-002, C-004, C-005, C-007, C-008, C-009,
+C-018, C-019 and C-020 passing; C-016 pending CI.
+
+### Done
+
+- **Bench.**
+  - **Suites.** `mini-general` has 15 tasks: 14 bug fixes and small features, plus `calc-bug`,
+    the claims' toy task. `mini-science` has 6 numerical tasks on synthetic spectroscopy and
+    signal code. Each task has golden patches and protected paths.
+  - **Runner.** Each run gets an independent acceptance check on a fresh copy of the task.
+  - **Metrics.** Leaderboards in Markdown, JSON and SVG carry cluster-bootstrap confidence
+    intervals over tasks.
+  - **Merging and rescoring.** `ssw bench report` merges runs and rescores rows written under
+    an earlier rule. A run passes when every acceptance command exits with 0 on a fresh copy
+    with the run's diff applied and the suite's protected paths restored. Changed tests are
+    counted separately.
+  - **Router pool.** A task can route within a named pool (`--router-pool`).
+- **Leaderboards.** These are the first real numbers, measured on the development workstation
+  (32 CPU threads, four 48 to 51 GB GPUs). Every contestant ran each task with two seeds; the
+  intervals are 95%.
+
+  `bench/results/2026-10-16-mini-general` (15 tasks):
+
+  | Contestant | Passed | Pass rate (95% interval) | Median time | Median tokens |
+  |---|---|---|---|---|
+  | gpt-oss:120b (GPU) | 29 of 30 | 97% (90% to 100%) | 57.8 s | 36,202 |
+  | router over gpt-oss:120b and qwen2.5:32b | 28 of 30 | 93% (83% to 100%) | 49.2 s | 35,392 |
+  | qwen2.5:32b (GPU) | 17 of 30 | 57% (37% to 77%) | 58.6 s | 11,760 |
+  | Qwen3-4B-Instruct-2507 (CPU) | 9 of 30 | 30% (10% to 50%) | 69.6 s | 18,563 |
+  | Phi-3.5-mini-instruct (CPU, fallback protocol) | 3 of 30 | 10% (0% to 27%) | 451.2 s | 42,674 |
+
+  `bench/results/2026-10-16-mini-science` (6 tasks):
+
+  | Contestant | Passed | Pass rate (95% interval) | Median time |
+  |---|---|---|---|
+  | gpt-oss:120b | 12 of 12 | 100% | 36.0 s |
+  | router over the same two models | 11 of 12 | 92% (75% to 100%) | 45.9 s |
+  | qwen2.5:32b | 6 of 12 | 50% (17% to 83%) | 88.0 s |
+
+  Prompt-cache hits were 76% to 89% of input tokens for every contestant.
+- **Engine adapters** (ADR 0020).
+  - vLLM, SGLang, MLX-LM and a small transformers wrapper start from the machine's
+    configuration.
+  - Every child process runs with telemetry and downloads off.
+  - No key ever appears on a command line.
+  - `ssw models serve` names every engine.
+- **Compatibility matrix** (ADR 0021).
+  - `ssw probe --ci-set` probes the CI model set on the llama.cpp server, and
+    `ssw probe --render-matrix` writes `docs/COMPATIBILITY.md`.
+  - All four CI models pass the probe suite:
+    - Qwen3-4B calls tools natively.
+    - Phi-3.5-mini and SmolLM2-1.7B call tools through the fallback protocol.
+    - Granite-3.3-2B calls tools natively, with Stepswitch parsing the calls (next item).
+- **Tool calls parsed from reply text** (ADR 0022). Chat-completions endpoints can parse
+  native calls from the reply text in the model's own syntax. This applies when the server
+  leaves them there, as the llama.cpp server does for Granite 3.3. It can be set per endpoint,
+  per model or per registry recipe, and the probe, the catalog and the matrix all record it.
+- **Token accounting** (C-019). The toy task ran on both CPU models, 28 model calls in all.
+  The ledger matched the llama.cpp server's own counters exactly for input, cached input and
+  output tokens.
+- **README numbers** (C-018). README claim lines render their numbers from evidence files that
+  record the command, and only `ssw prove` writes committed evidence (ADR 0019).
+
+### What changed against the spec
+
+- ADR 0019: claim tests write committed evidence only under `ssw prove`. A plain test run
+  writes the same files to a scratch directory.
+- ADR 0020: transformers runs through a small wrapper instead of its own serve command. vLLM
+  and SGLang are Linux-only, and MLX-LM is arm64 macOS only. Elsewhere the adapters say why and
+  suggest an endpoint (WSL2 or a container).
+- ADR 0021: the probe verdict. A probe passes on basic chat, system prompt, usage, formats
+  served and one tool path; all other checks are informational. The CI model set has four
+  families on CPU.
+- ADR 0022: SPEC §4.4's "parse raw text" now covers chat-completions endpoints whose server
+  leaves calls in the text.
+
+### Open issues
+
+- **The router did not switch models within a task.**
+  - Its priors favour gpt-oss:120b for every step type. It chose that model for 95% of steps,
+    and the switch cost (re-reading the context) never paid off.
+  - The other 5% of steps went to qwen2.5:32b, always right after the inference server failed
+    to parse a gpt-oss:120b tool call. These failovers saved those tasks, but they are not
+    counted as switches.
+  - The bench therefore shows routing as failover, not yet as step-level model choice. Mixed
+    CPU and GPU pools, calibrated per-step priors and cache-aware switch costs are Phase 5
+    work, and a learned policy is Phase 7.
+- **Qwen3-4B's 30% understates the model.** 20 of its 30 runs ended with `no_worker`. The
+  model's managed server is shared with its router role and started with a 4,096-token
+  context, so agent turns overflowed it. Context sizes per role (or one server per role) come
+  with Phase 5. The runs were not repeated.
+- **Some measurements are rough.**
+  - The CPU runs shared the machine with the GPU runs, so their times are upper bounds.
+  - Phi-3.5-mini needs 451 s per task (median) on this CPU, and 3 of its runs hit the
+    900-second budget.
+  - The mini-general single-model runs were made at commit `cd9ffff`, before the pool and
+    scoring changes, and rescored under the current rule (4 qwen2.5:32b verdicts changed).
+    The router runs are from commit `4766b79`.
+- **Python engines are untested live.** Their adapters are tested with fakes; no model was
+  served through vLLM, SGLang, MLX-LM or transformers on this Windows machine.
+- **MLX-LM image URLs.** MLX-LM's server fetches image URLs itself. Keeping image URLs away
+  from it in the compatibility layer is still open (ADR 0020).
+- **Forced tool choice.** It is "no" for every CI model on the llama.cpp server (b11669).
+- **Long Windows paths.** On Windows, bench workspaces under a long project path can exceed the
+  260-character path limit. The benches ran from a short worktree path; long-path support
+  needs to be on, or the project should sit near the drive root.
+
+### Waiting on the maintainer
+
+1. C-016 (Phase 1, unchanged): add a remote and let the `prove` workflow run on the three
+   hosted platforms.
+
 ## Phase 2: Built-in agent, router v1, gates, tracks
 
 Status: done on 2026-10-16, except C-016, which still needs hosted CI (Phase 1, maintainer
@@ -240,8 +359,8 @@ Details are in the SPEC change table and the ADRs. The main points:
    Node 22.12 or later (the current LTS line is recommended) before Phase 4. The Ollama release
    that was researched is 0.40.5; older installs may lack routes the research relies on.
 
-## Next: Phase 3
+## Next: Phase 4
 
-Engine adapters, `ssw bench` with the mini-general and mini-science suites, a real leaderboard
-in `bench/results`, the compatibility matrix and `ssw probe --render-matrix`. Claims due:
-C-005 (matrix part), C-018, C-019.
+The dashboard and task API (SPEC §17): every view and endpoint, live updates over Server-Sent
+Events, a Playwright smoke test, and the README claims section generated by
+`ssw prove --render-readme`. No claims are assigned to Phase 4.
