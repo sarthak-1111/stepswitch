@@ -1,0 +1,13 @@
+diff --git a/peaks/centroid.py b/peaks/centroid.py
+index a27f912..00f2a63 100644
+--- a/peaks/centroid.py
++++ b/peaks/centroid.py
+@@ -12,7 +12,7 @@ def centroid(x: ArrayLike, y: ArrayLike) -> float:
+     intensities = np.asarray(y, dtype=float)
+     if positions.ndim != 1 or positions.shape != intensities.shape:
+         raise ValueError("x and y must be one-dimensional and of the same length")
+-    weights = intensities**2
++    weights = intensities
+     total = weights.sum()
+     if total <= 0:
+         raise ValueError("the peak has no positive intensity")

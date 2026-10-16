@@ -1,0 +1,21 @@
+# Science-track checks: reference runs compared with tests/golden/, and protected values.
+
+[[golden]]
+case = "raman-532"
+command = ["{python}", "-m", "spectro", "{case}/input.json", "{output}/raman.json"]
+
+[[golden.quantities]]
+name = "wavelength"
+file = "raman.json"
+mode = "elementwise"
+rtol = 1e-9
+
+[[golden.quantities]]
+name = "energy"
+file = "raman.json"
+mode = "elementwise"
+rtol = 1e-9
+
+[[protected]]
+file = "spectro/constants.py"
+names = ["SPEED_OF_LIGHT", "PLANCK", "ELEMENTARY_CHARGE", "NM_PER_M", "NM_PER_CM"]

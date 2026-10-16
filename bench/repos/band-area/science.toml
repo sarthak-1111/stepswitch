@@ -1,0 +1,15 @@
+# Science-track checks: reference runs compared with tests/golden/, and protected values.
+
+[[golden]]
+case = "protein"
+command = ["{python}", "-m", "bands", "{case}/input.json", "{output}/areas.json"]
+
+[[golden.quantities]]
+name = "areas"
+file = "areas.json"
+mode = "elementwise"
+rtol = 1e-9
+
+[[protected]]
+file = "bands/windows.py"
+names = ["AMIDE_I", "AMIDE_II", "AMIDE_III"]

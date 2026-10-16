@@ -1,0 +1,11 @@
+diff --git a/baseline/regions.py b/baseline/regions.py
+index d1dde18..1fd8866 100644
+--- a/baseline/regions.py
++++ b/baseline/regions.py
+@@ -13,5 +13,5 @@ def edge_mask(size: int, points: int) -> NDArray[np.bool_]:
+         raise ValueError(f"cannot take {points} samples from each end of {size} samples")
+     mask = np.zeros(size, dtype=bool)
+     mask[:points] = True
+-    mask[:-points] = True
++    mask[-points:] = True
+     return mask

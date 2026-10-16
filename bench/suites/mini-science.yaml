@@ -1,0 +1,99 @@
+# Built-in science-track suite (SPEC §16, §6.2): small, unambiguous tasks on synthetic numerical
+# code in bundled toy research repositories, for agents down to small local models. The code
+# needs numpy and nothing else, and all data is synthetic.
+#
+# repo:       directory copied for the agent, relative to the checkout root.
+# acceptance: shell-free commands run from the repository root; a leading "python" means the
+#             project's interpreter. The task passes when every command exits with 0.
+# golden:     reference solution as a unified diff relative to the repository root, kept outside
+#             the repository so agents never see it. It never touches tests/.
+# tags:       kind (bugfix, feature, refactor, config, docs), language, difficulty
+#             (d1 one line in one obvious place, d2 a few lines or the right place among several
+#             files, d3 a small design decision or two to three files), then topics.
+#
+# Each repository also has a science.toml for the science-track gates (docs/science-toml.md):
+# golden cases with their inputs and expected outputs in tests/golden/<case>/, compared per
+# quantity within the tolerances given there, and protected values such as physical constants.
+# The expected outputs come from the reference solution, so the golden cases fail before it and
+# pass after it.
+#
+# tests/unit/test_bench_suites.py checks that each task fails before its golden patch and passes
+# after it, both its acceptance commands and its golden cases.
+schema: 1
+name: mini-science
+description: Small numerical bug fixes and a vectorization refactor on synthetic research code.
+tasks:
+  - id: centroid-intensity-weights
+    repo: bench/repos/peak-centroid
+    instruction: >-
+      The centroid of a peak must be the mean of its sample positions weighted by their
+      intensities, but centroid() in peaks/centroid.py weights the positions differently, so
+      the centroids of asymmetric peaks are pulled toward their maximum: a peak at 520 with a
+      shoulder of equal area at 530 should have its centroid at 525. Fix centroid(), so that
+      centroids() reports correct centroids too.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/centroid-intensity-weights.patch
+    track: science
+    tags: [bugfix, python, d1, numpy, spectroscopy]
+
+  - id: baseline-end-points
+    repo: bench/repos/baseline-fit
+    instruction: >-
+      subtract_baseline() in baseline/fit.py should remove a straight baseline fitted to the
+      first and the last `points` samples of a spectrum, where there are no peaks. On a sloped
+      baseline the corrected spectrum comes out shifted instead: its ends sit well below zero
+      and its peaks lose height. Fix the baseline correction so that only the peaks remain.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/baseline-end-points.patch
+    track: science
+    tags: [bugfix, python, d2, numpy, slicing, spectroscopy]
+
+  - id: wavenumber-to-wavelength
+    repo: bench/repos/spectral-units
+    instruction: >-
+      spectro.convert.wavenumber_to_wavelength() returns wavelengths 100 times too long: light
+      at 1000 cm^-1 has a wavelength of 10000 nm, but the function returns 1000000 nm, so
+      raman_wavelength() is wrong as well. Fix the conversion.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/wavenumber-to-wavelength.patch
+    track: science
+    tags: [bugfix, python, d1, numpy, units, constants]
+
+  - id: trapezoid-end-weights
+    repo: bench/repos/band-area
+    instruction: >-
+      integrate() in bands/integrate.py should give the trapezoid-rule integral of a sampled
+      curve, but its results are too large unless the curve falls to zero at both ends of the
+      grid: integrating the constant 3 from 0 to 2 gives more than 6. band_area() uses it, so
+      the amide band areas are too large as well. Fix the integration.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/trapezoid-end-weights.patch
+    track: science
+    tags: [bugfix, python, d1, numpy, integration]
+
+  - id: vectorize-gaussian-sum
+    repo: bench/repos/peak-model
+    instruction: >-
+      gaussian_sum() in peakmodel/model.py evaluates the model one position at a time in Python
+      loops, so it is slow and only accepts a flat sequence of positions. Rewrite it with numpy
+      array operations so that x can be a single number or a numpy array of any shape, such as
+      a 2-D grid of positions: it must return a numpy array with the shape of x, holding the
+      same values as before up to rounding. tests/test_model.py describes the expected
+      behaviour.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/vectorize-gaussian-sum.patch
+    track: science
+    tags: [refactor, python, d2, numpy, vectorization]
+
+  - id: moving-average-alignment
+    repo: bench/repos/signal-smooth
+    instruction: >-
+      Spectra smoothed with smooth() in smoothing/spectrum.py come out shifted: every peak moves
+      to higher x by about half the smoothing width, so a symmetric peak at 600 ends up near
+      615. The moving average must be centred on each sample, with the missing neighbours near
+      the ends taken as copies of the first and the last sample. Fix the smoothing so that
+      peaks keep their positions.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/moving-average-alignment.patch
+    track: science
+    tags: [bugfix, python, d2, numpy, signal-processing, smoothing]

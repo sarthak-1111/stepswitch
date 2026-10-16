@@ -1,0 +1,12 @@
+diff --git a/smoothing/filters.py b/smoothing/filters.py
+index aca9469..623b4f0 100644
+--- a/smoothing/filters.py
++++ b/smoothing/filters.py
+@@ -15,5 +15,6 @@ def moving_average(y: ArrayLike, window: int) -> NDArray[np.float64]:
+         raise ValueError("y must be a non-empty one-dimensional signal")
+     if window < 1 or window % 2 == 0:
+         raise ValueError("window must be a positive odd number of samples")
+-    padded = np.concatenate([np.full(window - 1, values[0]), values])
++    half = window // 2
++    padded = np.concatenate([np.full(half, values[0]), values, np.full(half, values[-1])])
+     return np.convolve(padded, np.full(window, 1.0 / window), mode="valid")

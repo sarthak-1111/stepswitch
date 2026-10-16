@@ -1,0 +1,23 @@
+# Science-track checks: reference runs compared with tests/golden/.
+
+[[golden]]
+case = "line"
+command = ["{python}", "-m", "peakmodel", "{case}/input.json", "{output}/model.json"]
+
+[[golden.quantities]]
+name = "y"
+file = "model.json"
+mode = "elementwise"
+rtol = 1e-10
+atol = 1e-12
+
+[[golden]]
+case = "map"
+command = ["{python}", "-m", "peakmodel", "{case}/input.json", "{output}/model.json"]
+
+[[golden.quantities]]
+name = "y"
+file = "model.json"
+mode = "elementwise"
+rtol = 1e-10
+atol = 1e-12

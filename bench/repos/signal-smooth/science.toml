@@ -1,0 +1,21 @@
+# Science-track checks: reference runs compared with tests/golden/.
+
+[[golden]]
+case = "noisy-peaks"
+command = ["{python}", "-m", "smoothing", "{case}/input.json", "{output}/smoothed.json"]
+
+[[golden.quantities]]
+name = "smoothed"
+file = "smoothed.json"
+mode = "elementwise"
+rtol = 1e-9
+atol = 1e-12
+
+[[golden.quantities]]
+name = "peak-positions"
+file = "smoothed.json"
+key = "smoothed"
+x_key = "x"
+mode = "peaks"
+atol = 1.0
+min_peak_height = 0.25

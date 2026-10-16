@@ -1,0 +1,13 @@
+diff --git a/spectro/convert.py b/spectro/convert.py
+index a72d370..03714bc 100644
+--- a/spectro/convert.py
++++ b/spectro/convert.py
+@@ -15,7 +15,7 @@ def _positive(values: ArrayLike, what: str) -> NDArray[np.float64]:
+ 
+ def wavenumber_to_wavelength(wavenumber: ArrayLike) -> NDArray[np.float64]:
+     """The wavelength in nm of light with the given wavenumber in cm^-1."""
+-    return NM_PER_M / _positive(wavenumber, "wavenumbers")
++    return NM_PER_CM / _positive(wavenumber, "wavenumbers")
+ 
+ 
+ def wavelength_to_wavenumber(wavelength: ArrayLike) -> NDArray[np.float64]:

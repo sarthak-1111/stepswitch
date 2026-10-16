@@ -1,0 +1,12 @@
+# Science-track checks: reference runs compared with tests/golden/.
+
+[[golden]]
+case = "doublet"
+command = ["{python}", "-m", "peaks", "{case}/input.json", "{output}/centroids.json"]
+
+[[golden.quantities]]
+name = "centroids"
+file = "centroids.json"
+mode = "elementwise"
+rtol = 0.0
+atol = 1e-6

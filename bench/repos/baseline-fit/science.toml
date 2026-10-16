@@ -1,0 +1,20 @@
+# Science-track checks: reference runs compared with tests/golden/.
+
+[[golden]]
+case = "raman"
+command = ["{python}", "-m", "baseline", "{case}/input.json", "{output}/corrected.json"]
+
+[[golden.quantities]]
+name = "corrected"
+file = "corrected.json"
+mode = "elementwise"
+rtol = 1e-9
+atol = 1e-9
+
+[[golden.quantities]]
+name = "band-area"
+file = "corrected.json"
+key = "corrected"
+x_key = "x"
+mode = "integral"
+rtol = 1e-6

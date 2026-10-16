@@ -1,0 +1,15 @@
+diff --git a/bands/integrate.py b/bands/integrate.py
+index 7543bc9..8caf9d6 100644
+--- a/bands/integrate.py
++++ b/bands/integrate.py
+@@ -16,8 +16,8 @@ def trapezoid_weights(x: ArrayLike) -> NDArray[np.float64]:
+         raise ValueError("the grid must be increasing")
+     weights = np.empty_like(grid)
+     weights[1:-1] = (grid[2:] - grid[:-2]) / 2
+-    weights[0] = grid[1] - grid[0]
+-    weights[-1] = grid[-1] - grid[-2]
++    weights[0] = (grid[1] - grid[0]) / 2
++    weights[-1] = (grid[-1] - grid[-2]) / 2
+     return weights
+ 
+ 

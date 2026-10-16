@@ -1,0 +1,50 @@
+diff --git a/peakmodel/model.py b/peakmodel/model.py
+index 4b95166..6eaa52a 100644
+--- a/peakmodel/model.py
++++ b/peakmodel/model.py
+@@ -1,28 +1,28 @@
+ """A spectrum model: a sum of Gaussian peaks."""
+ 
+-import math
+-from collections.abc import Iterable, Sequence
++import numpy as np
++from numpy.typing import ArrayLike, NDArray
+ 
+ 
+ def gaussian_sum(
+-    x: Iterable[float],
+-    centers: Sequence[float],
+-    widths: Sequence[float],
+-    heights: Sequence[float],
+-) -> list[float]:
++    x: ArrayLike,
++    centers: ArrayLike,
++    widths: ArrayLike,
++    heights: ArrayLike,
++) -> NDArray[np.float64]:
+     """The sum of the Gaussian peaks at every position in x.
+ 
+     Peak k contributes heights[k] * exp(-((x - centers[k]) / widths[k]) ** 2 / 2): each width
+-    is a standard deviation, in the units of x.
++    is a standard deviation, in the units of x. x may be a number or an array of any shape, and
++    the result has the shape of x.
+     """
+-    if len(widths) != len(centers) or len(heights) != len(centers):
++    center = np.asarray(centers, dtype=float)
++    width = np.asarray(widths, dtype=float)
++    height = np.asarray(heights, dtype=float)
++    if center.ndim != 1 or width.shape != center.shape or height.shape != center.shape:
+         raise ValueError("centers, widths and heights must have the same length")
+-    if any(width <= 0 for width in widths):
++    if np.any(width <= 0):
+         raise ValueError("peak widths must be positive")
+-    values = []
+-    for position in x:
+-        total = 0.0
+-        for center, width, height in zip(centers, widths, heights, strict=True):
+-            total += height * math.exp(-0.5 * ((position - center) / width) ** 2)
+-        values.append(total)
+-    return values
++    positions = np.asarray(x, dtype=float)[..., np.newaxis]
++    terms = height * np.exp(-0.5 * ((positions - center) / width) ** 2)
++    return terms.sum(axis=-1)
