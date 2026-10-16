@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from typing import Any, Literal
 
 ErrorKind = Literal[
@@ -11,6 +13,7 @@ ErrorKind = Literal[
     "not_found",
     "too_large",
     "rate_limit",
+    "quota",
     "overloaded",
     "server",
     "timeout",
@@ -35,6 +38,7 @@ STATUS_KINDS: dict[int, ErrorKind] = {
     422: "bad_request",
     429: "rate_limit",
     500: "server",
+    501: "unsupported",
     502: "server",
     503: "overloaded",
     504: "timeout",
@@ -79,13 +83,21 @@ def kind_for_status(status: int) -> ErrorKind:
     return "bad_request"
 
 
-def parse_retry_after(value: str | None) -> float | None:
+def parse_retry_after(value: str | None, *, now: datetime | None = None) -> float | None:
+    """Seconds to wait from a Retry-After header: delay-seconds or an HTTP-date (RFC 9110)."""
     if not value:
         return None
     try:
         return max(0.0, float(value))
     except ValueError:
+        pass
+    try:
+        when = parsedate_to_datetime(value)
+    except (TypeError, ValueError, IndexError):
         return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=UTC)
+    return max(0.0, (when - (now or datetime.now(UTC))).total_seconds())
 
 
 def backoff_delay(
