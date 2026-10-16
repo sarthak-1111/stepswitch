@@ -2463,3 +2463,119 @@ behaviour-monitor library that the endpoint-security software injects into every
 loaded in the failing interpreters. The same code works in a clean `python:3.13-slim` container
 (3.13.16). Consequence: the C-007 recorder falls back to wrapping the socket and process
 functions on such hosts and records which mode ran (ADR 0013).
+
+### Messages and generate-content formats (adds to "API formats" above)
+
+Checked 2026-10-16 while building the two codecs.
+
+- Messages format (https://platform.claude.com/docs/en/api/messages/create): usage carries
+  `output_tokens_details.thinking_tokens`, and `output_tokens` stays the inclusive total; a
+  refusal carries `stop_details` `{type: "refusal", category, explanation}` on the message and
+  on `message_delta.delta`; tool IDs must match `^[a-zA-Z0-9_-]+$`; `temperature` ranges 0.0 to
+  1.0; structured output is `output_config.format` `{type: "json_schema", schema}`.
+- Mid-conversation `role: "system"` entries inside `messages` need no beta header but are not
+  supported by every model, and a misplaced one is rejected with HTTP 400
+  (https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages). The
+  codec hoists them into the top-level system field and reports the change as approximated.
+- Generate-content format (discovery document
+  https://generativelanguage.googleapis.com/$discovery/rest?version=v1beta, revision 20261015):
+  `FunctionDeclaration.parametersJsonSchema` exists next to `parameters`, and
+  `GenerationConfig.responseJsonSchema` exists (marked unverified above; now verified);
+  `thinkingLevel` values are uppercase on the wire (MINIMAL, LOW, MEDIUM, HIGH);
+  `totalTokenCount` = prompt + tool-use prompt + thoughts + candidates, and `promptTokenCount`
+  already includes cached content; `stopSequences` takes at most 5 entries;
+  `FunctionResponse` also has `willContinue` and `scheduling`. Function calls and responses are
+  matched by `id`; a thought signature sits on the first function-call part, otherwise on the
+  last part, and streams may put it on a final empty-text part
+  (https://ai.google.dev/gemini-api/docs/generate-content/function-calling ;
+  https://ai.google.dev/gemini-api/docs/generate-content/structured-output ;
+  https://ai.google.dev/gemini-api/docs/generate-content/thinking).
+- Generate-content errors are `{"error": {code, message, status, details[]}}`; each `details`
+  entry has an `@type`, and the retry-info detail carries `retryDelay` as a duration string
+  such as "13s". Status names map to HTTP codes (RESOURCE_EXHAUSTED 429, UNAVAILABLE 503,
+  DEADLINE_EXCEEDED 504, UNAUTHENTICATED 401, UNIMPLEMENTED 501)
+  (https://ai.google.dev/gemini-api/docs/api-errors ; https://google.aip.dev/193 ;
+  https://protobuf.dev/programming-guides/json/).
+
+### llama.cpp release b11669 (adds to "llama.cpp" above)
+
+Checked 2026-10-16 against https://api.github.com/repos/ggml-org/llama.cpp/releases/tags/b11669
+(36 assets, each with a `sha256:` digest; a prerelease published 2026-10-15; target commit
+`620d2225cc436ab0b001e3200e590e3b286ef9ab`, also named by the v0.7.0 `nightly-tag.txt`), the
+b11669 `tools/server/README.md` and the server binary itself.
+
+- CPU assets: `llama-b11669-bin-win-cpu-x64.zip` (19,537,886 bytes, sha256
+  `37b3efcf962847ca869745fd4ccf7f5e7e8dacfeff9fa3523b4ca8cdc66d632b`),
+  `llama-b11669-bin-ubuntu-x64.tar.gz` (sha256
+  `cf07c1c112d709bd67e522017471de57ed0ec8bea031d732c5422351c07f65ac`) and
+  `llama-b11669-bin-macos-arm64.tar.gz` (sha256
+  `dbed55493d72bc1ba2babc8770d669c2289b5bc4ee9fb2a4dfc158d45b7d13fd`); all three were downloaded
+  and their hashes matched. CUDA builds exist for Windows (12.4, 13.4) and Linux (12.8, 13.4)
+  with separate `cudart-*` runtime archives, plus Vulkan, ROCm and arm64 builds.
+- Layouts: Windows zips are flat; Linux and macOS tarballs sit under `llama-b11669/` with
+  relative symlinks.
+- `llama-server --version` prints to stderr `version: 0.7.0-dev (build 11669, commit 620d2225c)`
+  and `built with <compiler> for <target>`; older builds print `version: N (H)`.
+- Flags used: `--host` (default 127.0.0.1), `--port`, `--api-key` (or the `LLAMA_API_KEY`
+  environment variable), `--metrics`, `--slot-save-path`, `--alias`, `--offline`,
+  `--ctx-size`, `--parallel`, `--kv-unified`, `--embedding`, `--pooling`, `--ubatch-size`,
+  `--device none` (no offload). `/health` is public and returns 503 `Loading model` until the
+  model is loaded, then 200; with a key set, other routes return 401 without it, and an
+  `X-Api-Key` header also works. A port that is taken gives "couldn't bind HTTP server socket"
+  and exit code 1. `/metrics` has no prefix-cache counter at this build.
+
+### Ollama 0.34.4 model loading (adds to "Ollama native API" above)
+
+Checked 2026-10-16 against https://raw.githubusercontent.com/ollama/ollama/v0.34.4/docs/api.md,
+https://raw.githubusercontent.com/ollama/ollama/v0.34.4/envconfig/config.go and, read-only, a
+local 0.34.4 server.
+
+- A request with an empty prompt loads the model; adding `keep_alive: 0` unloads it
+  (`done_reason: "unload"`). The default keep-alive is 5 minutes.
+- Pull streams NDJSON statuses: pulling manifest, `pulling <digest>` with `digest`, `total` and
+  `completed`, verifying sha256 digest, writing manifest, removing any unused layers, success;
+  errors arrive mid-stream as `{"error": ...}`.
+- `OLLAMA_HOST` set to `0.0.0.0` or `::` makes the server listen on every interface, while its
+  own client connects to loopback (`Host()` and `ConnectableHost()` in `envconfig/config.go`).
+- `/api/show` for a missing model returns 404 with `{"error": "model <name> not found"}`.
+
+### Hardware detection (`ssw doctor`)
+
+Checked 2026-10-16; the Windows and CUDA facts were also observed on a Windows 11 workstation.
+
+- Windows: `IsProcessorFeaturePresent` constants AVX 39, AVX2 40, AVX512F 41, ARM v8 29,
+  DotProd 43, SVE 46, I8MM 66, BF16 68; the x86 ones exist from build 19041, DotProd from 20348,
+  SVE, I8MM and BF16 from 26100, and the call also returns 0 when a feature cannot be detected
+  (https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-isprocessorfeaturepresent).
+  `MEMORYSTATUSEX` and `GetLogicalProcessorInformationEx` layouts as documented
+  (https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/ns-sysinfoapi-memorystatusex ;
+  https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex).
+  There is no API for FMA, F16C, VNNI, AVX512-BF16 or AMX short of CPUID, so doctor reports
+  them as unknown on Windows.
+- CUDA GPUs: `nvidia-smi --query-gpu=...,compute_cap --format=csv,noheader,nounits` reports
+  memory in MiB; `driver_version` is deprecated in favour of `kmd_version`; an invalid field
+  exits 2; `--version` prints `CUDA Version : <x.y>`; under WSL2 the tool is at
+  `/usr/lib/wsl/lib/nvidia-smi`. Tensor-core FP8 needs compute capability 8.9 and FP4 10.0
+  (https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html).
+- macOS: `sysctl` names `hw.memsize`, `hw.physicalcpu`, `hw.logicalcpu`, `hw.optional.*` and
+  `hw.optional.arm.FEAT_*`, `machdep.cpu.brand_string`; there is no SVE flag
+  (https://raw.githubusercontent.com/apple-oss-distributions/xnu/main/bsd/kern/kern_mib.c ;
+  https://raw.githubusercontent.com/apple-oss-distributions/xnu/main/osfmk/arm/arm_features.inc).
+  Not run on macOS hardware yet.
+- Linux: `/proc/cpuinfo` flag names (`avx512_bf16`, `amx_tile`, `asimddp`, `i8mm`, `sve`,
+  `sme`, ...) and the separate `vmx flags` line
+  (https://raw.githubusercontent.com/torvalds/linux/master/arch/x86/include/asm/cpufeatures.h ;
+  https://raw.githubusercontent.com/torvalds/linux/master/arch/arm64/kernel/cpuinfo.c).
+  WSL2 kernels contain `WSL2` in their release, and `wsl.exe` writes UTF-16LE without a
+  byte-order mark.
+- `docker version --format {{.Server.Version}}` and `docker context inspect`; `DOCKER_HOST` and
+  `DOCKER_CONTEXT` override the active context
+  (https://docs.docker.com/engine/manage-resources/contexts/).
+
+### Python library behaviour
+
+- httpx 0.28.1 ignores proxy environment variables whenever a transport is passed
+  (`allow_env_proxies = trust_env and transport is None` in `_client.py`); Stepswitch's egress
+  clients always pass one and set `trust_env=False`.
+- On Windows, CPython 3.12 `shutil.which` searches the current directory first, so tool lookup
+  in doctor uses absolute `PATH` entries only.
