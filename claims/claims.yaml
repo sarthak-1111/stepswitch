@@ -117,7 +117,7 @@ claims:
       cases: [non-streaming, streaming, tool-call, parallel-tool-calls, error, usage]
       round_trip_differences: 0
     evidence: [claims/evidence/C-004.json]
-    status: pending
+    status: passing
 
   - id: C-005
     text: "Works with any open-weight model your installed engines can serve, including models without native tool calling."
@@ -176,7 +176,7 @@ claims:
       - tests/claims/test_c007_no_telemetry.py::test_default_flow_opens_no_outbound_connections
     thresholds: {outbound_connections: 0}
     evidence: [claims/evidence/C-007.json]
-    status: pending
+    status: passing
 
   - id: C-008
     text: "The science gate catches numerical regressions beyond your tolerances."

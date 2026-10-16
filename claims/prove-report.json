@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "mode": "quick",
+  "source_digest": "6163030da18f2b3377e67f09d87e2f350bb4c57999865cb8e4fe638cef19b19d",
+  "created": "2026-10-16T06:27:02+00:00",
+  "duration_s": 6.26,
+  "platform": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "selection": {
+    "phase": 1,
+    "claims": [],
+    "skip": []
+  },
+  "claims": {
+    "C-004": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c004_api_formats.py::test_conformance_against_mock_servers": "passed",
+        "tests/claims/test_c004_api_formats.py::test_round_trip_preserves_messages_and_tool_calls": "passed"
+      },
+      "parts": [],
+      "notes": {}
+    },
+    "C-007": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c007_no_telemetry.py::test_default_flow_opens_no_outbound_connections": "passed"
+      },
+      "parts": [],
+      "notes": {}
+    },
+    "C-016": {
+      "status": "pending",
+      "tests": {
+        "tests/claims/test_c016_platforms.py::test_prove_quick_passed_on_linux_macos_windows": "skipped"
+      },
+      "parts": [],
+      "notes": {
+        "tests/claims/test_c016_platforms.py::test_prove_quick_passed_on_linux_macos_windows": "pending: no platform evidence yet; the CI workflow writes claims/evidence/C-016.json after `ssw prove --quick` ran on all three platforms"
+      }
+    }
+  },
+  "summary": {
+    "pending": 1,
+    "passing": 2,
+    "failing": 0
+  }
+}

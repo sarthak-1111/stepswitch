@@ -1,0 +1,839 @@
+{
+  "claim": "C-004",
+  "text": "Speaks the chat-completions, responses, messages and generate-content API formats, plus engine-native formats.",
+  "scope": "The codecs of SPEC \u00a74.1, tested against mock servers for each format; round trips through the internal representation.",
+  "thresholds": {
+    "formats": [
+      "chat-completions",
+      "responses",
+      "messages",
+      "generate-content",
+      "ollama-native",
+      "llamacpp-native",
+      "text-completion"
+    ],
+    "cases": [
+      "non-streaming",
+      "streaming",
+      "tool-call",
+      "parallel-tool-calls",
+      "error",
+      "usage"
+    ],
+    "round_trip_differences": 0
+  },
+  "command": "uv run ssw prove --claim C-004",
+  "mode": "quick",
+  "source_digest": "6163030da18f2b3377e67f09d87e2f350bb4c57999865cb8e4fe638cef19b19d",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-16T06:26:57+00:00",
+  "sections": {
+    "conformance": {
+      "recorded": "2026-10-16T06:26:56+00:00",
+      "formats": {
+        "chat-completions": {
+          "non-streaming": "passed",
+          "streaming": "passed",
+          "tool-call": "passed",
+          "parallel-tool-calls": "passed",
+          "error": "passed",
+          "usage": "passed",
+          "server-round-trip": "passed",
+          "response-round-trip": "passed",
+          "stream-round-trip": "passed"
+        },
+        "generate-content": {
+          "non-streaming": "passed",
+          "streaming": "passed",
+          "tool-call": "passed",
+          "parallel-tool-calls": "passed",
+          "error": "passed",
+          "usage": "passed",
+          "server-round-trip": "passed",
+          "response-round-trip": "passed",
+          "stream-round-trip": "passed"
+        },
+        "llamacpp-native": {
+          "non-streaming": "passed",
+          "streaming": "passed",
+          "tool-call": "passed",
+          "parallel-tool-calls": "passed",
+          "error": "passed",
+          "usage": "passed",
+          "server-round-trip": "passed",
+          "response-round-trip": "passed",
+          "stream-round-trip": "passed"
+        },
+        "messages": {
+          "non-streaming": "passed",
+          "streaming": "passed",
+          "tool-call": "passed",
+          "parallel-tool-calls": "passed",
+          "error": "passed",
+          "usage": "passed",
+          "server-round-trip": "passed",
+          "response-round-trip": "passed",
+          "stream-round-trip": "passed"
+        },
+        "ollama-native": {
+          "non-streaming": "passed",
+          "streaming": "passed",
+          "tool-call": "passed",
+          "parallel-tool-calls": "passed",
+          "error": "passed",
+          "usage": "passed",
+          "server-round-trip": "passed",
+          "response-round-trip": "passed",
+          "stream-round-trip": "passed"
+        },
+        "responses": {
+          "non-streaming": "passed",
+          "streaming": "passed",
+          "tool-call": "passed",
+          "parallel-tool-calls": "passed",
+          "error": "passed",
+          "usage": "passed",
+          "server-round-trip": "passed",
+          "response-round-trip": "passed",
+          "stream-round-trip": "passed"
+        },
+        "text-completion": {
+          "non-streaming": "passed",
+          "streaming": "passed",
+          "tool-call": "passed",
+          "parallel-tool-calls": "passed",
+          "error": "passed",
+          "usage": "passed",
+          "server-round-trip": "passed",
+          "response-round-trip": "passed",
+          "stream-round-trip": "passed"
+        }
+      },
+      "required_cases": [
+        "non-streaming",
+        "streaming",
+        "tool-call",
+        "parallel-tool-calls",
+        "error",
+        "usage"
+      ],
+      "missing_formats": [],
+      "failed_cases": {},
+      "cases_run": 63
+    },
+    "round_trip": {
+      "recorded": "2026-10-16T06:26:57+00:00",
+      "chat_formats": [
+        "chat-completions",
+        "responses",
+        "messages",
+        "generate-content",
+        "ollama-native"
+      ],
+      "prompt_formats": [
+        "text-completion",
+        "llamacpp-native"
+      ],
+      "request_pairs": 75,
+      "differences": 0,
+      "pairs": [
+        {
+          "request": "text",
+          "from": "chat-completions",
+          "to": "chat-completions",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "chat-completions",
+          "to": "responses",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "chat-completions",
+          "to": "messages",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "chat-completions",
+          "to": "generate-content",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "chat-completions",
+          "to": "ollama-native",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "responses",
+          "to": "chat-completions",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": [
+            "extensions.responses: fields for responses are not sent"
+          ]
+        },
+        {
+          "request": "text",
+          "from": "responses",
+          "to": "responses",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "responses",
+          "to": "messages",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": [
+            "extensions.responses: extensions for 'responses' are not sent to 'messages'"
+          ]
+        },
+        {
+          "request": "text",
+          "from": "responses",
+          "to": "generate-content",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": [
+            "extensions.responses: extensions for 'responses' are not sent to 'generate-content'"
+          ]
+        },
+        {
+          "request": "text",
+          "from": "responses",
+          "to": "ollama-native",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "messages",
+          "to": "chat-completions",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "messages",
+          "to": "responses",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "messages",
+          "to": "messages",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "messages",
+          "to": "generate-content",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "messages",
+          "to": "ollama-native",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "generate-content",
+          "to": "chat-completions",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "generate-content",
+          "to": "responses",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "generate-content",
+          "to": "messages",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "generate-content",
+          "to": "generate-content",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "generate-content",
+          "to": "ollama-native",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "ollama-native",
+          "to": "chat-completions",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "ollama-native",
+          "to": "responses",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "ollama-native",
+          "to": "messages",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "ollama-native",
+          "to": "generate-content",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "text",
+          "from": "ollama-native",
+          "to": "ollama-native",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "chat-completions",
+          "to": "chat-completions",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "chat-completions",
+          "to": "responses",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "chat-completions",
+          "to": "messages",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "chat-completions",
+          "to": "generate-content",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "chat-completions",
+          "to": "ollama-native",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "responses",
+          "to": "chat-completions",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": [
+            "extensions.responses: fields for responses are not sent"
+          ]
+        },
+        {
+          "request": "tools",
+          "from": "responses",
+          "to": "responses",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "responses",
+          "to": "messages",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": [
+            "extensions.responses: extensions for 'responses' are not sent to 'messages'"
+          ]
+        },
+        {
+          "request": "tools",
+          "from": "responses",
+          "to": "generate-content",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": [
+            "extensions.responses: extensions for 'responses' are not sent to 'generate-content'"
+          ]
+        },
+        {
+          "request": "tools",
+          "from": "responses",
+          "to": "ollama-native",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "messages",
+          "to": "chat-completions",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "messages",
+          "to": "responses",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "messages",
+          "to": "messages",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "messages",
+          "to": "generate-content",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "messages",
+          "to": "ollama-native",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "generate-content",
+          "to": "chat-completions",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "generate-content",
+          "to": "responses",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "generate-content",
+          "to": "messages",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "generate-content",
+          "to": "generate-content",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "generate-content",
+          "to": "ollama-native",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "ollama-native",
+          "to": "chat-completions",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "ollama-native",
+          "to": "responses",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "ollama-native",
+          "to": "messages",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "ollama-native",
+          "to": "generate-content",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "tools",
+          "from": "ollama-native",
+          "to": "ollama-native",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "conversation",
+          "from": "chat-completions",
+          "to": "chat-completions",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "conversation",
+          "from": "chat-completions",
+          "to": "responses",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "conversation",
+          "from": "chat-completions",
+          "to": "messages",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "conversation",
+          "from": "chat-completions",
+          "to": "generate-content",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "conversation",
+          "from": "chat-completions",
+          "to": "ollama-native",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "conversation",
+          "from": "responses",
+          "to": "chat-completions",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": [
+            "extensions.responses: fields for responses are not sent"
+          ]
+        },
+        {
+          "request": "conversation",
+          "from": "responses",
+          "to": "responses",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "conversation",
+          "from": "responses",
+          "to": "messages",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": [
+            "extensions.responses: extensions for 'responses' are not sent to 'messages'"
+          ]
+        },
+        {
+          "request": "conversation",
+          "from": "responses",
+          "to": "generate-content",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": [
+            "extensions.responses: extensions for 'responses' are not sent to 'generate-content'"
+          ]
+        },
+        {
+          "request": "conversation",
+          "from": "responses",
+          "to": "ollama-native",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "conversation",
+          "from": "messages",
+          "to": "chat-completions",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": [
+            "response_format.name: a schema name is required; sent 'response'"
+          ]
+        },
+        {
+          "request": "conversation",
+          "from": "messages",
+          "to": "responses",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "conversation",
+          "from": "messages",
+          "to": "messages",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "conversation",
+          "from": "messages",
+          "to": "generate-content",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "conversation",
+          "from": "messages",
+          "to": "ollama-native",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "conversation",
+          "from": "generate-content",
+          "to": "chat-completions",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": [
+            "response_format.name: a schema name is required; sent 'response'"
+          ]
+        },
+        {
+          "request": "conversation",
+          "from": "generate-content",
+          "to": "responses",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "conversation",
+          "from": "generate-content",
+          "to": "messages",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "conversation",
+          "from": "generate-content",
+          "to": "generate-content",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "conversation",
+          "from": "generate-content",
+          "to": "ollama-native",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "conversation",
+          "from": "ollama-native",
+          "to": "chat-completions",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": [
+            "response_format.name: a schema name is required; sent 'response'"
+          ]
+        },
+        {
+          "request": "conversation",
+          "from": "ollama-native",
+          "to": "responses",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "conversation",
+          "from": "ollama-native",
+          "to": "messages",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "conversation",
+          "from": "ollama-native",
+          "to": "generate-content",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        },
+        {
+          "request": "conversation",
+          "from": "ollama-native",
+          "to": "ollama-native",
+          "differences": [],
+          "lossless_scope_losses": [],
+          "reported_losses": []
+        }
+      ],
+      "renders": [
+        {
+          "request": "text",
+          "format": "text-completion",
+          "missing": []
+        },
+        {
+          "request": "text",
+          "format": "llamacpp-native",
+          "missing": []
+        },
+        {
+          "request": "tools",
+          "format": "text-completion",
+          "missing": []
+        },
+        {
+          "request": "tools",
+          "format": "llamacpp-native",
+          "missing": []
+        },
+        {
+          "request": "conversation",
+          "format": "text-completion",
+          "missing": []
+        },
+        {
+          "request": "conversation",
+          "format": "llamacpp-native",
+          "missing": []
+        }
+      ],
+      "responses": [
+        {
+          "format": "chat-completions",
+          "differences": []
+        },
+        {
+          "format": "responses",
+          "differences": []
+        },
+        {
+          "format": "messages",
+          "differences": []
+        },
+        {
+          "format": "generate-content",
+          "differences": []
+        },
+        {
+          "format": "ollama-native",
+          "differences": []
+        },
+        {
+          "format": "text-completion",
+          "differences": []
+        },
+        {
+          "format": "llamacpp-native",
+          "differences": []
+        }
+      ]
+    }
+  }
+}

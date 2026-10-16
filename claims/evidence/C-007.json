@@ -1,0 +1,306 @@
+{
+  "claim": "C-007",
+  "text": "Sends no telemetry.",
+  "scope": "Default configuration with no remote endpoints configured; evidence lists every connection and every spawned process, and the Linux run is OS-isolated (ADR 0011).",
+  "thresholds": {
+    "outbound_connections": 0
+  },
+  "command": "uv run ssw prove --claim C-007",
+  "mode": "quick",
+  "source_digest": "6163030da18f2b3377e67f09d87e2f350bb4c57999865cb8e4fe638cef19b19d",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-16T06:27:01+00:00",
+  "sections": {
+    "default_flow": {
+      "recorded": "2026-10-16T06:27:01+00:00",
+      "flow": [
+        {
+          "argv": [
+            "ssw",
+            "--help"
+          ],
+          "exit_code": 0,
+          "seconds": 0.5,
+          "stderr_tail": []
+        },
+        {
+          "argv": [
+            "ssw",
+            "init",
+            "--json"
+          ],
+          "exit_code": 0,
+          "seconds": 1.11,
+          "stderr_tail": []
+        },
+        {
+          "argv": [
+            "ssw",
+            "doctor",
+            "--json"
+          ],
+          "exit_code": 0,
+          "seconds": 1.11,
+          "stderr_tail": []
+        },
+        {
+          "argv": [
+            "ssw",
+            "models",
+            "list",
+            "--tier",
+            "cpu",
+            "--json"
+          ],
+          "exit_code": 0,
+          "seconds": 0.75,
+          "stderr_tail": []
+        },
+        {
+          "argv": [
+            "ssw",
+            "policy",
+            "show",
+            "--json"
+          ],
+          "exit_code": 0,
+          "seconds": 0.74,
+          "stderr_tail": []
+        },
+        {
+          "argv": [
+            "ssw",
+            "audit",
+            "--json"
+          ],
+          "exit_code": 0,
+          "seconds": 0.34,
+          "stderr_tail": []
+        }
+      ],
+      "configuration": "fresh `ssw init` project, no endpoints configured",
+      "isolation": "none: in-process recorder only (no OS-level isolation on this platform)",
+      "recorder": "wrapped socket, name-lookup and process functions; audit hooks are unusable in this environment (importing with a hook installed fails: AttributeError: 'bytes' object has no attribute 'co_filename')",
+      "connections": [
+        {
+          "command": "ssw init --json",
+          "kind": "connect",
+          "event": "socket.connect",
+          "family": 2,
+          "address": "('127.0.0.1', 11434)",
+          "host": "127.0.0.1",
+          "port": 11434,
+          "outbound": false
+        },
+        {
+          "command": "ssw doctor --json",
+          "kind": "connect",
+          "event": "socket.connect",
+          "family": 2,
+          "address": "('127.0.0.1', 11434)",
+          "host": "127.0.0.1",
+          "port": 11434,
+          "outbound": false
+        }
+      ],
+      "name_lookups": [
+        {
+          "command": "ssw init --json",
+          "kind": "lookup",
+          "event": "socket.getaddrinfo",
+          "host": "127.0.0.1",
+          "outbound": false
+        },
+        {
+          "command": "ssw doctor --json",
+          "kind": "lookup",
+          "event": "socket.getaddrinfo",
+          "host": "127.0.0.1",
+          "outbound": false
+        }
+      ],
+      "processes": [
+        {
+          "command": "ssw init --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
+          "argv": [
+            "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
+            "--query-gpu=index,name,memory.total,memory.free,driver_version,compute_cap",
+            "--format=csv,noheader,nounits"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw init --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\WINDOWS\\system32\\wsl.EXE",
+          "argv": [
+            "C:\\WINDOWS\\system32\\wsl.EXE",
+            "--version"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw init --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.EXE",
+          "argv": [
+            "C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.EXE",
+            "context",
+            "inspect",
+            "--format",
+            "{{.Endpoints.docker.Host}}"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw init --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\WINDOWS\\system32\\wsl.EXE",
+          "argv": [
+            "C:\\WINDOWS\\system32\\wsl.EXE",
+            "--list",
+            "--quiet"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw init --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.EXE",
+          "argv": [
+            "C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.EXE",
+            "version",
+            "--format",
+            "{{.Server.Version}}"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw init --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
+          "argv": [
+            "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
+            "--version"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw init --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "~\\AppData\\Local\\Programs\\Ollama\\ollama.EXE",
+          "argv": [
+            "~\\AppData\\Local\\Programs\\Ollama\\ollama.EXE",
+            "--version"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw doctor --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
+          "argv": [
+            "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
+            "--query-gpu=index,name,memory.total,memory.free,driver_version,compute_cap",
+            "--format=csv,noheader,nounits"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw doctor --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\WINDOWS\\system32\\wsl.EXE",
+          "argv": [
+            "C:\\WINDOWS\\system32\\wsl.EXE",
+            "--version"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw doctor --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.EXE",
+          "argv": [
+            "C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.EXE",
+            "context",
+            "inspect",
+            "--format",
+            "{{.Endpoints.docker.Host}}"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw doctor --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\WINDOWS\\system32\\wsl.EXE",
+          "argv": [
+            "C:\\WINDOWS\\system32\\wsl.EXE",
+            "--list",
+            "--quiet"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw doctor --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.EXE",
+          "argv": [
+            "C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.EXE",
+            "version",
+            "--format",
+            "{{.Server.Version}}"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw doctor --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
+          "argv": [
+            "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
+            "--version"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw doctor --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "~\\AppData\\Local\\Programs\\Ollama\\ollama.EXE",
+          "argv": [
+            "~\\AppData\\Local\\Programs\\Ollama\\ollama.EXE",
+            "--version"
+          ],
+          "outbound": false
+        }
+      ],
+      "outbound_connections": 0,
+      "outbound": []
+    }
+  }
+}
