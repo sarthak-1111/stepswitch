@@ -193,6 +193,8 @@ DIGEST_SOURCES = (
     "tests",
     "registry",
     "bench/suites",
+    "bench/repos",
+    "science",
     "pyproject.toml",
     "uv.lock",
     "claims/claims.yaml",
