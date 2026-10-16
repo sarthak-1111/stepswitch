@@ -1,0 +1,288 @@
+{
+  "schema": 1,
+  "kind": "stepswitch-probe-result",
+  "date": "2026-10-16",
+  "model": "phi-3.5-mini-instruct",
+  "model_hash": "sha256:e4165e3a71af97f1b4820da61079826d8752a2088e313af0c7d346796c38eff5",
+  "model_hash_source": "registry",
+  "engine": "llamacpp",
+  "engine_version": "b11669-620d2225c",
+  "format": "chat-completions",
+  "endpoint": {
+    "scheme": "http",
+    "local": true
+  },
+  "quick": false,
+  "hardware": {
+    "os": {
+      "system": "Windows",
+      "machine": "AMD64"
+    },
+    "cpu": {
+      "cores_physical": 16,
+      "cores_logical": 32
+    },
+    "ram_gb": 1098.43,
+    "gpus": [
+      {
+        "vram_gb": 51.53,
+        "backend": "cuda"
+      },
+      {
+        "vram_gb": 48.31,
+        "backend": "cuda"
+      },
+      {
+        "vram_gb": 51.53,
+        "backend": "cuda"
+      },
+      {
+        "vram_gb": 51.53,
+        "backend": "cuda"
+      }
+    ]
+  },
+  "checks": {
+    "basic_chat": {
+      "ok": true,
+      "seconds": 6.719,
+      "detail": "replied 'Pong This is a simple response to the instruction, which is the name of a cla...'",
+      "data": {
+        "latency_s": 6.719,
+        "finish_reason": "length"
+      }
+    },
+    "system_prompt": {
+      "ok": true,
+      "seconds": 0.765,
+      "detail": "followed the system prompt: 'MANGO-17'"
+    },
+    "native_tool_call": {
+      "ok": false,
+      "seconds": 12.518,
+      "detail": "no tool call; answered in text: \"I'm sorry, but as an AI language model, I don't have real-time capabilities o...\"",
+      "data": {
+        "calls": [],
+        "finish_reason": "length"
+      }
+    },
+    "parallel_tool_calls": {
+      "ok": false,
+      "seconds": 16.242,
+      "detail": "no tool call; answered in text: 'To fulfill your request, I would typically use external services or APIs, but...'",
+      "data": {
+        "calls": []
+      }
+    },
+    "fallback_tool_protocol": {
+      "ok": true,
+      "seconds": 8.581,
+      "detail": "called get_weather({\"city\": \"Paris\"}) through a JSON action (valid after one repair)",
+      "data": {
+        "constrained": false,
+        "honoured": false,
+        "valid_first_try": false,
+        "repaired": true,
+        "constraint_rejected": "bad_request (HTTP 400): Failed to initialize samplers: Unexpected empty grammar stack after accepting piece: | (29989)"
+      }
+    },
+    "json_schema": {
+      "ok": false,
+      "seconds": 0.036,
+      "detail": "request failed",
+      "error": "bad_request (HTTP 400): Failed to initialize samplers: Unexpected empty grammar stack after accepting piece: | (29989)"
+    },
+    "streaming": {
+      "ok": true,
+      "seconds": 1.783,
+      "detail": "20 text chunks, first after 246.9 ms",
+      "data": {
+        "ttft_ms": 246.9,
+        "text_deltas": 20,
+        "finish_reason": "stop"
+      }
+    },
+    "usage": {
+      "ok": true,
+      "seconds": 0.0,
+      "detail": "token counts in non-streaming and streaming replies",
+      "data": {
+        "non_streaming": true,
+        "streaming": true,
+        "example": {
+          "input_tokens": 18,
+          "output_tokens": 32,
+          "cached_input_tokens": 0
+        }
+      }
+    },
+    "reasoning_field": {
+      "ok": false,
+      "seconds": 0.353,
+      "detail": "the model returned no reasoning",
+      "data": {
+        "field": null,
+        "tried_effort": true
+      }
+    },
+    "context_length": {
+      "ok": true,
+      "seconds": 30.812,
+      "detail": "found the needle at 3853 prompt tokens (stopped before 7936 tokens: about 46 s, over budget)",
+      "data": {
+        "limit": 8192,
+        "limit_source": "server n_ctx (/props)",
+        "results": [
+          {
+            "target": 2048,
+            "input_tokens": 1964,
+            "found": true,
+            "seconds": 10.84
+          },
+          {
+            "target": 4096,
+            "input_tokens": 3853,
+            "found": true,
+            "seconds": 19.97
+          }
+        ],
+        "ok_tokens": 3853,
+        "stopped": "stopped before 7936 tokens: about 46 s, over budget"
+      }
+    },
+    "prefix_cache": {
+      "ok": true,
+      "seconds": 6.673,
+      "detail": "1408 of 1421 prompt tokens came from the cache",
+      "data": {
+        "cold_input": 1422,
+        "warm_input": 1421,
+        "warm_cached": 1408,
+        "cold_ttft_ms": 5353.0,
+        "warm_ttft_ms": 398.8,
+        "speedup": 13.42,
+        "source": "usage",
+        "cached_share": 0.991
+      }
+    },
+    "throughput": {
+      "ok": true,
+      "seconds": 14.66,
+      "detail": "prefill 269 tok/s (server), decode 9.2 tok/s (server)",
+      "data": {
+        "prefill_tps": 269.4,
+        "decode_tps": 9.2,
+        "ttft_ms": 678.6,
+        "sources": {
+          "prefill_tps": "server",
+          "decode_tps": "server"
+        },
+        "prefill_tokens": 1422,
+        "decode_tokens": 128
+      }
+    },
+    "tool_call_ids": {
+      "ok": null,
+      "seconds": 0.0,
+      "detail": "no tool calls to inspect"
+    },
+    "forced_tool_choice": {
+      "ok": false,
+      "seconds": 13.972,
+      "detail": "tool_choice ignored: no tool call; answered in text: 'To provide an accurate answer to the question \"What is the weather in Paris?\"...'",
+      "data": {
+        "forced": "get_time",
+        "calls": []
+      }
+    },
+    "assistant_prefill": {
+      "ok": true,
+      "seconds": 2.706,
+      "detail": "continued the assistant prefix (the reply repeats it)",
+      "data": {
+        "reply": "'Counting upward as requested: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10'",
+        "echoes_prefix": true
+      }
+    },
+    "streamed_tool_args": {
+      "ok": false,
+      "seconds": 10.61,
+      "detail": "no tool call; answered in text: \"I'm sorry, but as an AI language model, I don't have real-time capabilities o...\"",
+      "data": {
+        "calls": [],
+        "argument_fragments": 0,
+        "incremental": false
+      }
+    },
+    "structured_output_under_reasoning": {
+      "ok": null,
+      "seconds": 0.0,
+      "detail": "the model returned no reasoning"
+    },
+    "reasoning_retention": {
+      "ok": null,
+      "seconds": 0.0,
+      "detail": "the model returned no reasoning"
+    },
+    "usage_semantics": {
+      "ok": true,
+      "seconds": 1.464,
+      "detail": "prompt_tokens includes cached tokens (332 of 333)",
+      "data": {
+        "cold_input": 333,
+        "warm_input": 333,
+        "cold_cached": 0,
+        "warm_cached": 332,
+        "includes_cached": true,
+        "raw_field": "prompt_tokens",
+        "raw_cold": 333,
+        "raw_warm": 333,
+        "normalized_consistent": true
+      }
+    },
+    "formats_served": {
+      "ok": true,
+      "seconds": 0.028,
+      "detail": "chat-completions, llamacpp-native, text-completion, responses, messages",
+      "data": {
+        "evidence": {
+          "chat-completions": "GET /v1/models",
+          "llamacpp-native": "GET /props",
+          "text-completion": "documented for the llama.cpp server",
+          "responses": "documented for the llama.cpp server",
+          "messages": "documented for the llama.cpp server"
+        },
+        "engine": "llamacpp",
+        "health": 200
+      }
+    }
+  },
+  "capabilities": {
+    "native_tools": false,
+    "parallel_tools": false,
+    "streamed_tool_args": false,
+    "tool_call_ids": null,
+    "forced_tool_choice": false,
+    "assistant_prefill": true,
+    "json_schema": false,
+    "fallback_tools": true,
+    "streaming": true,
+    "usage": true,
+    "usage_includes_cached": true,
+    "reasoning_field": null,
+    "reasoning_retention": null,
+    "context_ok_tokens": 3853,
+    "prefix_cache": true
+  },
+  "throughput": {
+    "prefill_tps": 269.4,
+    "decode_tps": 9.2,
+    "ttft_ms": 678.6,
+    "sources": {
+      "prefill_tps": "server",
+      "decode_tps": "server"
+    },
+    "prefill_tokens": 1422,
+    "decode_tokens": 128
+  }
+}

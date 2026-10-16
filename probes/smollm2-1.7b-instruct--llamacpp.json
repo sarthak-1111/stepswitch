@@ -1,0 +1,295 @@
+{
+  "schema": 1,
+  "kind": "stepswitch-probe-result",
+  "date": "2026-10-16",
+  "model": "smollm2-1.7b-instruct",
+  "model_hash": "sha256:decd2598bc2c8ed08c19adc3c8fdd461ee19ed5708679d1c54ef54a5a30d4f33",
+  "model_hash_source": "registry",
+  "engine": "llamacpp",
+  "engine_version": "b11669-620d2225c",
+  "format": "chat-completions",
+  "endpoint": {
+    "scheme": "http",
+    "local": true
+  },
+  "quick": false,
+  "hardware": {
+    "os": {
+      "system": "Windows",
+      "machine": "AMD64"
+    },
+    "cpu": {
+      "cores_physical": 16,
+      "cores_logical": 32
+    },
+    "ram_gb": 1098.43,
+    "gpus": [
+      {
+        "vram_gb": 51.53,
+        "backend": "cuda"
+      },
+      {
+        "vram_gb": 48.31,
+        "backend": "cuda"
+      },
+      {
+        "vram_gb": 51.53,
+        "backend": "cuda"
+      },
+      {
+        "vram_gb": 51.53,
+        "backend": "cuda"
+      }
+    ]
+  },
+  "checks": {
+    "basic_chat": {
+      "ok": true,
+      "seconds": 0.253,
+      "detail": "replied 'Pong'",
+      "data": {
+        "latency_s": 0.253,
+        "finish_reason": "stop"
+      }
+    },
+    "system_prompt": {
+      "ok": true,
+      "seconds": 0.438,
+      "detail": "followed the system prompt: 'MANGO-17'"
+    },
+    "native_tool_call": {
+      "ok": false,
+      "seconds": 2.665,
+      "detail": "no tool call; answered in text: \"I'm sorry for the misunderstanding, but as an AI, I don't have real-time capa...\"",
+      "data": {
+        "calls": [],
+        "finish_reason": "stop"
+      }
+    },
+    "parallel_tool_calls": {
+      "ok": false,
+      "seconds": 3.531,
+      "detail": "no tool call; answered in text: \"I'm sorry for the confusion, but as an AI, I don't have the ability to access...\"",
+      "data": {
+        "calls": []
+      }
+    },
+    "fallback_tool_protocol": {
+      "ok": true,
+      "seconds": 1.478,
+      "detail": "called get_weather({\"city\": \"Paris\"}) through a JSON action (constrained decoding honoured)",
+      "data": {
+        "constrained": true,
+        "honoured": true,
+        "valid_first_try": true,
+        "repaired": false
+      }
+    },
+    "json_schema": {
+      "ok": true,
+      "seconds": 1.817,
+      "detail": "schema-valid JSON",
+      "data": {
+        "constrained": true,
+        "exact": true
+      }
+    },
+    "streaming": {
+      "ok": true,
+      "seconds": 1.807,
+      "detail": "35 text chunks, first after 94.6 ms",
+      "data": {
+        "ttft_ms": 94.6,
+        "text_deltas": 35,
+        "finish_reason": "stop"
+      }
+    },
+    "usage": {
+      "ok": true,
+      "seconds": 0.0,
+      "detail": "token counts in non-streaming and streaming replies",
+      "data": {
+        "non_streaming": true,
+        "streaming": true,
+        "example": {
+          "input_tokens": 39,
+          "output_tokens": 3,
+          "cached_input_tokens": 0
+        }
+      }
+    },
+    "reasoning_field": {
+      "ok": false,
+      "seconds": 0.557,
+      "detail": "the model returned no reasoning",
+      "data": {
+        "field": null,
+        "tried_effort": true
+      }
+    },
+    "context_length": {
+      "ok": true,
+      "seconds": 44.411,
+      "detail": "found the needle at 7389 prompt tokens",
+      "data": {
+        "limit": 8192,
+        "limit_source": "server n_ctx (/props)",
+        "results": [
+          {
+            "target": 2048,
+            "input_tokens": 1979,
+            "found": true,
+            "seconds": 4.47
+          },
+          {
+            "target": 4096,
+            "input_tokens": 3854,
+            "found": true,
+            "seconds": 11.14
+          },
+          {
+            "target": 7936,
+            "input_tokens": 7389,
+            "found": true,
+            "seconds": 28.8
+          }
+        ],
+        "ok_tokens": 7389
+      }
+    },
+    "prefix_cache": {
+      "ok": true,
+      "seconds": 3.086,
+      "detail": "1435 of 1448 prompt tokens came from the cache",
+      "data": {
+        "cold_input": 1449,
+        "warm_input": 1448,
+        "warm_cached": 1435,
+        "cold_ttft_ms": 2699.2,
+        "warm_ttft_ms": 229.1,
+        "speedup": 11.78,
+        "source": "usage",
+        "cached_share": 0.991
+      }
+    },
+    "throughput": {
+      "ok": true,
+      "seconds": 7.327,
+      "detail": "prefill 544 tok/s (server), decode 18.2 tok/s (server)",
+      "data": {
+        "prefill_tps": 543.9,
+        "decode_tps": 18.2,
+        "ttft_ms": 310.5,
+        "sources": {
+          "prefill_tps": "server",
+          "decode_tps": "server"
+        },
+        "prefill_tokens": 1449,
+        "decode_tokens": 128
+      }
+    },
+    "tool_call_ids": {
+      "ok": null,
+      "seconds": 0.0,
+      "detail": "no tool calls to inspect"
+    },
+    "forced_tool_choice": {
+      "ok": false,
+      "seconds": 1.996,
+      "detail": "tool_choice ignored: no tool call; answered in text: \"As an AI, I don't have real-time capabilities to provide current weather upda...\"",
+      "data": {
+        "forced": "get_time",
+        "calls": []
+      }
+    },
+    "assistant_prefill": {
+      "ok": true,
+      "seconds": 0.832,
+      "detail": "continued the assistant prefix (the reply repeats it)",
+      "data": {
+        "reply": "'Counting upward as requested: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10.'",
+        "echoes_prefix": true
+      }
+    },
+    "streamed_tool_args": {
+      "ok": false,
+      "seconds": 2.204,
+      "detail": "no tool call; answered in text: \"I'm sorry for the misunderstanding, but as an AI, I don't have real-time capa...\"",
+      "data": {
+        "calls": [],
+        "argument_fragments": 0,
+        "incremental": false
+      }
+    },
+    "structured_output_under_reasoning": {
+      "ok": null,
+      "seconds": 0.0,
+      "detail": "the model returned no reasoning"
+    },
+    "reasoning_retention": {
+      "ok": null,
+      "seconds": 0.0,
+      "detail": "the model returned no reasoning"
+    },
+    "usage_semantics": {
+      "ok": true,
+      "seconds": 0.529,
+      "detail": "prompt_tokens includes cached tokens (278 of 279)",
+      "data": {
+        "cold_input": 279,
+        "warm_input": 279,
+        "cold_cached": 0,
+        "warm_cached": 278,
+        "includes_cached": true,
+        "raw_field": "prompt_tokens",
+        "raw_cold": 279,
+        "raw_warm": 279,
+        "normalized_consistent": true
+      }
+    },
+    "formats_served": {
+      "ok": true,
+      "seconds": 0.013,
+      "detail": "chat-completions, llamacpp-native, text-completion, responses, messages",
+      "data": {
+        "evidence": {
+          "chat-completions": "GET /v1/models",
+          "llamacpp-native": "GET /props",
+          "text-completion": "documented for the llama.cpp server",
+          "responses": "documented for the llama.cpp server",
+          "messages": "documented for the llama.cpp server"
+        },
+        "engine": "llamacpp",
+        "health": 200
+      }
+    }
+  },
+  "capabilities": {
+    "native_tools": false,
+    "parallel_tools": false,
+    "streamed_tool_args": false,
+    "tool_call_ids": null,
+    "forced_tool_choice": false,
+    "assistant_prefill": true,
+    "json_schema": true,
+    "fallback_tools": true,
+    "streaming": true,
+    "usage": true,
+    "usage_includes_cached": true,
+    "reasoning_field": null,
+    "reasoning_retention": null,
+    "context_ok_tokens": 7389,
+    "prefix_cache": true
+  },
+  "throughput": {
+    "prefill_tps": 543.9,
+    "decode_tps": 18.2,
+    "ttft_ms": 310.5,
+    "sources": {
+      "prefill_tps": "server",
+      "decode_tps": "server"
+    },
+    "prefill_tokens": 1449,
+    "decode_tokens": 128
+  }
+}
