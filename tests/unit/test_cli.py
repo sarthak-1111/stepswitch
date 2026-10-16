@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 
 from stepswitch import __version__
 from stepswitch.cli import app
+from tests.unit.bench_project import make_project
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC_COMMANDS = [
@@ -66,8 +67,6 @@ def test_phase_2_commands_exist_with_their_options(command: str, options: list[s
     ("args", "phase"),
     [
         (["proxy"], 8),
-        (["bench", "run", "--suite", "mini-general"], 3),
-        (["bench", "report"], 3),
         (["dash"], 4),
         (["replay", "run-1"], 7),
     ],
@@ -76,6 +75,35 @@ def test_later_phase_commands_say_so_and_exit_2(args: list[str], phase: int) -> 
     result = runner.invoke(app, args)
     assert result.exit_code == 2
     assert f"Phase {phase}" in result.output
+
+
+def test_bench_run_and_report_with_a_fake_contestant(tmp_path: Path) -> None:
+    root = make_project(tmp_path / "project")
+    out = tmp_path / "results"
+    env = {"STEPSWITCH_HOME": str(tmp_path / "home"), "COLUMNS": "200"}
+    args = ["-C", str(root), "bench", "run", "--suite", "tiny", "--workers", "fake:oracle"]
+    result = runner.invoke(app, [*args, "--out", str(out), "--no-review"], env=env)
+    assert result.exit_code == 0, result.output
+    assert "fake:oracle" in result.output and "100%" in result.output
+    manifest = json.loads((out / "run.json").read_text(encoding="utf-8"))
+    assert manifest["command"] == (
+        "ssw bench run --suite tiny --workers fake:oracle --seeds 1 --no-review"
+    )
+    (out / "leaderboard.md").unlink()
+    report = runner.invoke(app, ["bench", "report", str(out), "--json"], env=env)
+    assert report.exit_code == 0, report.output
+    assert json.loads(report.output)["contestants"][0]["pass_rate"] == 1.0
+    assert (out / "leaderboard.md").is_file()
+
+
+def test_bench_run_rejects_unknown_workers_before_running(tmp_path: Path) -> None:
+    root = make_project(tmp_path / "project")
+    env = {"STEPSWITCH_HOME": str(tmp_path / "home")}
+    args = ["-C", str(root), "bench", "run", "--suite", "tiny", "--workers", "nowhere/nothing"]
+    result = runner.invoke(app, args, env=env)
+    assert result.exit_code != 0
+    assert "unknown worker(s) nowhere/nothing" in result.output
+    assert not (root / "bench" / "results").exists()
 
 
 def test_models_list_json_reports_the_cpu_tier(tmp_path: Path) -> None:

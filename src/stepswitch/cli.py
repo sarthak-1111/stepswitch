@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -935,20 +935,139 @@ def cmd_proxy(
 
 @bench_app.command("run")
 def bench_run(
-    suite: Annotated[str, typer.Option("--suite", help="Suite name, e.g. mini-general.")],
+    ctx: typer.Context,
+    suite: Annotated[
+        str, typer.Option("--suite", help="Suite name (e.g. mini-general) or a suite YAML file.")
+    ],
     workers: Annotated[
-        str | None, typer.Option("--workers", help="Comma-separated workers to compare.")
+        str | None,
+        typer.Option(
+            "--workers",
+            help="Comma-separated contestants: `router`, worker ids, or `fake:oracle`/`fake:noop`.",
+        ),
     ] = None,
-    seeds: Annotated[int, typer.Option("--seeds", help="Repetitions per task.")] = 1,
+    seeds: Annotated[int, typer.Option("--seeds", min=1, help="Repetitions per task.")] = 1,
+    tasks: Annotated[
+        str | None, typer.Option("--tasks", help="Comma-separated task ids (default: all).")
+    ] = None,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Results directory (default: bench/results/<suite>-<time>)."),
+    ] = None,
+    review: Annotated[
+        bool, typer.Option("--review/--no-review", help="Run the review step of each task.")
+    ] = True,
+    max_steps: Annotated[
+        int | None, typer.Option("--max-steps", min=1, help="Step limit per task.")
+    ] = None,
+    budget_tokens: Annotated[
+        int | None, typer.Option("--budget-tokens", help="Token budget per task.")
+    ] = None,
+    budget_seconds: Annotated[
+        float | None, typer.Option("--budget-seconds", help="Wall-time budget per task.")
+    ] = None,
+    price_in: Annotated[
+        float | None,
+        typer.Option("--price-in", help="Reference price per million input tokens."),
+    ] = None,
+    price_out: Annotated[
+        float | None,
+        typer.Option("--price-out", help="Reference price per million output tokens."),
+    ] = None,
+    keep: Annotated[
+        bool, typer.Option("--keep", help="Keep the task workspaces under .stepswitch/bench.")
+    ] = False,
 ) -> None:
-    """Run a benchmark suite."""
-    _not_yet("bench run", 3)
+    """Run a benchmark suite: every contestant on every task, once per seed."""
+    import shlex
+    from datetime import UTC, datetime
+
+    from stepswitch.bench import runner
+    from stepswitch.bench.suites import load_suite
+    from stepswitch.core.task import Budgets
+
+    state = _state(ctx)
+    with _user_errors():
+        loaded = load_suite(suite, state.root)
+        selected = loaded.select([t.strip() for t in tasks.split(",")] if tasks else None)
+        contestants = runner.parse_contestants(workers)
+        _check_contestants(state, contestants)
+        if (price_in is None) != (price_out is None):
+            raise ValueError("give both --price-in and --price-out, or neither")
+        stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+        out_dir = out or state.root / "bench" / "results" / f"{selected.name}-{stamp}"
+        options = runner.BenchOptions(
+            seeds=seeds,
+            review=review,
+            max_steps=max_steps,
+            budgets=Budgets(tokens=budget_tokens, wall_seconds=budget_seconds),
+            keep=keep,
+            prices=(
+                {"input_per_million": price_in, "output_per_million": price_out}
+                if price_in is not None and price_out is not None
+                else None
+            ),
+        )
+        # The command that reproduces the results, without local paths (it is published).
+        args = ["--suite", Path(suite).name if Path(suite).suffix else suite]
+        args += ["--workers", ",".join(c.name for c in contestants), "--seeds", str(seeds)]
+        args += ["--tasks", tasks] if tasks else []
+        args += [] if review else ["--no-review"]
+        args += ["--max-steps", str(max_steps)] if max_steps else []
+        args += ["--budget-tokens", str(budget_tokens)] if budget_tokens else []
+        args += ["--budget-seconds", str(budget_seconds)] if budget_seconds else []
+        if options.prices:
+            args += ["--price-in", str(price_in), "--price-out", str(price_out)]
+        command = "ssw bench run " + " ".join(shlex.quote(arg) for arg in args)
+        result_dir = runner.run_bench(
+            selected,
+            contestants,
+            root=state.root,
+            out_dir=out_dir,
+            options=options,
+            config=state.config,
+            egress=state.egress(),
+            command=command,
+            echo=typer.echo,
+        )
+    typer.echo(f"Results: {result_dir}")
+    typer.echo((result_dir / "leaderboard.md").read_text(encoding="utf-8"))
+
+
+def _check_contestants(state: AppState, contestants: Sequence[Any]) -> None:
+    """Fail before the first run when a named worker is not configured."""
+    named = [c.name for c in contestants if c.worker is not None and c.fake is None]
+    if not named:
+        return
+    from stepswitch.workers.catalog import Catalog
+
+    catalog = Catalog.from_config(state.config, state.root, egress=state.egress())
+    unknown = [name for name in named if catalog.find(name) is None]
+    if unknown:
+        known = ", ".join(sorted(catalog.workers)) or "none configured"
+        raise ValueError(f"unknown worker(s) {', '.join(unknown)} (workers: {known})")
 
 
 @bench_app.command("report")
-def bench_report() -> None:
-    """Build the leaderboard from recorded results."""
-    _not_yet("bench report", 3)
+def bench_report(
+    results: Annotated[
+        Path, typer.Argument(help="A results directory written by `ssw bench run`.")
+    ],
+    json_out: Annotated[
+        bool, typer.Option("--json", help="Print the leaderboard as JSON.")
+    ] = False,
+) -> None:
+    """Build the leaderboard (JSON, Markdown, chart) from recorded results."""
+    from stepswitch.bench.report import write_report
+
+    with _user_errors():
+        if not results.is_dir():
+            raise ValueError(f"{results} is not a results directory")
+        written = write_report(results)
+    if json_out:
+        typer.echo(written["json"].read_text(encoding="utf-8"))
+    else:
+        typer.echo(written["markdown"].read_text(encoding="utf-8"))
 
 
 @app.command("dash")
