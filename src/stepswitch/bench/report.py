@@ -330,7 +330,8 @@ def merge_runs(run_dirs: Sequence[Path], out_dir: Path, *, command: str | None =
         "version": sources[-1]["version"],
         "commit": None,
         "seeds": sorted({seed for s in sources for seed in s.get("seeds") or []}),
-        "contestants": [c for s in sources for c in s.get("contestants") or []],
+        # From the rows: a run stopped early names contestants it never reached.
+        "contestants": list(dict.fromkeys(str(r["contestant"]) for r in rows)),
         "router_pool": next((s["router_pool"] for s in sources if s.get("router_pool")), None),
         "scoring": scoring.pop() if len(scoring) == 1 else "varies by run",
         "sources": sources,
