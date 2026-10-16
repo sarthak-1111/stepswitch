@@ -89,6 +89,8 @@ def leaderboard(
         "runs": len(rows),
         "prices": prices or None,
         "interval": {"confidence": confidence, "resamples": resamples, "seed": seed},
+        "scoring": manifest.get("scoring"),
+        "router_pool": manifest.get("router_pool"),
         "contestants": [_entry(rank, s) for rank, s in enumerate(summaries, 1)],
     }
 
@@ -97,6 +99,10 @@ def _entry(rank: int, summary: Summary) -> dict[str, Any]:
     data = summary.to_dict()
     data["rank"] = rank
     return data
+
+
+def _count(value: int, noun: str) -> str:
+    return f"{value} {noun}" + ("" if value == 1 else "s")
 
 
 def _percent(value: float | None) -> str:
@@ -126,7 +132,8 @@ def render_markdown(board: Mapping[str, Any]) -> str:
         f"# Leaderboard: {board.get('suite') or 'bench'}",
         "",
         f"- Results: [`{board['results_file']}`]({board['results_file']}) "
-        f"({board['runs']} runs, {board['tasks']} tasks, seeds {board.get('seeds') or '-'})",
+        f"({_count(board['runs'], 'run')}, {_count(board['tasks'], 'task')}, "
+        f"seeds {board.get('seeds') or '-'})",
         f"- Command: `{board.get('command') or 'not recorded'}`",
         f"- Hardware: {_hardware_text(board.get('hardware'))}",
         f"- Date: {board.get('date') or 'not recorded'}",
@@ -136,6 +143,10 @@ def render_markdown(board: Mapping[str, Any]) -> str:
         f"({interval.get('resamples', DEFAULT_RESAMPLES):,} resamples, "
         f"seed {interval.get('seed', DEFAULT_SEED)}); Wilson score interval with one task.",
     ]
+    if board.get("scoring"):
+        lines.append(f"- Scoring: a run {board['scoring']}.")
+    if board.get("router_pool"):
+        lines.append("- Router pool: " + ", ".join(f"`{w}`" for w in board["router_pool"]))
     prices = board.get("prices")
     if prices:
         lines.append(
@@ -146,8 +157,8 @@ def render_markdown(board: Mapping[str, Any]) -> str:
     lines += [
         "",
         f"| Rank | Contestant | Pass rate | {level} interval | Runs | Median wall (s) "
-        "| Median tokens | GPU-s | Escalations | Cache hits | Reference cost |",
-        "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| Median tokens | GPU-s | Escalations | Cache hits | Changed tests | Reference cost |",
+        "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for entry in board["contestants"]:
         ci = entry["ci"]
@@ -157,7 +168,7 @@ def render_markdown(board: Mapping[str, Any]) -> str:
             f"| {_percent(ci['low'])} to {_percent(ci['high'])} | {entry['runs']} "
             f"| {_number(entry['median_wall_seconds'])} | {_number(entry['median_tokens'], 0)} "
             f"| {_number(entry['gpu_seconds'])} | {_percent(entry['escalation_rate'])} "
-            f"| {_percent(entry['cache_hit_rate'])} "
+            f"| {_percent(entry['cache_hit_rate'])} | {entry.get('tests_modified', 0)} "
             f"| {_number(cost, 4) if cost is not None else '-'} |"
         )
     lines += ["", f"![Pass rate by contestant]({CHART_SVG})", ""]

@@ -10,7 +10,9 @@ servers are shared with `ssw run`. Whether the run passed is decided afterwards,
 of what the agent reported: the run's diff is applied to another fresh copy, the suite's
 protected paths (`tests/` by default) are restored from the original, and the acceptance
 commands run there, the way the gates run them (platform shell, project interpreter first on
-PATH). A run that changed a protected path is marked `tests_modified`.
+PATH). The run passes when every acceptance command exits with 0 (`SCORING`). Restoring the
+tests makes changing them pointless, so a run that changed a protected path is not failed for
+it; it is marked `tests_modified` and counted in its own leaderboard column.
 
 Rows are appended to `results.jsonl` as runs finish, so an interrupted bench keeps its finished
 runs; `run.json` records the suite, command, hardware, version and dates, and the leaderboard is
@@ -37,6 +39,10 @@ from stepswitch.core.task import Budgets, TaskResult, TaskSpec
 from stepswitch.verify import commands
 
 ROUTER = "router"
+SCORING = (
+    "passes when every acceptance command exits with 0 on a fresh copy with the run's diff"
+    " applied and the suite's protected paths restored"
+)
 ACCEPTANCE_TIMEOUT_S = 600.0
 ACCEPTANCE_ENV = {"PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"}
 _MACHINES = {"amd64": "x86_64", "x86_64": "x86_64", "arm64": "arm64", "aarch64": "arm64"}
@@ -302,7 +308,7 @@ def run_one(
         {
             "status": result.status if result is not None else "error",
             "stop_reason": result.stop_reason if result is not None else "error",
-            "passed": check.passed and not check.tests_modified,
+            "passed": check.passed,
             "acceptance": check.commands,
             "tests_modified": check.tests_modified,
             "apply_error": check.apply_error,
@@ -361,6 +367,7 @@ def run_bench(
         "review": options.review,
         "prices": options.prices,
         "router_pool": _router_pool(contestants, options, root, config, egress),
+        "scoring": SCORING,
     }
     manifest_path = out_dir / MANIFEST_FILE
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")

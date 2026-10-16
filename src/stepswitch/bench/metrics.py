@@ -126,6 +126,8 @@ class Summary:
     cache_hit_rate: float | None
     reference_cost: float | None
     statuses: dict[str, int] = field(default_factory=dict)
+    # Runs that changed a protected path (restored before the acceptance commands ran).
+    tests_modified: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -201,4 +203,5 @@ def _summary(
         cache_hit_rate=cached / input_tokens if input_tokens else None,
         reference_cost=round(cost, 6) if cost is not None else None,
         statuses=dict(Counter(str(row.get("status")) for row in runs)),
+        tests_modified=sum(1 for row in runs if row.get("tests_modified")),
     )
