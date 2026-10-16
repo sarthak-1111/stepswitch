@@ -2522,7 +2522,9 @@ b11669 `tools/server/README.md` and the server binary itself.
   `--device none` (no offload). `/health` is public and returns 503 `Loading model` until the
   model is loaded, then 200; with a key set, other routes return 401 without it, and an
   `X-Api-Key` header also works. A port that is taken gives "couldn't bind HTTP server socket"
-  and exit code 1. `/metrics` has no prefix-cache counter at this build.
+  and exit code 1. `/metrics` counts prompt tokens reused from the cache in
+  `llamacpp:prompt_tokens_cached_total` (corrected in Phase 3; see "llama.cpp server
+  usage and metrics" below).
 
 ### Ollama 0.34.4 model loading (adds to "Ollama native API" above)
 
@@ -2850,3 +2852,89 @@ v0.40.5 (https://raw.githubusercontent.com/ollama/ollama/v0.40.5/llm/llama_serve
   file's rank, lets a file whose references weigh less than 1 pass on only part of its rank,
   and matches plain names to top-level definitions and called attributes to methods. On this
   project's own `src/`, the core modules (paths, IR, errors, egress) now rank first.
+
+## Verified during Phase 3
+
+### llama.cpp server usage and metrics (b11669, checked 2026-10-16)
+
+Source: tag `b11669` is commit `620d2225cc436ab0b001e3200e590e3b286ef9ab`; files under
+https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/tools/server/
+(`server-task.cpp` L357-364, L494-510, L1526-1620; `server-context.cpp` L1448-1453, L2256-2258,
+L3908-3917, L4478, L4687-4752; `server-common.cpp` L84-105). Confirmed live on this build with
+four requests (streamed and not) against a 4B model.
+
+- `/metrics` (with `--metrics`) has the counters `prompt_tokens_total` ("prompt tokens
+  processed, excluding cached tokens"), `prompt_tokens_cached_total` ("prompt tokens reused
+  from the cache"), `tokens_predicted_total`, `prompt_seconds_total`,
+  `tokens_predicted_seconds_total`, `n_decode_total`, `n_tokens_max` and the speculative-decoding
+  counters, all prefixed `llamacpp:`. The cached counter is missing from the server README.
+- Usage in chat-completions responses: `prompt_tokens` is the whole prompt,
+  `prompt_tokens_details.cached_tokens` the part reused from the cache, `completion_tokens` the
+  generated tokens including the final end-of-generation token. Streamed responses carry usage
+  only in an extra last chunk with empty `choices`, and only when the request sets
+  `stream_options.include_usage`. The messages format reports `input_tokens` without the cached
+  part, plus `cache_read_input_tokens`.
+- For each finished request with one choice: the prompt counter grows by `prompt_tokens -
+  cached_tokens`, the cached counter by `cached_tokens`, the predicted counter by
+  `completion_tokens`. When the whole prompt is cached the server still evaluates its last
+  token, in both numbers alike. Response `timings` hold the same values (`prompt_n`, `cache_n`,
+  `predicted_n`).
+- The counters and the usage objects disagree for requests with more than one choice,
+  cancelled or failed requests (counted, but no usage returned), other traffic on the same
+  server and scrapes taken while requests run. `/health`, `/props` and `/tokenize` change no
+  counter.
+
+### Python engine servers (checked 2026-10-16)
+
+vLLM v0.31.0 (https://raw.githubusercontent.com/vllm-project/vllm/v0.31.0/ plus the paths
+named here):
+- Usage statistics: no flag; reporting is off when `VLLM_NO_USAGE_STATS=1`,
+  `VLLM_DO_NOT_TRACK=1` or `DO_NOT_TRACK=1` (exactly "1"), or when
+  `$VLLM_CONFIG_ROOT/do_not_track` exists (`vllm/envs.py` L827-831, `vllm/usage/usage_lib.py`
+  L30, L50-68). Stepswitch sets the variables.
+- Key: `VLLM_API_KEY` holds one key; `--api-key` wins (`envs.py` L814,
+  `entrypoints/serve/middleware/register.py` L32-36). Only `/v1`, `/v2`, `/inference` and one
+  publisher-named prefix are guarded; `/health`, `/metrics`, `/version`, `/load`, `/ping` and
+  `/invocations` are open (`middleware/authenticate.py` L11).
+- The model is positional after `serve` (`--model` is deprecated). Without `--host` it binds
+  every interface; default port 8000. The port is bound before the model loads but accepts
+  connections only afterwards; `/health` answers 200, or 503 once the engine died.
+- Metrics: `vllm:prefix_cache_queries_total`, `vllm:prefix_cache_hits_total`,
+  `vllm:prompt_tokens_cached_total` and external prefix-cache counters, labelled `model_name`
+  and `engine` (`vllm/v1/metrics/loggers.py` L480, L600-720); `--disable-log-stats` removes
+  them. `VLLM_USE_MODELSCOPE` (default false) switches downloads to another model hub.
+  `python -m vllm.entrypoints.cli.main` works.
+
+SGLang v0.5.22 (https://raw.githubusercontent.com/sgl-project/sglang/v0.5.22/python/sglang/):
+- The key comes only from `--api-key` or `api-key:` in a `--config` YAML file (`.yaml`/`.yml`;
+  the `--config=x` form is not merged; the command line wins) (`srt/server_args.py` L400-404,
+  L669-675). `/health*`, `/ready` and `/metrics` need no key; only `Authorization: Bearer` is
+  accepted (`srt/utils/auth.py` L98-117).
+- The server listens after the model has loaded; `/ready` answers 200 once it is up;
+  `/health` runs a one-token generation (at least 1 s).
+- `/metrics` needs `--enable-metrics`: `sglang:prompt_tokens_total` (label `is_streaming`),
+  `sglang:cached_tokens_total` (label `cache_source`), gauge `sglang:cache_hit_rate`.
+- It logs its arguments, keys included, at startup, and `GET /server_info` returns them.
+  `python -m sglang.launch_server` is deprecated for `sglang serve`. Wheels are manylinux
+  x86_64/aarch64 only (https://pypi.org/pypi/sglang/0.5.22/json); `uvloop` rules out native
+  Windows. `SGLANG_USE_MODELSCOPE` defaults to false; there is no usage-statistics code.
+
+MLX-LM v0.32.2 (https://raw.githubusercontent.com/ml-explore/mlx-lm/v0.32.2/mlx_lm/server.py):
+no authentication; the request model `default_model` maps to `--model` and any other name
+loads that model (L384-395, L477-483); `/health` only reports that the generation thread is
+alive, which is true before the model has loaded (L539-560); `--allowed-origins` defaults to
+`*`; it fetches image URLs itself (L142-152); use `mlx_lm.server` or `python -m mlx_lm server`.
+
+transformers v5.20.0 (https://raw.githubusercontent.com/huggingface/transformers/v5.20.0/src/transformers/):
+`apply_chat_template(tokenize=False)` returns a string and passes extra keyword arguments to
+the template; `from_pretrained` takes `dtype` (replacing `torch_dtype`), `local_files_only` and
+`trust_remote_code`; any `device_map` needs the accelerate package; `TextIteratorStreamer`
+supports batch size 1 with `generate` in its own thread; v5 no longer reads
+`TRANSFORMERS_OFFLINE`.
+
+Model-hub client
+(https://raw.githubusercontent.com/huggingface/huggingface_hub/main/src/huggingface_hub/constants.py,
+https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables):
+`HF_HUB_OFFLINE` accepts 1/ON/YES/TRUE, is read at import and limits the library to cached
+files; telemetry is off when `HF_HUB_DISABLE_TELEMETRY`, `DISABLE_TELEMETRY` or `DO_NOT_TRACK`
+is set.
