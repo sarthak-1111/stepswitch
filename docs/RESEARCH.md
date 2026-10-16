@@ -3053,3 +3053,40 @@ Sources: `vllm/parser/granite.py`, `vllm/tool_parsers/granite_engine_tool_parser
   155.0.8059.0 and Node.js 22.23.3 (cached: 22.23.3, 24.21.0). The smoke test uses the
   installed Chrome (`channel="chrome"`), so CI downloads no browser.
   Source: actions/runner-images, `images/ubuntu/Ubuntu2404-Readme.md`.
+
+### Dashboard toolchain (npm registry, checked 2026-10-16)
+
+- **Picking rule.** Each package was pinned exactly to its newest stable version that was at
+  least 14 days old, using `npm view <pkg> time --json` (last checked 10:55 UTC). It was
+  installed with `npm install --before=2026-10-02T09:54:00Z`.
+- **Pinned versions.**
+
+  | Package | Version | Released |
+  |---|---|---|
+  | react, react-dom | 19.3.0 | 2026-09-09 |
+  | vite | 8.3.2 | 2026-10-01 |
+  | @vitejs/plugin-react | 6.1.1 | 2026-08-28 |
+  | typescript | 7.0.2 | 2026-07-08 |
+  | @types/react, @types/react-dom | 19.3.0 | 2026-09-09 |
+
+  `npm audit`: 0 vulnerabilities.
+- **Newer releases, not yet eligible.**
+  - vite 8.3.3 (2026-10-06; same day as 8.2.4, 8.1.6, 7.3.7 and 6.4.4) and 8.3.4 (2026-10-08).
+  - react and react-dom 19.3.1 (2026-10-14; same day as 19.2.9, 19.1.10 and 19.0.9).
+  - @vitejs/plugin-react 6.1.2 (2026-10-05).
+
+  Releases on several lines at once often mean a security fix; none is recorded for the pinned
+  set. Vite runs only at build and dev time, since the served dashboard is static files. The
+  pins become eligible to move on 2026-10-19 (plugin-react), 2026-10-20 (vite) and 2026-10-28
+  (react).
+- **Node.**
+  - `engines`: `node >=22.12.0`; Vite 8 needs Node 20.19+ or 22.12+.
+  - The build was checked with Node 24.21.0 and npm 11.19.0. The host's Node 20.12.1 is too old
+    for Vite 8.
+  - `npm ci` then `npm run build` gives the same asset hashes on every run:
+    `index-CcNq5Dsr.js` (315.93 kB, gzip 92.17 kB) and `index-DPpCAl0d.css`.
+  - The lockfile lists the macOS and Linux binaries of rolldown, lightningcss and the
+    TypeScript compiler, so `npm ci` works on every platform.
+- **CSP in two places.** The built `index.html` carries a Content-Security-Policy meta tag. A
+  meta tag cannot set `frame-ancestors`, so the server sends the full policy, including
+  `frame-ancestors 'none'`, as a header (ADR 0023).

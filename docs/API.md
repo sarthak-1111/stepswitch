@@ -25,7 +25,9 @@ and the JSON it returns. Times are Unix epoch seconds (floats); token counts are
 
 A task moves through `queued`, `routing`, `running` and `verifying` to one final status: `done`,
 `failed`, `needs-human` or `stopped` (a budget, the step limit or a cancel request stopped it;
-`stop_reason` says which). `escalations` counts moves up the escalation ladder.
+`stop_reason` says which). `escalations` counts moves up the escalation ladder; the task model
+also defines an `escalated` status, which the orchestrator does not set today, so clients
+should show any status they do not know rather than drop the task.
 
 ### `GET /api/tasks?limit=50&status=<status>`
 
@@ -100,7 +102,8 @@ A `TaskSummary` plus:
 }
 ```
 
-`result` is null until the task ends. `events` is the number of trajectory events.
+`result` is null until the task ends. `events` is the number of trajectory events. `decisions`
+are in step order and `ledger` rows in the order the calls were made.
 
 ### `POST /api/tasks/{id}/cancel`
 
@@ -197,7 +200,7 @@ The model work of tasks that have not ended, one row per task:
 
 `worker`, `step_type`, `tokens_per_s` (output tokens per second), `context_used` (input tokens)
 and `cache_hit` (cached share of input tokens) describe the task's latest model call; `context`
-is that worker's context size, if known.
+is that worker's context size, if known. `since` is when the task was created.
 
 ## Router
 
@@ -231,7 +234,10 @@ Newest first, across tasks unless `task` is given. `Decision`:
 }
 ```
 
-`features` holds the classifier's features of each task in the answer.
+`features` holds the classifier's features of each task in the answer. `expected_gain` and
+`switch_cost.seconds` are in seconds: the cost model values a success at a fixed number of
+seconds and compares the gain in success probability with the time a switch costs
+(`stepswitch/router/cost.py`).
 
 ## Ledger
 
@@ -249,7 +255,7 @@ Newest first, across tasks unless `task` is given. `Decision`:
 `group` defaults to `model` (`<endpoint>/<model>`); `day` uses the local date. `reference_cost`
 is null unless the project sets reference prices per million tokens
 (`[ledger] reference_price_in` and `reference_price_out` in `stepswitch.toml`); `avoided` is
-what the local model work would have cost at those prices.
+what the local model work would have cost at those prices, in the prices' own currency.
 
 `LedgerRow` (in `GET /api/tasks/{id}`):
 
@@ -377,7 +383,8 @@ The newest prove report (`prove-report.json` at the project root, else
 }
 ```
 
-Every connection the egress layer opened or refused, newest first.
+Every connection the egress layer opened or refused, newest first. `totals` count the rows
+that match the filters (`task`, `denied`), not only the ones returned under `limit`.
 
 ### `GET /api/science?task=<id>`
 

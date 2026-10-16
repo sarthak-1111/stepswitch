@@ -256,9 +256,15 @@ against stateless backends.
 
 FastAPI app from `stepswitch.api.app.create_app()`; routes per SPEC §17 (`/api/tasks`,
 `/api/workers`, `/api/endpoints`, `/api/leaderboard`, `/api/ledger`, `/api/claims`,
-`/api/events` as SSE). Bound to 127.0.0.1:7777 with a local token. The dashboard is React +
-Vite + TypeScript, built in CI into `src/stepswitch/api/static/` before packaging and served by
-the same app; one route per SPEC §17 view.
+`/api/events` as SSE) plus read models for every view (docs/API.md). `ssw dash` binds it to
+127.0.0.1:7777 with a per-session token (ADR 0023). Submitted tasks run on a thread pool through
+`run_task`; cancel requests and every change go through the state database, so the dashboard
+also shows and cancels tasks started in a terminal.
+
+The dashboard is React + Vite + TypeScript in `dashboard/` (one route per SPEC §17 view; see
+`dashboard/README.md`). `npm run build` writes `dashboard/dist/`, which the app serves from a
+source checkout with an `index.html` fallback for every path outside `/api/`. A wheel build hook
+(`hatch_build.py`) ships it as `stepswitch/_dashboard` when it has been built.
 
 ## 13. Network egress (`stepswitch.net`)
 
