@@ -13,6 +13,12 @@ dependencies = [
   "httpx>=0.28.1,<1",
   "ruamel.yaml>=0.19.1",
   "jsonschema>=4.26",
+  # Imported directly: offline schema validation with no remote $ref retrieval (ADR 0016).
+  "jsonschema-specifications>=2025.9.1",
+  "referencing>=0.37",
+  # Science-track gates compare numerical outputs (SPEC §6.2). numpy 2.5 needs Python 3.12.
+  "numpy>=2.4.6; python_version < '3.12'",
+  "numpy>=2.5.3; python_version >= '3.12'",
 ]
 
 [project.scripts]
@@ -34,8 +40,10 @@ build-backend = "hatchling.build"
 packages = ["src/stepswitch"]
 
 [tool.hatch.build.targets.wheel.force-include]
-# The model and worker registry ships inside the package (ADR 0002, ADR 0012).
+# The model and worker registry ships inside the package (ADR 0002, ADR 0012), and so do the
+# science-track glossaries (SPEC §6.2).
 "registry" = "stepswitch/_registry"
+"science/glossaries" = "stepswitch/_science/glossaries"
 
 [tool.uv]
 # uv-managed interpreters bundle a SQLite without the WAL-reset bug (ADR 0002).
@@ -62,3 +70,8 @@ python_version = "3.11"
 strict = true
 mypy_path = "src"
 packages = ["stepswitch"]
+
+[[tool.mypy.overrides]]
+# jsonschema ships no type information and its stub package is not a dependency.
+module = ["jsonschema", "jsonschema.*"]
+ignore_missing_imports = true
