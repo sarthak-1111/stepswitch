@@ -4,6 +4,77 @@ Newest phase first. Each phase records what was done, what research changed, ope
 actions that only the maintainer can take. Phase checks: `uv run python scripts/phase_check.py N`
 (one phase) or `--upto N` (phases 0 to N).
 
+## Phase 1: Foundation and compatibility core
+
+Status: done on 2026-10-16, except C-016, which needs hosted CI (maintainer action 1 below).
+`scripts/phase_check.py 1` passes 11 of 12 checks; the twelfth fails only because C-016 is
+pending. `uv run pytest -q`: 796 passed, 4 skipped (C-016 pending, and three live tests that
+need a local server, a small local model or `STEPSWITCH_LIVE_HUB=1`). `ssw prove --quick
+--phase 1`: C-004 and C-007 passing, C-016 pending.
+
+### Done
+
+- **Rename** to Stepswitch, CLI `ssw` (ADR 0001), and the package skeleton with hatchling as
+  the build backend, so the registry ships inside the wheel (ADR 0012).
+- **Configuration, egress and state.** Layered TOML configuration (`stepswitch.toml` committed,
+  `.stepswitch/local.toml` gitignored), `ssw init`; every HTTP client comes from
+  `stepswitch.net` with a purpose string, an audit row and offline enforcement, and takes no
+  proxy settings or `.netrc` credentials from the environment; SQLite state with migrations and
+  the WAL safety check (ADR 0002).
+- **Compatibility core.** The IR, a codec per SPEC §4.1 format (chat-completions, responses,
+  messages, generate-content, Ollama native, llama.cpp native, text completion), streaming
+  assembly, tool-call parsers, error mapping with retries, and `ModelClient`. Reasoning keeps its
+  full origin (format, endpoint, model) and is replayed only there; refusals are their own part.
+  Mock-server conformance tests cover every format (240 tests).
+- **Registry and models.** `registry/` with the verified CPU tier; `ssw models pull --tier
+  cpu` and `ssw models add <hub id | path | URL>` with verified downloads, GGUF metadata reading
+  and chat-template hashes. Three T0 models are installed on the development machine.
+- **Model plane.** Server manager with llama.cpp and Ollama adapters (start, health, stop,
+  reuse); `ssw doctor` detects OS, CPU, RAM, GPUs, disk and engines and writes a hardware
+  profile.
+- **Probe and calibration.** `ssw probe` runs a 20-check capability battery (tool calls,
+  fallback protocol, JSON schema, streaming, usage semantics, reasoning field and retention,
+  context length, prefix cache, throughput and more) and stores the profile; `ssw calibrate`
+  measures prefill and decode throughput and time to first token, preferring server timings.
+  A full probe of a 4B model on CPU took 60 s (SPEC §4.6 asks for under 3 minutes).
+- **Claims framework.** `ssw prove` (quick and full modes, phase and claim selection, fresh
+  source digest), the README claims section renderer with its check mode, evidence files with
+  machine-specific values scrubbed, and the connection recorder for the network claims
+  (ADR 0013). C-016 is proven by evidence that CI writes (ADR 0014).
+
+### What changed against the spec
+
+- ADR 0012: hatchling instead of `uv_build`.
+- ADR 0013: the connection recorder falls back from audit hooks to patched socket and process
+  functions, because endpoint-security software on the development machine breaks interpreter
+  audit hooks.
+- ADR 0014: claims whose evidence comes from other machines (C-016) stay pending without it,
+  and phase checks keep requiring them.
+- Prove reports keep skip reasons without checkout paths, so a committed report holds nothing
+  machine-specific.
+
+### Open issues
+
+- IR additions requested by the codec work and not made yet: an image reference by file ID,
+  an in-band response error, a description on `ResponseFormat`, and a way for
+  `decode_response` to record losses in the conversion report.
+- Probe exports carry hardware product names from `ssw doctor`; before exports are committed
+  (Phase 3 compatibility matrix) they must be reduced to generic descriptions so that the
+  hygiene test passes (ADR 0007 item 3).
+- No engine tested enforces a named `tool_choice`, so the router never relies on forced tool
+  choice; the fallback protocol uses JSON-schema constrained decoding instead.
+- Probe profiles are stored under the public model label; a lookup by a configured file-path
+  model ID would miss. The Phase 2 catalog looks profiles up by both.
+
+### Waiting on the maintainer
+
+1. **Remote repository and CI.** C-016 (Linux, macOS and Windows) needs the CI workflow
+   (`.github/workflows/prove.yml`) to run on a hosted remote and commit its evidence. Until
+   then `phase_check.py 1` and `--upto N` report C-016 as not passing.
+2. **Name registration.** Register the package-index and npm names before any public
+   announcement.
+3. **Development tools.** Node 22.12 or later before Phase 4.
+
 ## Phase 0: Research and design
 
 Status: done on 2026-10-16. `scripts/phase_check.py 0` passes all seven checks. Phases 1 to 4
@@ -108,9 +179,8 @@ Details are in the SPEC change table and the ADRs. The main points:
    Node 22.12 or later (the current LTS line is recommended) before Phase 4. The Ollama release
    that was researched is 0.40.5; older installs may lack routes the research relies on.
 
-## Next: Phase 1
+## Next: Phase 2
 
-Start with the rename (ADR 0001), then the Phase 1 goal: package, CLI skeleton, config,
-registry, `doctor`, codecs for every SPEC §4.1 format with conformance tests, llama.cpp and
-Ollama adapters, `models add` and `models pull --tier cpu`, `probe`, server manager,
-`calibrate`, and the claims framework with `prove`. Claims due: C-004, C-007, C-016.
+The built-in agent with step-level routing (rules, classifier, priors, cost model, escalation
+ladder, budgets), worktrees, the agent's tools and context services, verification gates and
+the science track. Claims due: C-001, C-002, C-005 (fallback part), C-008, C-009, C-020.
