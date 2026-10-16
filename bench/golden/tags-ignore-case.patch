@@ -1,0 +1,13 @@
+diff --git a/tags.py b/tags.py
+index d0ed89a..b6a0725 100644
+--- a/tags.py
++++ b/tags.py
+@@ -10,7 +10,7 @@ def clean(tag: str) -> str:
+ 
+ def tag_key(tag: str) -> str:
+     """The form used to decide whether two tags are the same tag."""
+-    return clean(tag).lower()
++    return clean(tag).casefold()
+ 
+ 
+ def unique_tags(tags: Iterable[str]) -> list[str]:

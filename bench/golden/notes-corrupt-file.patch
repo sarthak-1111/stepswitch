@@ -1,0 +1,16 @@
+diff --git a/notes/store.py b/notes/store.py
+index d6f2572..60199fa 100644
+--- a/notes/store.py
++++ b/notes/store.py
+@@ -14,8 +14,10 @@ def load_notes(path: Path) -> list[Note]:
+     """All notes in the file at `path`."""
+     try:
+         data = json.loads(path.read_text(encoding="utf-8"))
+-    except Exception:
++    except FileNotFoundError:
+         return []
++    except ValueError as exc:
++        raise StoreError(f"{path}: not a valid notes file ({exc})") from exc
+     if not isinstance(data, list):
+         raise StoreError(f"{path}: expected a list of notes")
+     return [Note.from_dict(item) for item in data]

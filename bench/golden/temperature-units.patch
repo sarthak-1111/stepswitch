@@ -1,0 +1,41 @@
+diff --git a/units/convert.py b/units/convert.py
+index d02513c..17aa0bc 100644
+--- a/units/convert.py
++++ b/units/convert.py
+@@ -1,6 +1,6 @@
+ """Conversions between units of the same kind."""
+ 
+-from units.tables import FACTORS
++from units.tables import FACTORS, OFFSETS
+ 
+ 
+ def kind_of(unit: str) -> str:
+@@ -17,7 +17,8 @@ def convert(value: float, source: str, target: str) -> float:
+     if kind_of(target) != kind:
+         raise ValueError(f"cannot convert {source} ({kind}) to {target} ({kind_of(target)})")
+     table = FACTORS[kind]
+-    return value * table[source] / table[target]
++    base = value * table[source] + OFFSETS.get(source, 0.0)
++    return (base - OFFSETS.get(target, 0.0)) / table[target]
+ 
+ 
+ def describe(value: float, source: str, target: str) -> str:
+diff --git a/units/tables.py b/units/tables.py
+index 7e9412c..640e16e 100644
+--- a/units/tables.py
++++ b/units/tables.py
+@@ -1,4 +1,4 @@
+-"""The size of each unit in the base unit of its kind: metre, kilogram or litre."""
++"""The size of each unit in the base unit of its kind: metre, kilogram, litre or kelvin."""
+ 
+ FACTORS: dict[str, dict[str, float]] = {
+     "length": {
+@@ -12,4 +12,8 @@ FACTORS: dict[str, dict[str, float]] = {
+     },
+     "mass": {"g": 0.001, "kg": 1.0, "oz": 0.028349523125, "lb": 0.45359237},
+     "volume": {"ml": 0.001, "l": 1.0, "cup": 0.2365882365, "gal": 3.785411784},
++    "temperature": {"K": 1.0, "C": 1.0, "F": 5 / 9},
+ }
++
++# Units whose zero is not the zero of the base unit: base value = value * factor + offset.
++OFFSETS: dict[str, float] = {"C": 273.15, "F": 273.15 - 32 * 5 / 9}

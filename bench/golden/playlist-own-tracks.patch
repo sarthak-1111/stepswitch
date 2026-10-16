@@ -1,0 +1,19 @@
+diff --git a/music/playlist.py b/music/playlist.py
+index ff5bb2f..1faabfe 100644
+--- a/music/playlist.py
++++ b/music/playlist.py
+@@ -1,10 +1,12 @@
+ """Playlists of track titles."""
+ 
++from collections.abc import Iterable
++
+ 
+ class Playlist:
+-    def __init__(self, name: str, tracks: list[str] = []) -> None:
++    def __init__(self, name: str, tracks: Iterable[str] = ()) -> None:
+         self.name = name
+-        self.tracks = tracks
++        self.tracks = list(tracks)
+ 
+     def add(self, track: str) -> None:
+         if track in self.tracks:

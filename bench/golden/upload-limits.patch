@@ -1,0 +1,12 @@
+diff --git a/settings.toml b/settings.toml
+index 9817321..2663760 100644
+--- a/settings.toml
++++ b/settings.toml
+@@ -1,5 +1,5 @@
+ # Rules for photos uploaded to the gallery.
+ 
+ [uploads]
+-max_size_mb = 10
+-allowed_extensions = [".jpg", ".jpeg", ".png"]
++max_size_mb = 25
++allowed_extensions = [".jpg", ".jpeg", ".png", ".webp"]

@@ -1,0 +1,7 @@
+# Lint and format settings for the bundled benchmark repositories: the project settings, minus
+# the rules that would flag a defect a task deliberately starts with. Agents get a copy of one
+# repository directory, so they never see this file.
+extend = "../../pyproject.toml"
+
+[lint.per-file-ignores]
+"music-library/music/playlist.py" = ["B006"]

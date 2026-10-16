@@ -1,0 +1,65 @@
+diff --git a/todo/model.py b/todo/model.py
+index 20156be..2d672bf 100644
+--- a/todo/model.py
++++ b/todo/model.py
+@@ -2,16 +2,21 @@
+ 
+ from dataclasses import dataclass
+ 
++PRIORITIES = ("low", "normal", "high")
++
+ 
+ @dataclass
+ class Task:
+     title: str
+     done: bool = False
++    priority: str = "normal"
+ 
+     def __post_init__(self) -> None:
+         self.title = self.title.strip()
+         if not self.title:
+             raise ValueError("a task needs a title")
++        if self.priority not in PRIORITIES:
++            raise ValueError(f"priority must be one of {', '.join(PRIORITIES)}")
+ 
+     def complete(self) -> None:
+         self.done = True
+diff --git a/todo/render.py b/todo/render.py
+index 3149bc3..cd9523d 100644
+--- a/todo/render.py
++++ b/todo/render.py
+@@ -6,9 +6,10 @@ from todo.model import Task
+ 
+ 
+ def render(task: Task) -> str:
+-    """A line such as '[ ] Water the plants' or '[x] Pay rent'."""
++    """A line such as '[ ] Water the plants', '[x] Pay rent' or '[ ] ! Call the plumber'."""
+     box = "x" if task.done else " "
+-    return f"[{box}] {task.title}"
++    mark = "! " if task.priority == "high" else ""
++    return f"[{box}] {mark}{task.title}"
+ 
+ 
+ def render_all(tasks: Iterable[Task]) -> str:
+diff --git a/todo/storage.py b/todo/storage.py
+index 6909074..74202a2 100644
+--- a/todo/storage.py
++++ b/todo/storage.py
+@@ -8,11 +8,15 @@ from todo.model import Task
+ 
+ 
+ def to_dict(task: Task) -> dict[str, Any]:
+-    return {"title": task.title, "done": task.done}
++    return {"title": task.title, "done": task.done, "priority": task.priority}
+ 
+ 
+ def from_dict(data: dict[str, Any]) -> Task:
+-    return Task(title=data["title"], done=data.get("done", False))
++    return Task(
++        title=data["title"],
++        done=data.get("done", False),
++        priority=data.get("priority", "normal"),
++    )
+ 
+ 
+ def save(path: Path, tasks: list[Task]) -> None:

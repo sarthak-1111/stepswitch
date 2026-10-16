@@ -1,0 +1,5 @@
+# Rules for photos uploaded to the gallery.
+
+[uploads]
+max_size_mb = 10
+allowed_extensions = [".jpg", ".jpeg", ".png"]

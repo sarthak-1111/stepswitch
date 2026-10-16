@@ -1,0 +1,53 @@
+diff --git a/runlog/entry.py b/runlog/entry.py
+index af4a867..745749b 100644
+--- a/runlog/entry.py
++++ b/runlog/entry.py
+@@ -2,6 +2,7 @@
+ 
+ from dataclasses import dataclass
+ from datetime import date
++from typing import Self
+ 
+ 
+ @dataclass(frozen=True)
+@@ -14,11 +15,11 @@ class Entry:
+         if self.distance_km <= 0:
+             raise ValueError("a run has a positive distance")
+ 
+-
+-def parse_line(line: str) -> Entry:
+-    """Parse a line such as '2024-05-01; 12.5; easy run' (the note is optional)."""
+-    parts = [part.strip() for part in line.split(";")]
+-    if len(parts) not in (2, 3):
+-        raise ValueError(f"expected 2 or 3 fields separated by ';': {line!r}")
+-    note = parts[2] if len(parts) == 3 else ""
+-    return Entry(date.fromisoformat(parts[0]), float(parts[1]), note)
++    @classmethod
++    def from_line(cls, line: str) -> Self:
++        """Parse a line such as '2024-05-01; 12.5; easy run' (the note is optional)."""
++        parts = [part.strip() for part in line.split(";")]
++        if len(parts) not in (2, 3):
++            raise ValueError(f"expected 2 or 3 fields separated by ';': {line!r}")
++        note = parts[2] if len(parts) == 3 else ""
++        return cls(date.fromisoformat(parts[0]), float(parts[1]), note)
+diff --git a/runlog/log.py b/runlog/log.py
+index 7944bf1..fdb876d 100644
+--- a/runlog/log.py
++++ b/runlog/log.py
+@@ -1,6 +1,6 @@
+ """A whole training log."""
+ 
+-from runlog.entry import Entry, parse_line
++from runlog.entry import Entry
+ 
+ 
+ def load(text: str) -> list[Entry]:
+@@ -8,7 +8,7 @@ def load(text: str) -> list[Entry]:
+     entries = []
+     for line in text.splitlines():
+         if line.strip() and not line.lstrip().startswith("#"):
+-            entries.append(parse_line(line))
++            entries.append(Entry.from_line(line))
+     return entries
+ 
+ 

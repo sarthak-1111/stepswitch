@@ -1,0 +1,178 @@
+# Built-in general-track suite (SPEC §16): small, unambiguous coding tasks on bundled toy
+# repositories, for agents down to small local models.
+#
+# repo:       directory copied for the agent, relative to the checkout root.
+# acceptance: shell-free commands run from the repository root; a leading "python" means the
+#             project's interpreter. The task passes when every command exits with 0.
+# golden:     reference solution as a unified diff relative to the repository root, kept outside
+#             the repository so agents never see it. It never touches tests/.
+# tags:       kind (bugfix, feature, refactor, config, docs), language, difficulty
+#             (d1 one line in one obvious place, d2 a few lines or the right place among several
+#             files, d3 a small design decision or two to three files), then topics.
+#
+# tests/unit/test_bench_suites.py checks that each task fails before its golden patch and passes
+# after it.
+schema: 1
+name: mini-general
+description: Small Python bug fixes, features, refactors and a config change on toy repositories.
+tasks:
+  - id: pager-first-page
+    repo: bench/repos/paged-list
+    instruction: >-
+      get_page() in pager.py shows the wrong results: asking for page 1 with 10 results per page
+      returns results 11 to 20, so the first ten results are never shown. Page numbers start at
+      1. Fix it so that every page shows the right results.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/pager-first-page.patch
+    track: general
+    tags: [bugfix, python, d1, off-by-one]
+
+  - id: restock-report-threshold
+    repo: bench/repos/stock-room
+    instruction: >-
+      The restock report in the stockroom package leaves out items whose quantity has dropped to
+      exactly their reorder level. An item at its reorder level needs restocking too, just like
+      an item below it.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/restock-report-threshold.patch
+    track: general
+    tags: [bugfix, python, d1, comparison]
+
+  - id: agenda-time-order
+    repo: bench/repos/day-planner
+    instruction: >-
+      The agenda from planner.agenda.agenda() comes out in the wrong order: an event at 10:00 is
+      listed before events at 7:00 and 9:15. Agenda lines must follow the time of day.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/agenda-time-order.patch
+    track: general
+    tags: [bugfix, python, d1, sorting]
+
+  - id: tags-ignore-case
+    repo: bench/repos/tag-index
+    instruction: >-
+      Tags that differ only in letter case should count as the same tag, but unique_tags() keeps
+      both "Straße" and "STRASSE", and the tag index files them under two different keys. Make
+      tag matching ignore case correctly for text in any language.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/tags-ignore-case.patch
+    track: general
+    tags: [bugfix, python, d1, strings, unicode]
+
+  - id: playlist-own-tracks
+    repo: bench/repos/music-library
+    instruction: >-
+      Playlists in the music package share their tracks: after a song is added to one new
+      playlist, the next new playlist already contains it. Every playlist must keep its own
+      tracks, and adding to a playlist must not change the list of tracks it was created from.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/playlist-own-tracks.patch
+    track: general
+    tags: [bugfix, python, d1, mutable-default]
+
+  - id: notes-corrupt-file
+    repo: bench/repos/note-store
+    instruction: >-
+      When notes.json is corrupt, load_notes() quietly returns no notes, and the next add_note()
+      overwrites the file and loses everything in it. A missing file should still mean no notes,
+      but a file that exists and cannot be read as notes must raise StoreError with the file's
+      name in the message, and add_note() must leave such a file untouched.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/notes-corrupt-file.patch
+    track: general
+    tags: [bugfix, python, d2, error-handling, json]
+
+  - id: billing-month-end
+    repo: bench/repos/subscription-billing
+    instruction: >-
+      Monthly billing goes wrong for plans that start near the end of a month. A plan that starts
+      on 31 January 2024 crashes instead of falling due on 29 February, the last day of that
+      month. After a short month the due date must go back to the plan's own day of the month:
+      31 March, not 29 March. Fix due_dates() and next_due().
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/billing-month-end.patch
+    track: general
+    tags: [bugfix, python, d3, multi-file, dates]
+
+  - id: recipe-scaling
+    repo: bench/repos/recipe-box
+    instruction: >-
+      Add a scaled(servings) method to Recipe in recipes/model.py. It returns a copy of the
+      recipe for that number of servings, with every ingredient quantity scaled to match (a
+      recipe for 4 scaled to 6 needs 1.5 times as much of everything). The original recipe must
+      not change, and servings below 1 must raise ValueError. tests/test_scaling.py describes the
+      expected behaviour.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/recipe-scaling.patch
+    track: general
+    tags: [feature, python, d2, dataclasses]
+
+  - id: post-slugs
+    repo: bench/repos/blog-tools
+    instruction: >-
+      Add a function slugify(title) in a new module blog/slug.py that turns a post title into a
+      URL slug: lowercase ASCII letters and digits, words joined by single hyphens, and accents
+      removed from letters, so "Crème Brûlée: A How-To" becomes "creme-brulee-a-how-to".
+      tests/test_slug.py describes the details.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/post-slugs.patch
+    track: general
+    tags: [feature, python, d2, strings, unicode, new-file]
+
+  - id: temperature-units
+    repo: bench/repos/unit-convert
+    instruction: >-
+      Add temperatures to the unit converter: Celsius ("C"), Fahrenheit ("F") and Kelvin ("K"),
+      as a new kind called "temperature". convert() must handle them (100 C is 212 F, and 0 C is
+      273.15 K), and converting between a temperature and a length, mass or volume must still
+      raise ValueError. tests/test_temperature.py describes the expected results.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/temperature-units.patch
+    track: general
+    tags: [feature, python, d3, numbers]
+
+  - id: todo-priority
+    repo: bench/repos/todo-list
+    instruction: >-
+      Give tasks a priority: "low", "normal" (the default) or "high", set with
+      Task(..., priority="high"); any other value must raise ValueError. The priority must be
+      kept when tasks are saved to and loaded from the JSON file (files saved before this change
+      must still load, as "normal"), and high-priority tasks are shown with a "!" after the
+      checkbox, like "[ ] ! Pay rent".
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/todo-priority.patch
+    track: general
+    tags: [feature, python, d3, multi-file, json]
+
+  - id: rename-format-duration
+    repo: bench/repos/time-sheet
+    instruction: >-
+      Rename fmt_dur() in timesheet/fmt.py to format_duration() and update everything that uses
+      it. The behaviour stays the same, and the old name should no longer exist.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/rename-format-duration.patch
+    track: general
+    tags: [refactor, python, d2, multi-file, rename]
+
+  - id: entry-from-line
+    repo: bench/repos/run-log
+    instruction: >-
+      Replace the module-level function parse_line() in runlog/entry.py with a classmethod
+      Entry.from_line(line) that does the same parsing, and update the code that calls
+      parse_line(), which should then be removed. Called on a subclass of Entry, from_line()
+      returns an instance of that subclass.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/entry-from-line.patch
+    track: general
+    tags: [refactor, python, d2, multi-file, classmethod]
+
+  - id: upload-limits
+    repo: bench/repos/photo-uploads
+    instruction: >-
+      Users want to upload WebP photos and bigger files. Allow .webp files and raise the upload
+      size limit from 10 MB to 25 MB; GIF files must stay blocked. These limits are
+      configuration, so change them in the settings file rather than in the code.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/upload-limits.patch
+    track: general
+    tags: [config, python, d1, toml]

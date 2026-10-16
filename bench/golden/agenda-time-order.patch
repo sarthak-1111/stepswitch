@@ -1,0 +1,13 @@
+diff --git a/planner/agenda.py b/planner/agenda.py
+index c8409f3..eff34be 100644
+--- a/planner/agenda.py
++++ b/planner/agenda.py
+@@ -20,7 +20,7 @@ def end_of(event: Event) -> str:
+ 
+ def agenda(events: Iterable[Event]) -> list[str]:
+     """One line per event, such as '9:30-10:00 Stand-up'."""
+-    ordered = sorted(events, key=lambda event: event.start)
++    ordered = sorted(events, key=lambda event: to_minutes(event.start))
+     return [f"{event.start}-{end_of(event)} {event.title}" for event in ordered]
+ 
+ 

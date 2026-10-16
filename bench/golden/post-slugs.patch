@@ -1,0 +1,17 @@
+diff --git a/blog/slug.py b/blog/slug.py
+new file mode 100644
+index 0000000..4b8a9f1
+--- /dev/null
++++ b/blog/slug.py
+@@ -0,0 +1,11 @@
++"""URL slugs for post titles."""
++
++import re
++import unicodedata
++
++
++def slugify(title: str) -> str:
++    """Lowercase ASCII letters and digits of `title`, with words joined by single hyphens."""
++    decomposed = unicodedata.normalize("NFKD", title)
++    ascii_title = decomposed.encode("ascii", "ignore").decode("ascii")
++    return re.sub(r"[^a-z0-9]+", "-", ascii_title.lower()).strip("-")

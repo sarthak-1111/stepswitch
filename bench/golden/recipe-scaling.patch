@@ -1,0 +1,28 @@
+diff --git a/recipes/model.py b/recipes/model.py
+index 61bb911..0f058b0 100644
+--- a/recipes/model.py
++++ b/recipes/model.py
+@@ -1,6 +1,7 @@
+ """Recipes made of ingredients."""
+ 
+-from dataclasses import dataclass
++from dataclasses import dataclass, replace
++from typing import Self
+ 
+ 
+ @dataclass(frozen=True)
+@@ -25,3 +26,14 @@ class Recipe:
+ 
+     def shopping_list(self) -> list[str]:
+         return [ingredient.describe() for ingredient in self.ingredients]
++
++    def scaled(self, servings: int) -> Self:
++        """A copy of the recipe for `servings` people, with every quantity scaled to match."""
++        if servings < 1:
++            raise ValueError("a recipe serves at least one person")
++        factor = servings / self.servings
++        ingredients = tuple(
++            replace(ingredient, quantity=ingredient.quantity * factor)
++            for ingredient in self.ingredients
++        )
++        return replace(self, servings=servings, ingredients=ingredients)

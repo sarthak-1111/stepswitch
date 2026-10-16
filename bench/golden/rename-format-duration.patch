@@ -1,0 +1,53 @@
+diff --git a/timesheet/fmt.py b/timesheet/fmt.py
+index 80821e3..a91702a 100644
+--- a/timesheet/fmt.py
++++ b/timesheet/fmt.py
+@@ -1,7 +1,7 @@
+ """Text formatting for durations and money."""
+ 
+ 
+-def fmt_dur(minutes: int) -> str:
++def format_duration(minutes: int) -> str:
+     """Format a number of minutes as hours and minutes, e.g. 95 -> '1:35'."""
+     if minutes < 0:
+         raise ValueError("a duration cannot be negative")
+diff --git a/timesheet/report.py b/timesheet/report.py
+index b181469..dc5c55a 100644
+--- a/timesheet/report.py
++++ b/timesheet/report.py
+@@ -3,13 +3,13 @@
+ from collections.abc import Iterable
+ 
+ from timesheet.entries import Entry
+-from timesheet.fmt import fmt_dur
++from timesheet.fmt import format_duration
+ 
+ 
+ def report_lines(entries: Iterable[Entry]) -> list[str]:
+     """One line per entry, in date order."""
+     lines = []
+     for entry in sorted(entries, key=lambda item: item.day):
+-        line = f"{entry.day.isoformat()}  {entry.project:<10} {fmt_dur(entry.minutes):>6}"
++        line = f"{entry.day.isoformat()}  {entry.project:<10} {format_duration(entry.minutes):>6}"
+         lines.append(f"{line}  {entry.note}".rstrip())
+     return lines
+diff --git a/timesheet/summary.py b/timesheet/summary.py
+index 200c64b..e066294 100644
+--- a/timesheet/summary.py
++++ b/timesheet/summary.py
+@@ -4,7 +4,7 @@ from collections import defaultdict
+ from collections.abc import Iterable
+ 
+ from timesheet.entries import Entry
+-from timesheet.fmt import fmt_dur, fmt_money
++from timesheet.fmt import fmt_money, format_duration
+ 
+ 
+ def minutes_per_project(entries: Iterable[Entry]) -> dict[str, int]:
+@@ -19,5 +19,5 @@ def summary_lines(entries: Iterable[Entry], hourly_rate: float) -> list[str]:
+     lines = []
+     for project, minutes in minutes_per_project(entries).items():
+         cost = fmt_money(minutes / 60 * hourly_rate)
+-        lines.append(f"{project}: {fmt_dur(minutes)} ({cost})")
++        lines.append(f"{project}: {format_duration(minutes)} ({cost})")
+     return lines

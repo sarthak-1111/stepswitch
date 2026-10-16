@@ -1,0 +1,13 @@
+diff --git a/stockroom/report.py b/stockroom/report.py
+index 3e863a3..b08f236 100644
+--- a/stockroom/report.py
++++ b/stockroom/report.py
+@@ -7,7 +7,7 @@ from stockroom.items import Item
+ 
+ def needs_restock(item: Item) -> bool:
+     """Whether the item belongs on the next purchase order."""
+-    return item.quantity < item.reorder_level
++    return item.quantity <= item.reorder_level
+ 
+ 
+ def is_overstocked(item: Item) -> bool:
