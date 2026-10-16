@@ -632,6 +632,26 @@ def encode(request: Request, **extra: Any) -> tuple[dict[str, Any], ConversionRe
     return body, report
 
 
+def test_server_timings_are_kept_with_the_usage() -> None:
+    """llama.cpp adds a top-level `timings` object; it is kept in `Usage.raw["timings"]`."""
+    timings = {"prompt_n": 512, "prompt_ms": 400.0, "predicted_n": 64, "predicted_ms": 2000.0}
+    body = {**completion_body({"content": ANSWER}, "stop", USAGE_SMALL), "timings": timings}
+    usage = client_for(FMT, serve_json(body)).complete(text_request()).response.usage
+    assert usage is not None and usage.raw is not None
+    assert usage.raw["timings"] == timings
+    assert usage.input_tokens == USAGE_SMALL["prompt_tokens"]
+
+    events: list[dict[str, Any] | str] = [
+        chunk({"role": "assistant", "content": ""}),
+        chunk({"content": ANSWER}, "stop"),
+        {**usage_chunk(USAGE_SMALL), "timings": timings},
+        "[DONE]",
+    ]
+    streamed = assemble(list(client_for(FMT, serve_sse(events)).stream(text_request()))).usage
+    assert streamed is not None and streamed.raw is not None
+    assert streamed.raw["timings"] == timings
+
+
 def test_effort_is_sent_and_clamped_to_the_endpoint_levels() -> None:
     body, report = encode(text_request().model_copy(update={"effort": "xhigh"}))
     assert body["reasoning_effort"] == "xhigh" and report.lossless

@@ -134,12 +134,19 @@ def report_loss(
     report.add(where, detail, action)
 
 
-def decode_usage(raw: Any) -> Usage | None:
-    """Wire usage -> IR usage. `prompt_tokens` includes cached tokens already."""
+def decode_usage(raw: Any, timings: Any = None) -> Usage | None:
+    """Wire usage -> IR usage. `prompt_tokens` includes cached tokens already.
+
+    `timings` is the llama.cpp server's top-level `timings` object (prompt_n, prompt_ms,
+    predicted_n, predicted_ms, cache_n), kept in `Usage.raw["timings"]` so throughput can be
+    taken from server-side figures.
+    """
     if not isinstance(raw, dict):
         return None
     prompt = as_dict(raw.get("prompt_tokens_details"))
     completion = as_dict(raw.get("completion_tokens_details"))
+    if isinstance(timings, dict) and "timings" not in raw:
+        raw = {**raw, "timings": timings}
     return Usage(
         input_tokens=as_int(raw.get("prompt_tokens")),
         output_tokens=as_int(raw.get("completion_tokens")),
@@ -851,7 +858,7 @@ class ChatCompletionsCodec(Codec):
             message=Message(role="assistant", content=parts),
             finish_reason=reason,
             raw_finish_reason=raw_reason,
-            usage=decode_usage(data.get("usage")),
+            usage=decode_usage(data.get("usage"), data.get("timings")),
             created=created,
         )
 
@@ -917,7 +924,7 @@ class ChatCompletionsCodec(Codec):
             finish = as_str(choice.get("finish_reason"))
             if finish:
                 state.data["finish"] = finish
-        usage = decode_usage(chunk.get("usage"))
+        usage = decode_usage(chunk.get("usage"), chunk.get("timings"))
         if usage is not None:
             out.append(UsageDelta(usage=usage))
         return out
