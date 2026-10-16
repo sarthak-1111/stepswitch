@@ -1,0 +1,39 @@
+# Model registry entry (SPEC §5, ADR 0009). Facts checked against the model hub on the date in
+# `verified`; sources in docs/RESEARCH.md ("Default model candidates", "Registry facts").
+schema = 1
+
+[model]
+id = "qwen2.5-coder-1.5b"
+name = "Qwen2.5-Coder-1.5B"
+family = "qwen2.5"
+hub_id = "ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF"
+source_model = "Qwen/Qwen2.5-Coder-1.5B"
+revision = "8be1b8a895a84beea772817caaa71eba6b6e0d07"
+file = "qwen2.5-coder-1.5b-q8_0.gguf"
+sha256 = "29871c94d15727a6e243f79a37113d4ae625a6215b5e800bf41a23af2da32832"
+size_bytes = 1646573056
+quant = "Q8_0"
+format = "gguf"
+architecture = "qwen2"
+params_b = 1.54
+file_size_gb = 1.65
+ram_gb = 1.76
+ram_ctx = 4096
+context = 32768
+tool_calls = "none"
+reasoning = "none"
+roles = ["fim"]
+tiers = ["cpu"]
+optional = true
+license = "apache-2.0"
+commercial_use = "permitted"
+template_source = "gguf"
+verified = 2026-10-16
+notes = "Base model for fill-in-the-middle completion through the llama.cpp /infill endpoint; started lazily."
+
+[engines.llamacpp]
+min_version = "b11669"
+args = ["--ctx-size", "4096"]
+
+[engines.ollama]
+name = "qwen2.5-coder:1.5b-base-q8_0"
