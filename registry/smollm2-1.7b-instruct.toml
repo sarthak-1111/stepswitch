@@ -1,0 +1,44 @@
+# Model registry entry (SPEC §5, ADR 0009). Facts checked against the model hub and the GGUF
+# file's metadata on the date in `verified`; sources in docs/RESEARCH.md ("Verified during
+# Phase 3", "CI model set").
+schema = 1
+
+[model]
+id = "smollm2-1.7b-instruct"
+name = "SmolLM2-1.7B-Instruct"
+family = "smollm2"
+hub_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF"
+source_model = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+revision = "2d4a76a30b4af41ecd395c35725ac11688d4cfe4"
+file = "smollm2-1.7b-instruct-q4_k_m.gguf"
+sha256 = "decd2598bc2c8ed08c19adc3c8fdd461ee19ed5708679d1c54ef54a5a30d4f33"
+size_bytes = 1055609536
+quant = "Q4_K_M"
+format = "gguf"
+architecture = "llama"
+params_b = 1.71
+file_size_gb = 1.06
+# Resident memory at the role's context size (file + f16 KV cache; compute buffers excluded).
+# No grouped-query attention: 24 layers x 32 KV heads x 64 dims x 2 x 2 bytes = 192 KiB/token.
+ram_gb = 2.67
+ram_ctx = 8192
+context = 8192
+tool_calls = "none"
+reasoning = "none"
+roles = ["summarizer", "log_triage", "commit_message"]
+# In no default tier: a member of the CI model set (probes/ci-set.yaml), pulled by id.
+tiers = []
+optional = true
+license = "apache-2.0"
+commercial_use = "permitted"
+template_sha256 = "872be49dbb638044ad01b60388f48d469ff2980e5f0dccdc22ec907db54d0788"
+template_source = "gguf"
+verified = 2026-10-16
+notes = "Chat model whose template has no tool calling; it uses the fallback tool protocol."
+
+[engines.llamacpp]
+min_version = "b11669"
+args = ["--ctx-size", "8192"]
+
+[engines.ollama]
+name = "hf.co/HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF:smollm2-1.7b-instruct-q4_k_m.gguf"
