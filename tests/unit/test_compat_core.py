@@ -386,3 +386,10 @@ def test_client_offline_mode_blocks_remote_endpoints() -> None:
     assert server.requests == []
     rows = list(egress.memory)
     assert len(rows) == 1 and rows[0].allowed is False and rows[0].host == "example.invalid"
+
+
+def test_each_request_gets_its_own_codec() -> None:
+    client = ModelClient(Endpoint(name="m", base_url="http://127.0.0.1:1", model="m"))
+    first, second = client.new_codec(), client.new_codec()
+    assert first is not second
+    assert first.format == second.format == client.codec.format

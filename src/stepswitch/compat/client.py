@@ -87,6 +87,7 @@ class ModelClient:
         sleep: Any = time.sleep,
     ) -> None:
         self.endpoint = endpoint
+        # Describes the format; each request gets its own instance (see `new_codec`).
         self.codec: Codec = get_codec(endpoint.format, endpoint.options)
         self._egress = egress or net.default()
         self._transport = transport
@@ -107,11 +108,20 @@ class ModelClient:
             task_id=self._task_id,
         )
 
-    def prepare(self, request: Request) -> tuple[HttpCall, ConversionReport]:
+    def new_codec(self) -> Codec:
+        """A codec for one request. Codecs may keep state between encoding a request and
+        decoding its response (turn numbers for synthetic tool-call IDs, whether tools were
+        sent), so an instance never serves two requests at once."""
+        return get_codec(self.endpoint.format, self.endpoint.options)
+
+    def prepare(
+        self, request: Request, codec: Codec | None = None
+    ) -> tuple[HttpCall, ConversionReport]:
+        codec = codec or self.new_codec()
         if not request.model and self.endpoint.model:
             request = request.model_copy(update={"model": self.endpoint.model})
-        report = ConversionReport(target=self.codec.format)
-        call = self.codec.encode_request(request, report)
+        report = ConversionReport(target=codec.format)
+        call = codec.encode_request(request, report)
         return call, report
 
     def _send(self, http: httpx.Client, call: HttpCall) -> httpx.Response:
@@ -127,17 +137,18 @@ class ModelClient:
         except httpx.TransportError as exc:
             raise ModelError("connection", f"cannot reach {self.endpoint.name}: {exc}") from exc
 
-    def _error_from(self, response: httpx.Response) -> ModelError:
+    def _error_from(self, response: httpx.Response, codec: Codec) -> ModelError:
         try:
             body: Any = response.json()
         except (json.JSONDecodeError, UnicodeDecodeError):
             body = response.text
-        return self.codec.decode_error(response.status_code, body, dict(response.headers))
+        return codec.decode_error(response.status_code, body, dict(response.headers))
 
     def complete(self, request: Request) -> Completion:
         """Non-streaming call with retries for transient errors."""
         request = request.model_copy(update={"stream": False})
-        call, report = self.prepare(request)
+        codec = self.new_codec()
+        call, report = self.prepare(request, codec)
         attempt = 0
         started = time.perf_counter()
         with self._http() as http:
@@ -145,12 +156,12 @@ class ModelClient:
                 try:
                     response = self._send(http, call)
                     if response.status_code >= 400:
-                        raise self._error_from(response)
+                        raise self._error_from(response, codec)
                     try:
                         body = response.json()
                     except json.JSONDecodeError as exc:
                         raise ModelError("invalid_response", f"non-JSON body: {exc}") from exc
-                    result = self.codec.decode_response(body)
+                    result = codec.decode_response(body)
                     return Completion(result, report, time.perf_counter() - started, attempt + 1)
                 except ModelError as exc:
                     if not exc.retryable or attempt >= self._max_retries:
@@ -161,7 +172,8 @@ class ModelClient:
     def stream(self, request: Request) -> Iterator[Delta]:
         """Streaming call. Retries only before the first delta has been produced."""
         request = request.model_copy(update={"stream": True})
-        call, _report = self.prepare(request)
+        codec = self.new_codec()
+        call, _report = self.prepare(request, codec)
         call.stream = True
         attempt = 0
         with self._http() as http:
@@ -179,14 +191,12 @@ class ModelClient:
                         ) as response:
                             if response.status_code >= 400:
                                 response.read()
-                                raise self._error_from(response)
+                                raise self._error_from(response, codec)
                             lines = iter_lines(response.iter_text())
                             events = (
-                                parse_sse(lines)
-                                if self.codec.framing == "sse"
-                                else parse_ndjson(lines)
+                                parse_sse(lines) if codec.framing == "sse" else parse_ndjson(lines)
                             )
-                            for delta in self.codec.decode_stream(events):
+                            for delta in codec.decode_stream(events):
                                 produced = True
                                 yield delta
                             return
