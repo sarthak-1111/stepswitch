@@ -118,6 +118,10 @@ class Engine(ABC):
         """The server still exists, ready or not (used to prune the runtime file)."""
         return self.health(info)
 
+    def serve_problem(self, entry: ModelEntry) -> str | None:
+        """Why this engine cannot serve `entry` on this host, or None when it can."""
+        return None if self.available() else "not available"
+
     def metrics(self, info: ServerInfo) -> dict[str, Any] | None:
         return None
 

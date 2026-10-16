@@ -34,8 +34,12 @@ class EngineRecipe(BaseModel):
 
     min_version: str | None = None
     args: list[str] = Field(default_factory=list)
-    name: str | None = None  # engine-side model name, e.g. an Ollama tag
+    # Engine-side model name: an Ollama tag, or the model path or cached model id a Python
+    # server (vLLM, SGLang, MLX-LM, transformers) loads.
+    name: str | None = None
+    # Engine-side parser names (they differ per engine, ADR 0008).
     tool_parser: str | None = None
+    reasoning_parser: str | None = None
     notes: str | None = None
 
 
