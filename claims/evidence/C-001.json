@@ -10,7 +10,7 @@
   },
   "command": "uv run ssw prove --claim C-001",
   "mode": "quick",
-  "source_digest": "0d3d27fe9fdf9f6de8882186d6648a773601d4c5f24b452926666119baa20059",
+  "source_digest": "ada24019f999ef17b509338c90576b0f69b3ca9f65f96ce76b6c64cdc0946f43",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -22,10 +22,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-16T13:18:03+00:00",
+  "updated": "2026-10-16T13:45:23+00:00",
   "sections": {
     "container": {
-      "recorded": "2026-10-16T13:18:03+00:00",
+      "recorded": "2026-10-16T13:45:23+00:00",
       "image": "python:3.12-slim",
       "image_digests": [
         "python@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1"
@@ -48,7 +48,7 @@
         "cgroup": {
           "memory.max": "8589934592",
           "memory.swap.max": "0",
-          "memory.peak": "6907473920"
+          "memory.peak": "6907797504"
         }
       },
       "memory_limit_gb": 8.0,
@@ -60,7 +60,7 @@
       "steps": 15,
       "budget": {
         "tokens": 29840.0,
-        "wall_seconds": 113.755,
+        "wall_seconds": 115.746,
         "gpu_seconds": 0.0,
         "escalations": 0.0
       },

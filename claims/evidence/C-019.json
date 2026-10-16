@@ -7,7 +7,7 @@
   },
   "command": "uv run ssw prove --claim C-019",
   "mode": "quick",
-  "source_digest": "0d3d27fe9fdf9f6de8882186d6648a773601d4c5f24b452926666119baa20059",
+  "source_digest": "ada24019f999ef17b509338c90576b0f69b3ca9f65f96ce76b6c64cdc0946f43",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -19,16 +19,16 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-16T13:25:59+00:00",
+  "updated": "2026-10-16T13:53:04+00:00",
   "sections": {
     "accounting": {
-      "recorded": "2026-10-16T13:25:59+00:00",
+      "recorded": "2026-10-16T13:53:04+00:00",
       "engine": "llama.cpp server",
       "runs": [
         {
           "worker": "managed/qwen3-4b-instruct-2507",
-          "status": "done",
-          "steps": 15
+          "status": "failed",
+          "steps": 13
         },
         {
           "worker": "managed/phi-3.5-mini-instruct",
@@ -61,19 +61,19 @@
         },
         {
           "model": "qwen3-4b-instruct-2507",
-          "calls": 16,
+          "calls": 14,
           "usage_sources": [
             "server"
           ],
           "ledger": {
-            "input": 30805,
-            "cached_input": 27220,
-            "output": 1296
+            "input": 30319,
+            "cached_input": 27074,
+            "output": 1084
           },
           "server": {
-            "input": 30805.0,
-            "cached_input": 27220.0,
-            "output": 1296.0
+            "input": 30319.0,
+            "cached_input": 27074.0,
+            "output": 1084.0
           },
           "relative_error": {
             "input": 0.0,

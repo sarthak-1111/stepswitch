@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "mode": "quick",
-  "source_digest": "0d3d27fe9fdf9f6de8882186d6648a773601d4c5f24b452926666119baa20059",
-  "created": "2026-10-16T13:26:18+00:00",
-  "duration_s": 638.7,
+  "source_digest": "ada24019f999ef17b509338c90576b0f69b3ca9f65f96ce76b6c64cdc0946f43",
+  "created": "2026-10-16T13:53:14+00:00",
+  "duration_s": 617.0,
   "platform": {
     "os": "windows",
     "machine": "amd64",
@@ -15,7 +15,7 @@
     "image_version": null
   },
   "selection": {
-    "phase": 3,
+    "phase": 4,
     "claims": [],
     "skip": []
   },

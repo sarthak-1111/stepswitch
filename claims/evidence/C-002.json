@@ -8,7 +8,7 @@
   },
   "command": "uv run ssw prove --claim C-002",
   "mode": "quick",
-  "source_digest": "0d3d27fe9fdf9f6de8882186d6648a773601d4c5f24b452926666119baa20059",
+  "source_digest": "ada24019f999ef17b509338c90576b0f69b3ca9f65f96ce76b6c64cdc0946f43",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -20,11 +20,11 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-16T13:18:09+00:00",
+  "updated": "2026-10-16T13:45:29+00:00",
   "sections": {
     "trajectory": {
-      "recorded": "2026-10-16T13:18:09+00:00",
-      "task_id": "t20261016-221805-5d81b4",
+      "recorded": "2026-10-16T13:45:29+00:00",
+      "task_id": "t20261016-224525-8c487e",
       "status": "done",
       "endpoints": [
         "alpha",
@@ -101,7 +101,7 @@
       "switches": [
         {
           "seq": 10,
-          "ts": 1792156686.178,
+          "ts": 1792158325.973,
           "type": "switch",
           "step": 2,
           "step_type": "navigate",
@@ -118,7 +118,7 @@
         },
         {
           "seq": 26,
-          "ts": 1792156688.491,
+          "ts": 1792158328.32,
           "type": "switch",
           "step": 7,
           "step_type": "review",

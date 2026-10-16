@@ -7,7 +7,7 @@
   },
   "command": "uv run ssw prove --claim C-007",
   "mode": "quick",
-  "source_digest": "0d3d27fe9fdf9f6de8882186d6648a773601d4c5f24b452926666119baa20059",
+  "source_digest": "ada24019f999ef17b509338c90576b0f69b3ca9f65f96ce76b6c64cdc0946f43",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -19,10 +19,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-16T13:21:07+00:00",
+  "updated": "2026-10-16T13:48:27+00:00",
   "sections": {
     "default_flow": {
-      "recorded": "2026-10-16T13:21:07+00:00",
+      "recorded": "2026-10-16T13:48:27+00:00",
       "flow": [
         {
           "argv": [
@@ -30,7 +30,7 @@
             "--help"
           ],
           "exit_code": 0,
-          "seconds": 0.65,
+          "seconds": 0.66,
           "stderr_tail": []
         },
         {
@@ -40,7 +40,7 @@
             "--json"
           ],
           "exit_code": 0,
-          "seconds": 1.23,
+          "seconds": 1.25,
           "stderr_tail": []
         },
         {
@@ -50,7 +50,7 @@
             "--json"
           ],
           "exit_code": 0,
-          "seconds": 1.25,
+          "seconds": 1.22,
           "stderr_tail": []
         },
         {
@@ -63,7 +63,7 @@
             "--json"
           ],
           "exit_code": 0,
-          "seconds": 0.87,
+          "seconds": 0.84,
           "stderr_tail": []
         },
         {
@@ -74,7 +74,7 @@
             "--json"
           ],
           "exit_code": 0,
-          "seconds": 0.85,
+          "seconds": 0.83,
           "stderr_tail": []
         },
         {
@@ -134,11 +134,10 @@
           "command": "ssw init --json",
           "kind": "process",
           "event": "subprocess.Popen",
-          "executable": "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
+          "executable": "C:\\WINDOWS\\system32\\wsl.EXE",
           "argv": [
-            "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
-            "--query-gpu=index,name,memory.total,memory.free,driver_version,compute_cap",
-            "--format=csv,noheader,nounits"
+            "C:\\WINDOWS\\system32\\wsl.EXE",
+            "--version"
           ],
           "outbound": false
         },
@@ -146,10 +145,11 @@
           "command": "ssw init --json",
           "kind": "process",
           "event": "subprocess.Popen",
-          "executable": "C:\\WINDOWS\\system32\\wsl.EXE",
+          "executable": "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
           "argv": [
-            "C:\\WINDOWS\\system32\\wsl.EXE",
-            "--version"
+            "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
+            "--query-gpu=index,name,memory.total,memory.free,driver_version,compute_cap",
+            "--format=csv,noheader,nounits"
           ],
           "outbound": false
         },
