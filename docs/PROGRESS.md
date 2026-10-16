@@ -4,6 +4,100 @@ Newest phase first. Each phase records what was done, what research changed, ope
 actions that only the maintainer can take. Phase checks: `uv run python scripts/phase_check.py N`
 (one phase) or `--upto N` (phases 0 to N).
 
+## Phase 4: Dashboard and task API
+
+Status: done on 2026-10-16. `scripts/phase_check.py 4` passes 5 of 5 checks (`--upto 4`:
+34 of 35, the one failure being C-016). `uv run pytest -q` with the CPU models present and the
+dashboard built: 1565 passed, 6 skipped (the same skips as in Phase 3). `ssw prove --quick --phase 4` (617 s): the ten claims of Phases 1 to 3 passing, C-016 pending CI. No
+claims are assigned to Phase 4. With this phase, Stepswitch reaches the v0.1 launch candidate of
+SPEC §23. The launch candidate also needs `ssw prove --quick` to pass on all three hosted
+platforms (C-016).
+
+### Done
+
+- **Task API** (docs/API.md, ADR 0023).
+  - `ssw dash` serves the SPEC §17 routes and a read model for every view on 127.0.0.1 (port
+    7777 by default).
+  - **Tasks:** list, detail, trajectory events, create and cancel.
+  - **Work and routing:** workers, live agents, and router decisions with classifier features.
+  - **Ledger:** grouped by model, task or day, with a reference-cost counter.
+  - **Models:** endpoints with probe profiles and on-request reachability checks; starting and
+    stopping managed models.
+  - **Results and records:** bench leaderboards with charts, claims, the compatibility matrix,
+    the egress audit log, and science reports with plots.
+  - **Live feed:** a Server-Sent Events stream.
+- **Access control.**
+  - A per-session token from the printed link moves into a strict `HttpOnly` cookie, one per
+    port. Scripts can send a Bearer header instead.
+  - Other `Host` headers and cross-site posts are refused before routing.
+  - Every answer carries a Content-Security-Policy and related headers.
+  - Answers never contain keys, tokens, server log paths or remote endpoint URLs.
+  - Files from a run directory are served only from that directory. Images display inline;
+    everything else is sent as text or as a download.
+- **Running and cancelling tasks.**
+  - Submitted tasks run on a thread pool through `run_task`, one at a time by default
+    (`--max-tasks`). A task always ends with a final status.
+  - A cancel request is a row in the state database (state migration 3). The budget tracker
+    reads it at every step boundary, so the task stops whichever process runs it. This covers
+    tasks started with `ssw run` in a terminal too.
+  - Ctrl+C on `ssw dash` lets its tasks stop at their next step. A second Ctrl+C, or SIGTERM,
+    records them as stopped and exits.
+- **Live updates.** The stream polls the state database twice a second, so the dashboard
+  follows tasks from any process. A reconnecting client resumes exactly after
+  `Last-Event-ID`.
+- **Dashboard** (`dashboard/`; React 19.3, Vite 8.3, TypeScript 7.0).
+  - Eleven views: a task board with a new-task form and cancel buttons, task detail, agents,
+    router, ledger, leaderboard, trajectories, endpoints with start and stop, compatibility,
+    audit, science with plots, and claims.
+  - Updates arrive live. There are light and dark themes, and the layout works at phone width
+    (320 px) without horizontal scrolling.
+  - A mock API server (`npm run mock`) lets the dashboard run without the backend.
+- **Browser smoke test** (`tests/e2e`; Playwright 1.64 with the installed Chrome).
+  - It covers signing in through the link, all eleven views with no script errors, and
+    starting a task from the page and cancelling it there.
+  - CI builds the dashboard with Node 24 and runs the test. In CI a missing prerequisite is a
+    failure, not a skip.
+- **Packaging.** A wheel build hook ships the built dashboard as `stepswitch/_dashboard`.
+  `ssw dash` serves it from there, or from `dashboard/dist` in a source checkout.
+- **Checked on real data.** A copy of this project's state database held 102 tasks, 4,308
+  trajectory events and 1,199 ledger rows. Every route answered in 2 to 140 ms. The agents
+  view showed a bench task that was running in another process. `ssw dash` was also run end to
+  end as a separate process: the printed link signed in, the API refused requests without the
+  token, and Ctrl+Break stopped it cleanly.
+
+### What changed against the spec
+
+- ADR 0023 decides several details:
+  - The token cookie is named per port.
+  - The live feed polls the state database, so tasks from other processes appear.
+  - Cancel requests live in the state database.
+  - The server writes the event stream itself rather than using the web framework's SSE
+    support.
+- The dashboard build is not copied into `src/stepswitch/api/static/` (ARCHITECTURE §12,
+  updated). A source checkout serves `dashboard/dist`, and wheels carry the build through the
+  build hook.
+- The trajectory viewer's fork and replay arrive with Phase 7. The dashboard shows them as not
+  yet available.
+
+### Open issues
+
+- **Tasks orphaned by a dead process.** If the process running a task dies, the task stays
+  `running`. Cancelling it records the request, but nothing acts on it. Recognising dead tasks
+  needs a process heartbeat.
+- **Large router answers.** The default router answer (200 decisions with their candidates) is
+  about 675 KB on this project's data. That is fine locally; it needs paging if projects grow.
+- **npm pins.** Newer vite, react and plugin-react releases become eligible between 2026-10-19
+  and 2026-10-28 under the 14-day rule (docs/RESEARCH.md).
+- **Node on this machine.** The host's Node 20.12 is too old for Vite 8. The dashboard was built
+  with a portable Node 24.21 in the session's scratch space. Building the dashboard needs
+  Node 22.12 or later.
+
+### Waiting on the maintainer
+
+1. C-016 (Phase 1, unchanged): add a remote and let the `prove` workflow run on the three
+   hosted platforms. Its new `dashboard` job builds the dashboard and runs the browser smoke
+   test there as well.
+
 ## Phase 3: Bench, leaderboard, compatibility matrix
 
 Status: done on 2026-10-16, except C-016, which still needs hosted CI (Phase 1, maintainer
@@ -359,8 +453,10 @@ Details are in the SPEC change table and the ADRs. The main points:
    Node 22.12 or later (the current LTS line is recommended) before Phase 4. The Ollama release
    that was researched is 0.40.5; older installs may lack routes the research relies on.
 
-## Next: Phase 4
+## Next: Phase 5 (after the maintainer confirms)
 
-The dashboard and task API (SPEC §17): every view and endpoint, live updates over Server-Sent
-Events, a Playwright smoke test, and the README claims section generated by
-`ssw prove --render-readme`. No claims are assigned to Phase 4.
+Token and cache optimization (SPEC §23): TK1 to TK12, HANDOFF v0.1 briefs, and cache-aware
+switching with calibration. Claims due: C-003, C-010 and C-011. The Phase 3 bench gives the
+baseline that C-011 compares against. It also showed two things for this phase to fix: the
+router moved a step to another model only after a server error, never by choice, and one
+server shared by a model's router and worker roles caps the context of agent turns.
