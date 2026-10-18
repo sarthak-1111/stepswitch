@@ -224,8 +224,8 @@ def _identifiers(root: Any) -> Counter[str]:
 
 def _end_line(node: Any) -> int:
     """1-based last line; a node that ends at a line start (a trailing newline) ends before."""
-    row, column = node.end_point
-    start = node.start_point[0]
+    row, column = int(node.end_point[0]), int(node.end_point[1])
+    start = int(node.start_point[0])
     return max(start, row - 1 if column == 0 and row > start else row) + 1
 
 
@@ -256,7 +256,9 @@ def file_tags(text: str, language: str) -> Any | None:
         if not kinds or not names:
             continue
         node = captures[kinds[0]][0]
-        parent = _text((captures.get("parent") or [None])[0]) or None
+        parents = captures.get("parent") or []
+        parent = _text(parents[0]) if parents else None
+        parent = parent or None
         name = _text(names[0])
         key = (node.start_byte, name)
         if not name:
