@@ -81,6 +81,7 @@ from stepswitch.router.features import TaskFeatures
 from stepswitch.router.router import Decision, RouterState, route
 from stepswitch.router.rules import Rule
 from stepswitch.trajectory.record import Trajectory
+from stepswitch.verify import review as review_module
 from stepswitch.workers.base import Worker, WorkerSpec
 from stepswitch.workers.catalog import Catalog
 from stepswitch.workers.tools import CONTROL_TOOLS, TOOL_ALIASES, TOOL_NAMES, ToolOutput
@@ -151,28 +152,6 @@ Check the diff against the task. If the change does what the task asks and nothi
 reply with APPROVE on the first line. Otherwise reply with ISSUES on the first line, followed
 by a short list of concrete problems."""
 
-REVIEW_JSON_PROMPT = """\
-You review a change that a coding agent made.
-Step: review
-Check the diff against the task. Answer with one JSON object: {"approve": true, "issues": []}
-when the change does what the task asks and nothing harmful, otherwise {"approve": false,
-"issues": [...]} with a short list of concrete problems."""
-
-# TK8: the reviewer's answer.
-REVIEW_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "properties": {
-        "approve": {"type": "boolean"},
-        "issues": {
-            "type": "array",
-            "maxItems": 8,
-            "items": {"type": "string", "minLength": 1, "maxLength": 300},
-        },
-    },
-    "required": ["approve", "issues"],
-    "additionalProperties": False,
-}
-
 SUMMARY_PROMPT = """\
 You summarize a finished coding task.
 Step: summarize
@@ -195,24 +174,6 @@ def _canonical_arguments(arguments: str) -> str:
         return json.dumps(json.loads(arguments), sort_keys=True)
     except ValueError:
         return arguments.strip()
-
-
-def parse_review(text: str) -> dict[str, Any] | None:
-    """A JSON review that matches REVIEW_SCHEMA, as {"approved", "text"}, or None."""
-    import jsonschema
-
-    start, end = text.find("{"), text.rfind("}")
-    if not 0 <= start < end:
-        return None
-    try:
-        data = json.loads(text[start : end + 1])
-        jsonschema.validate(data, REVIEW_SCHEMA)
-    except (ValueError, jsonschema.ValidationError):
-        return None
-    issues = [" ".join(str(issue).split()) for issue in data["issues"]]
-    if data["approve"]:
-        return {"approved": True, "text": "APPROVE"}
-    return {"approved": False, "text": "ISSUES\n" + "\n".join(f"- {i}" for i in issues)}
 
 
 def _int_or_none(value: Any) -> int | None:
@@ -310,6 +271,10 @@ class AgentLoop:
     base_rates: dict[str, float] = field(default_factory=dict)
     # Absolute paths replaced in briefs and digests: (path, replacement), longest first.
     scrub_paths: Sequence[tuple[str, str]] = ()
+    # Best-of-N (SPEC §8.3, ADR 0025): the candidate's index and model families. Its steps go
+    # only to workers of those families; its review goes to another family (SPEC §8.5).
+    candidate: int | None = None
+    families: frozenset[str] | None = None
 
     step: int = 0
     current: str | None = None
@@ -323,6 +288,9 @@ class AgentLoop:
     finish_summary: str = ""
     last_error: str = ""
     last_review: dict[str, Any] | None = None
+    review_result: review_module.Review | None = None
+    # Families of the workers that took work steps: the change's authors.
+    work_families: set[str] = field(default_factory=set)
     context_caps: dict[str, int] = field(default_factory=dict)
     overflowed: bool = False
     last_call: tuple[str, str, str] | None = None  # name, arguments, result of the last call
@@ -472,6 +440,10 @@ class AgentLoop:
             failed=frozenset(self.failed),
             context_caps=dict(self.context_caps),
             base_rates=dict(self.base_rates) if self.optimize else {},
+            families=self.families,
+            avoid_families=(
+                frozenset(self._author_families()) if step_type == "review" else frozenset()
+            ),
         )
         decision = route(
             self.features,
@@ -580,6 +552,8 @@ class AgentLoop:
                     self.registry.record(spec.id, chain)
             self.current = spec.id
             self.last_worker = spec.id
+            if work:
+                self.work_families.add(spec.family_key)
             return completion, spec.id
 
     def _observe_cache(
@@ -914,6 +888,8 @@ class AgentLoop:
             "brief": fitted.brief,
             "markdown": fitted.markdown,
         }
+        if self.candidate is not None:
+            record["candidate"] = self.candidate
         self.handoffs.append(record)
         self.trajectory.emit(
             "handoff",
@@ -921,7 +897,7 @@ class AgentLoop:
             **{k: v for k, v in record.items() if k not in {"step", "brief", "markdown"}},
         )
         self.trajectory.write_file(
-            "handoffs.jsonl",
+            self.handoffs_file,
             "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in self.handoffs),
         )
         self.echo(
@@ -1486,36 +1462,91 @@ class AgentLoop:
                 "done", None, summary=summary, verdict=verdict.to_dict(), review=self.last_review
             )
 
+    @property
+    def handoffs_file(self) -> str:
+        return "handoffs.jsonl" if self.candidate is None else f"handoffs-c{self.candidate}.jsonl"
+
+    def _author_families(self) -> set[str]:
+        if self.work_families:
+            return set(self.work_families)
+        if self.families:
+            return set(self.families)
+        if self.current is not None and self.current in self.catalog.workers:
+            return {self.catalog.get(self.current).spec.family_key}
+        return set()
+
     def _review(self) -> dict[str, Any] | None:
+        """Review the change with a worker of another model family when there is one
+        (SPEC §8.5): the schema-constrained answer when optimized, Phase 2's text otherwise."""
+        self.review_result = None
         limit = self._limit()
         if limit is not None:
             return None
+        authors = self._author_families()
         constrained = self.optimize
-        text = self._text_step(
-            "review",
-            REVIEW_JSON_PROMPT if constrained else REVIEW_PROMPT,
-            f"Task: {self.spec.instruction.strip()}\n\nDiff:\n{self._diff_text()}",
-            ResponseFormat(
-                type="json_schema", name="review", json_schema=REVIEW_SCHEMA, strict=True
+        if constrained:
+            text = self._text_step(
+                "review",
+                review_module.REVIEW_PROMPT,
+                review_module.request_text(
+                    self.spec.instruction, self.spec.acceptance, self._diff_text()
+                ),
+                ResponseFormat(
+                    type="json_schema",
+                    name="review",
+                    json_schema=review_module.REVIEW_SCHEMA,
+                    strict=True,
+                ),
             )
-            if constrained
-            else None,
-        )
+        else:
+            text = self._text_step(
+                "review",
+                REVIEW_PROMPT,
+                f"Task: {self.spec.instruction.strip()}\n\nDiff:\n{self._diff_text()}",
+            )
         if text is None:
             return None
-        parsed = parse_review(text) if constrained else None
+        parsed = review_module.parse(text) if constrained else None
         if parsed is not None:
-            review = {**parsed, "parsed": True, "constrained": True}
+            reviewer = self.last_worker
+            parsed.reviewer = reviewer
+            if reviewer is not None and reviewer in self.catalog.workers:
+                parsed.reviewer_family = self.catalog.get(reviewer).spec.family_key
+            parsed.author_families = tuple(sorted(authors))
+            self.review_result = parsed
+            review = parsed.as_dict()
         else:
             head = text.lstrip("*# ").upper()
             review = {
                 "approved": not head.startswith("ISSUES"),
                 "text": text[:2000],
                 "parsed": head.startswith(("APPROVE", "ISSUES")),
+                "reviewer": self.last_worker,
             }
         self.last_review = review
         self.trajectory.emit("review", step=self.step, **review)
         return review
+
+    def review_change(self) -> review_module.Review | None:
+        """Review this candidate's finished change (best-of-N selection and SPEC §8.5)."""
+        self._review()
+        if self.review_result is None and self.last_review is not None:
+            approved = bool(self.last_review.get("approved"))
+            text = str(self.last_review.get("text") or "")
+            fallback = review_module.parse(text) or review_module.Review(approved, [], False, text)
+            fallback.reviewer = self.last_review.get("reviewer")
+            fallback.author_families = tuple(sorted(self._author_families()))
+            self.review_result = fallback
+        return self.review_result
+
+    def write_tests(self, prompt: str, user: str) -> str | None:
+        """A text step that writes tests, open to every model family (probe and targeted
+        tests, SPEC §8.4). Routed as an edit step, so T0 never writes them for science."""
+        saved, self.families = self.families, None
+        try:
+            return self._text_step("edit", prompt, user)
+        finally:
+            self.families = saved
 
     def _summary(self, verdict: Any) -> str:
         fallback = self.finish_summary or "Task completed; verification passed."

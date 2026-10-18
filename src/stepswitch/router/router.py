@@ -31,7 +31,7 @@ Pipeline:
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -91,6 +91,11 @@ class RouterState:
     context_caps: dict[str, int] = field(default_factory=dict)
     # Measured base success rates per worker id (`ssw bench calibrate`), replacing the tier's.
     base_rates: dict[str, float] = field(default_factory=dict)
+    # Best-of-N (SPEC §8.3, ADR 0025): a candidate's steps go only to workers of its model
+    # families, except reviews, which prefer workers outside `avoid_families` (the families
+    # that wrote the change; SPEC §8.5).
+    families: frozenset[str] | None = None
+    avoid_families: frozenset[str] = frozenset()
 
 
 @dataclass
@@ -156,6 +161,12 @@ def hard_exclusion(spec: WorkerSpec, step_type: str, state: RouterState) -> str 
         return f"its server refused a prompt of ~{cap} tokens as too long"
     if state.track == "science" and spec.level == 0 and step_type in CODE_STEPS:
         return "T0 models never edit code in the science track"
+    if (
+        state.families is not None
+        and step_type != "review"
+        and spec.family_key not in state.families
+    ):
+        return "another best-of-N candidate's model family"
     return None
 
 
@@ -165,6 +176,36 @@ def rung_exclusion(spec: WorkerSpec, step_type: str, level: int) -> str | None:
     if spec.level < level and step_type not in LIGHT_STEPS:
         return f"below the current rung ({rung_name(level)}) for {step_type} steps"
     return None
+
+
+def _prefer_other_families(
+    workers: Sequence[WorkerSpec],
+    candidates: dict[str, Candidate],
+    rung_excluded: set[str],
+    state: RouterState,
+    notes: list[str],
+    exclude: Callable[[str, str], None],
+) -> None:
+    """A review goes to a model family that did not write the change (SPEC §8.5), on another
+    rung when this one has none; with no other family at all, the author's family reviews."""
+    avoid = state.avoid_families
+    eligible = [s for s in workers if candidates[s.id].excluded is None]
+    if not any(s.family_key not in avoid for s in eligible):
+        others = [s for s in workers if s.id in rung_excluded and s.family_key not in avoid]
+        if not others:
+            notes.append("no worker of another model family for the review")
+            return
+        above = sorted({s.level for s in others if s.level > state.level})
+        below = sorted({s.level for s in others if s.level < state.level}, reverse=True)
+        target = above[0] if above else below[0]
+        notes.append(f"cross-family review on rung {rung_name(target)}")
+        for spec in others:
+            if spec.level == target:
+                candidates[spec.id].excluded = None
+                candidates[spec.id].relaxed = True
+    for spec in eligible:
+        if spec.family_key in avoid:
+            exclude(spec.id, "same model family as the change's author (cross-family review)")
 
 
 def route(
@@ -223,7 +264,8 @@ def route(
         for spec in workers:
             if spec.id not in pinned_set:
                 exclude(spec.id, f"rule {rule_name} routes {step_type} steps elsewhere")
-    elif state.worker_pin is None:
+    rung_excluded: set[str] = set()
+    if pinned_set is None and state.worker_pin is None:
         hard_ok = [s for s in workers if candidates[s.id].excluded is None]
         in_rung = [s for s in hard_ok if rung_exclusion(s, step_type, state.level) is None]
         if hard_ok and not in_rung:
@@ -242,6 +284,14 @@ def route(
                 why = rung_exclusion(spec, step_type, state.level)
                 if why:
                     exclude(spec.id, why)
+                    rung_excluded.add(spec.id)
+    if (
+        step_type == "review"
+        and state.avoid_families
+        and pinned_set is None
+        and state.worker_pin is None
+    ):
+        _prefer_other_families(workers, candidates, rung_excluded, state, notes, exclude)
 
     estimates: dict[str, Estimate] = {}
     for spec in workers:

@@ -67,6 +67,11 @@ class WorkerSpec:
     def level(self) -> int:
         return LEVEL_BY_TIER.get(self.tier, 1)
 
+    @property
+    def family_key(self) -> str:
+        """The model family for best-of-N and cross-family review; the model when unknown."""
+        return self.family or self.model or self.id
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,

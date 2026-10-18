@@ -27,6 +27,7 @@ from stepswitch.router.escalation import Ladder
 from stepswitch.router.features import TaskFeatures
 from stepswitch.state import open_project_state
 from stepswitch.trajectory.record import Trajectory, read_events
+from stepswitch.verify import review as review_module
 from stepswitch.workers.base import Worker, WorkerSpec
 from stepswitch.workers.builtin_agent import (
     COMPACT_INTRO,
@@ -34,7 +35,6 @@ from stepswitch.workers.builtin_agent import (
     NUDGE,
     TOOL_NAMES,
     AgentLoop,
-    parse_review,
 )
 from stepswitch.workers.catalog import Catalog
 from stepswitch.workers.fake import Action, FakeClock, ScriptedModel
@@ -498,7 +498,8 @@ def test_role_budgets_and_effort_go_to_reasoning_workers_only(tmp_path: Path) ->
 
 
 def test_the_reviewer_answers_under_a_json_schema(tmp_path: Path) -> None:
-    issues = json.dumps({"approve": False, "issues": ["add() still subtracts"]})
+    issue = {"severity": "high", "file": "calc.py", "line": 2, "note": "add() still subtracts"}
+    issues = json.dumps({"approve": False, "issues": [issue]})
     script = sequence(
         [read("calc.py"), FINISH, read("calc.py", start=1, end=1), FINISH],
         {"review": issues},
@@ -509,12 +510,15 @@ def test_the_reviewer_answers_under_a_json_schema(tmp_path: Path) -> None:
     assert outcome.status == "done"
     [review] = events(loop, "review")
     assert review["approved"] is False and review["constrained"] is True
-    assert review["text"] == "ISSUES\n- add() still subtracts"
+    assert review["text"] == "- [high] calc.py:2: add() still subtracts"
+    assert review["issues"] == [issue] and review["blocking"] is True
     sent = [r for r in model.model.requests if r.response_format is not None]  # type: ignore[union-attr]
     assert sent and sent[0].response_format.name == "review"  # type: ignore[union-attr]
-    assert parse_review('{"approve": true, "issues": []}') == {"approved": True, "text": "APPROVE"}
-    assert parse_review("APPROVE") is None
-    assert parse_review('{"approve": "yes"}') is None
+    approved = review_module.parse('{"approve": true, "issues": []}')
+    assert approved is not None and approved.approve and approved.constrained
+    plain = review_module.parse("APPROVE")
+    assert plain is not None and plain.approve and not plain.constrained
+    assert review_module.parse('{"approve": "yes"}') is None
 
 
 def test_the_prefix_registry_says_what_each_server_holds(tmp_path: Path) -> None:

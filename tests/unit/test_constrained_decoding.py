@@ -13,7 +13,7 @@ from stepswitch.compat.ir import ConversionReport, Message, Request, Response, T
 from stepswitch.compat.toolcall.fallback import ACTION_SCHEMA_NAME, FallbackModel
 from stepswitch.context import handoff
 from stepswitch.router import classifier
-from stepswitch.workers.builtin_agent import REVIEW_SCHEMA, parse_review
+from stepswitch.verify.review import REVIEW_SCHEMA, parse
 
 
 class Recorder:
@@ -87,8 +87,12 @@ def test_the_handoff_writer_answers_under_its_schema() -> None:
 def test_the_reviewer_schema_is_closed_and_checked() -> None:
     assert REVIEW_SCHEMA["additionalProperties"] is False
     assert set(REVIEW_SCHEMA["required"]) == {"approve", "issues"}
-    assert parse_review('```json\n{"approve": false, "issues": ["no test"]}\n```') == {
-        "approved": False,
-        "text": "ISSUES\n- no test",
-    }
-    assert parse_review('{"approve": false, "issues": ["x"], "extra": 1}') is None
+    item = REVIEW_SCHEMA["properties"]["issues"]["items"]
+    assert item["additionalProperties"] is False
+    assert set(item["required"]) == {"severity", "file", "line", "note"}
+    fenced = parse('```json\n{"approve": false, "issues": ["no test"]}\n```')
+    assert fenced is not None and not fenced.approve and fenced.constrained
+    assert [i.note for i in fenced.issues] == ["no test"]
+    # The server enforces the schema; reading is lenient, so an extra key does not lose it.
+    extra = parse('{"approve": false, "issues": ["x"], "extra": 1}')
+    assert extra is not None and not extra.approve and extra.issues[0].severity == "medium"
