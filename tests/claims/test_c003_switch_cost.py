@@ -49,7 +49,7 @@ from tests.claims import evidence
 pytestmark = [pytest.mark.claim("C-003")]
 
 SEED = 20261019
-SCENARIOS = 2500
+SCENARIOS = 4000
 TIERS = ("cpu", "t1", "t2", "t3")
 ROLES = ("router", "summarizer", "planner", "editor", "coder", "reviewer")
 TOLERANCE = 1e-6  # |value - margin| below this counts either way (float rounding)
@@ -71,7 +71,14 @@ def _worker(rng: random.Random, index: int) -> WorkerSpec:
 
 def scenario(rng: random.Random) -> dict[str, Any]:
     workers = [_worker(rng, i) for i in range(rng.randint(2, 5))]
-    transcript = rng.choice((rng.randint(0, 4000), rng.randint(0, 40000), rng.randint(0, 150000)))
+    transcript = rng.choice(
+        (
+            rng.randint(0, 4000),
+            rng.randint(0, 40000),
+            rng.randint(0, 150000),
+            rng.randint(0, 150000),
+        )
+    )
     seen = {}
     for spec in workers:
         roll = rng.random()
@@ -81,11 +88,13 @@ def scenario(rng: random.Random) -> dict[str, Any]:
             seen[spec.id] = rng.randint(0, transcript)
         else:
             seen[spec.id] = max(0, transcript - rng.randint(0, 3000))
-    current = rng.choice(workers).id
+    current = rng.choice(workers)
+    # Mostly the current worker's own rung, so that the switch rule decides most scenarios.
+    level = current.level if rng.random() < 0.7 else rng.choice((0, 1, 2, 3))
     state = RouterState(
         step=rng.randint(2, 40),
-        current=current,
-        level=rng.choice((0, 1, 1, 2, 2, 3)),
+        current=current.id,
+        level=level,
         transcript_tokens=transcript,
         output_tokens=rng.randint(50, 2500),
         seen_tokens=seen,
@@ -95,7 +104,9 @@ def scenario(rng: random.Random) -> dict[str, Any]:
         brief_tokens=rng.randint(400, 1500),
         handoff_seconds=round(rng.uniform(0, 120), 3),
         handoff_recovery=round(rng.uniform(0, 1), 3),
-        handoff_threshold=rng.choice((HANDOFF_THRESHOLD_TOKENS, rng.randint(500, 60000))),
+        handoff_threshold=rng.choice(
+            (HANDOFF_THRESHOLD_TOKENS, rng.randint(500, 60000), rng.randint(500, 8000))
+        ),
         allow_remote=True,
     )
     rules: list[Rule] = []

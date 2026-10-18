@@ -20,9 +20,12 @@ Pipeline:
    so.
 4. Priors (`policy.prior`) plus `prefer` bonuses, and the cost model: score =
    (prior + bonus) * value_of_success - estimated seconds.
-5. Cache-aware switching (SPEC §7.2): the previous step's worker keeps the step unless another
-   worker's expected gain minus the cost of re-reading the uncached transcript exceeds the
-   margin, or the previous worker is no longer eligible.
+5. Cache-aware switching (SPEC §7.2, `cost.switch_terms`): the previous step's worker keeps
+   the step unless another worker's expected gain minus its switch cost (re-reading what its
+   server has not cached, or reading a HANDOFF brief above the threshold) exceeds the margin;
+   the worker with the largest margin wins. The previous worker leaves when it is no longer
+   eligible, and stays while a tool-call loop is open or the next turn depends on state only
+   its endpoint holds.
 """
 
 from __future__ import annotations
@@ -33,11 +36,16 @@ from typing import Any
 
 from stepswitch.core.task import CODE_STEPS
 from stepswitch.router.cost import (
+    DEFAULT_HANDOFF_RECOVERY,
+    HANDOFF_BRIEF_TOKENS,
+    HANDOFF_THRESHOLD_TOKENS,
     SWITCH_MARGIN_SECONDS,
     VALUE_OF_SUCCESS_SECONDS,
     Estimate,
+    SwitchTerms,
     estimate,
     should_switch,
+    switch_terms,
 )
 from stepswitch.router.escalation import RUNG_NAMES
 from stepswitch.router.features import TaskFeatures
@@ -59,6 +67,20 @@ class RouterState:
     # The next turn depends on state only the current endpoint holds (signed reasoning,
     # stored responses): stay unless the current worker is excluded.
     pinned: bool = False
+    # The current worker's last reply has tool calls whose results are not all in the
+    # transcript yet (SPEC §7.2): stay unless the current worker is excluded.
+    open_tool_calls: bool = False
+    # Cache-aware switching (SPEC §7.2): the size of the stable prefix (system prompt and
+    # tools), the expected brief size, the time to write a brief, the share of the success gap
+    # a brief recovers, and the uncached tokens above which a switch sends a brief.
+    prefix_tokens: int = 0
+    brief_tokens: int = HANDOFF_BRIEF_TOKENS
+    handoff_seconds: float = 0.0
+    handoff_recovery: float = DEFAULT_HANDOFF_RECOVERY
+    handoff_threshold: int = HANDOFF_THRESHOLD_TOKENS
+    # False in the unoptimized baseline (`ssw bench run --baseline`): switches always send the
+    # transcript.
+    handoff_allowed: bool = True
     track: str = "general"
     offline: bool = False
     allow_remote: bool = False
@@ -82,6 +104,8 @@ class Candidate:
     excluded: str | None = None
     # True when the escalation rung would exclude this worker but nothing else was eligible.
     relaxed: bool = False
+    # SPEC §7.2 terms for switching from the current worker to this one (`SwitchTerms`).
+    switch: dict[str, Any] | None = None
 
 
 @dataclass
@@ -100,6 +124,8 @@ class Decision:
     switch_cost: dict[str, float] | None = None
     estimate: dict[str, Any] | None = None
     notes: list[str] = field(default_factory=list)
+    # The chosen worker continues from a HANDOFF brief instead of the transcript (SPEC §7.2).
+    handoff: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -252,49 +278,92 @@ def route(
 
     best = eligible[0]
     current = candidates.get(previous) if previous else None
-    current_ok = current is not None and current.excluded is None
+    specs = {spec.id: spec for spec in workers}
     chosen = best
-    gain = 0.0
+    gain: float | None = None
     cost = {"seconds": 0.0, "tokens": 0.0}
+    handoff = False
     best_est = estimates[best.worker]
     p_text = f"p={best.prior:.2f}" + (f"+{best.bonus:.2f}" if best.bonus else "")
     why_best = f"rule {rule_name}" if rule_name else "best expected value"
+
+    def terms_from(origin: Candidate, target: Candidate) -> SwitchTerms:
+        return switch_terms(
+            specs[origin.worker],
+            (origin.prior or 0.0) + origin.bonus,
+            specs[target.worker],
+            (target.prior or 0.0) + target.bonus,
+            transcript_tokens=state.transcript_tokens,
+            output_tokens=state.output_tokens,
+            cached_current=state.seen_tokens.get(origin.worker, 0),
+            cached_new=state.seen_tokens.get(target.worker, 0),
+            value_of_success=value_of_success,
+            prefix_tokens=state.prefix_tokens,
+            brief_tokens=state.brief_tokens,
+            handoff_seconds=state.handoff_seconds,
+            recovery=state.handoff_recovery,
+            threshold=state.handoff_threshold,
+            handoff_allowed=state.handoff_allowed,
+        )
+
     if current is None or previous is None:
+        # The first step, or the step after a model error took the previous worker out.
+        uncached = state.transcript_tokens - min(
+            state.seen_tokens.get(best.worker, 0), state.transcript_tokens
+        )
+        handoff = state.handoff_allowed and state.step > 1 and uncached > state.handoff_threshold
         reason = f"{best.worker} for {step_type}: {why_best} ({p_text}, ~{best_est.seconds:.1f} s)"
-    elif best.worker == previous:
-        reason = f"stay on {previous} for {step_type}: {why_best} ({p_text})"
+        if handoff:
+            reason += f"; ~{uncached} uncached tokens, so it starts from a HANDOFF brief"
     else:
-        old, new = estimates[previous], best_est
-        # SPEC §7.2: the cost of a switch is what the new worker must re-read. Staying is not
-        # free either when the current worker has not seen part of the transcript, so that part
-        # counts on the gain side; switch iff gain - cost > margin.
-        cost = {"seconds": round(new.switch_seconds, 3), "tokens": float(new.switch_tokens)}
-        decode_gain = (old.seconds - old.switch_seconds) - (new.seconds - new.switch_seconds)
-        p_gain = (best.prior or 0.0) + best.bonus - (current.prior or 0.0) - current.bonus
-        gain = round(p_gain * value_of_success + decode_gain + old.switch_seconds, 3)
-        if not current_ok:
+        options = []
+        for cand in eligible:
+            if cand.worker == previous:
+                continue
+            terms = terms_from(current, cand)
+            cand.switch = terms.as_dict()
+            options.append(terms)
+        # The largest margin wins; ties go to the smaller worker id.
+        top = min(options, key=lambda o: (-o.value, o.worker)) if options else None
+        if top is not None:
+            cost = {"seconds": round(top.cost_seconds, 3), "tokens": float(top.reread_tokens)}
+            gain = round(top.gain_seconds, 3)
+        reread = (
+            f"reading a HANDOFF brief (~{int(cost['tokens'])} tokens) costs"
+            if top is not None and top.mode == "brief"
+            else f"re-reading ~{int(cost['tokens'])} uncached tokens costs"
+        )
+        if current.excluded is not None:
+            if top is not None:
+                chosen = candidates[top.worker]
+                handoff = top.mode == "brief"
             reason = (
-                f"switch {previous} -> {best.worker} for {step_type}: {current.excluded}"
-                f" ({why_best}); re-reading ~{int(cost['tokens'])} uncached tokens costs"
-                f" ~{cost['seconds']:.1f} s"
+                f"switch {previous} -> {chosen.worker} for {step_type}: {current.excluded}"
+                f" ({why_best}); {reread} ~{cost['seconds']:.1f} s"
             )
-        elif state.pinned:
+        elif state.pinned or state.open_tool_calls:
             chosen = current
-            reason = f"stay on {previous}: the next turn needs state only its endpoint holds"
-        elif rule_name is not None or should_switch(gain, cost["seconds"], margin):
-            basis = (
-                f"rule {rule_name}"
-                if rule_name
-                else f"gain {gain:.1f} s - cost {cost['seconds']:.1f} s > margin {margin:.0f} s"
+            why = (
+                "a tool-call loop is open"
+                if state.open_tool_calls
+                else "the next turn needs state only its endpoint holds"
             )
+            reason = f"stay on {previous}: {why}"
+        elif top is None:
+            chosen = current
+            reason = f"stay on {previous} for {step_type}: no other eligible worker"
+        elif should_switch(top.gain_seconds, top.cost_seconds, margin):
+            chosen = candidates[top.worker]
+            handoff = top.mode == "brief"
             reason = (
-                f"switch {previous} -> {best.worker} for {step_type}: {basis}; re-reading"
-                f" ~{int(cost['tokens'])} uncached tokens costs ~{cost['seconds']:.1f} s"
+                f"switch {previous} -> {chosen.worker} for {step_type}: gain {gain:.1f} s"
+                f" - cost {cost['seconds']:.1f} s > margin {margin:.0f} s; {reread}"
+                f" ~{cost['seconds']:.1f} s"
             )
         else:
             chosen = current
             reason = (
-                f"stay on {previous} for {step_type}: switching to {best.worker} gains"
+                f"stay on {previous} for {step_type}: switching to {top.worker} gains"
                 f" {gain:.1f} s - cost {cost['seconds']:.1f} s <= margin {margin:.0f} s"
             )
     switched = previous is not None and chosen.worker != previous
@@ -313,4 +382,5 @@ def route(
         switch_cost=cost if switched else None,
         estimate=estimates[chosen.worker].as_dict(),
         notes=notes,
+        handoff=handoff,
     )
