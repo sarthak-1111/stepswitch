@@ -4,7 +4,10 @@ A contestant is `router` (step-level routing over every configured worker, as `s
 a worker id or model name (every step pinned to it, as `ssw run --worker`), a deterministic
 fake (`fake:oracle`, `fake:noop`) for CI, or `relay` (`--relay first,second`): the first worker
 starts every task and hands it to the second with a HANDOFF brief at work step `relay_step`,
-which measures briefs and what a handoff costs in success (SPEC §7.2, §9; ADR 0024).
+which measures briefs and what a handoff costs in success (SPEC §7.2, §9; ADR 0024), or
+`best-of-n` (`--best-of N`): N candidates from the pool's model families on every task, the
+best one kept (SPEC §8.3; ADR 0025). Its pool is `--router-pool`, as for `router`; running the
+pool's workers as contestants too gives the comparison of claim C-012.
 
 `--baseline` runs the Phase 2 configuration, every token optimization off (`optimize` false in
 `run.json`), for the comparison of SPEC §13 (claim C-011). Optimized runs also write
@@ -46,6 +49,8 @@ from stepswitch.verify import commands
 
 ROUTER = "router"
 RELAY = "relay"
+BEST_OF_N = "best-of-n"
+POOLED = frozenset({ROUTER, BEST_OF_N})
 HANDOFFS_FILE = "handoffs.jsonl"
 SCORING = (
     "passes when every acceptance command exits with 0 on a fresh copy with the run's diff"
@@ -68,7 +73,7 @@ def parse_contestants(text: str | None) -> list[Contestant]:
     names = [part.strip() for part in (text or ROUTER).split(",") if part.strip()]
     contestants = []
     for name in dict.fromkeys(names):
-        if name in {ROUTER, RELAY}:
+        if name in {ROUTER, RELAY, BEST_OF_N}:
             contestants.append(Contestant(name))
         elif name.startswith(fakes.PREFIX):
             kind = name.removeprefix(fakes.PREFIX)
@@ -99,6 +104,8 @@ class BenchOptions:
     # The `relay` contestant's two workers and the work step of the handoff.
     relay: list[str] | None = None
     relay_step: int = 6
+    # Candidates of the `best-of-n` contestant.
+    best_of: int = 2
 
 
 def _now() -> str:
@@ -146,9 +153,9 @@ def _router_pool(
     config: Any,
     egress: Any,
 ) -> list[str] | None:
-    """The worker ids the `router` contestant routes among, recorded in the manifest: the
-    given pool, or every configured worker when none is given."""
-    if all(c.name != ROUTER for c in contestants) or config is None:
+    """The worker ids the `router` and `best-of-n` contestants route among, recorded in the
+    manifest: the given pool, or every configured worker when none is given."""
+    if all(c.name not in POOLED for c in contestants) or config is None:
         return list(options.router_pool) if options.router_pool else None
     from stepswitch.workers.catalog import Catalog
 
@@ -281,7 +288,8 @@ def run_one(
     workspace.init_repo(repo)
     budgets = Budgets(**{**options.budgets.model_dump(exclude_none=True), **task.budgets})
     relay = list(options.relay or []) if contestant.name == RELAY else []
-    pool = list(options.router_pool or []) if contestant.name == ROUTER else relay
+    pool = list(options.router_pool or []) if contestant.name in POOLED else relay
+    best_of = options.best_of if contestant.name == BEST_OF_N else 1
     spec = TaskSpec(
         instruction=task.instruction,
         repo=repo,
@@ -296,6 +304,7 @@ def run_one(
         optimize=options.optimize,
         relay=relay,
         relay_step=options.relay_step,
+        best_of=best_of,
     )
     catalog = fakes.catalog_for(contestant.fake, task) if contestant.fake else None
     row: dict[str, Any] = {
@@ -338,6 +347,13 @@ def run_one(
             "handoffs": len(briefs),
             "compactions": result.compactions if result is not None else 0,
             "context": dict(result.context) if result is not None else {},
+            "best_of": result.best_of if result is not None else best_of,
+            "candidates": [
+                {k: c.get(k) for k in ("index", "family", "status", "changed_lines")}
+                for c in (result.candidates if result is not None else [])
+            ],
+            "winner": result.winner if result is not None else None,
+            "uncertain": result.uncertain if result is not None else False,
             "endpoints": result.endpoints if result is not None else [],
             "changed_files": result.changed_files if result is not None else [],
             "tokens": {
@@ -416,6 +432,8 @@ def run_bench(
     }
     if any(c.name == RELAY for c in contestants):
         manifest["relay"] = {"workers": list(options.relay or []), "step": options.relay_step}
+    if any(c.name == BEST_OF_N for c in contestants):
+        manifest["best_of"] = options.best_of
     manifest_path = out_dir / MANIFEST_FILE
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
     results = out_dir / RESULTS_FILE

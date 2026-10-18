@@ -34,6 +34,11 @@ def read_rows(out: Path) -> list[dict[str, Any]]:
 def test_contestants_parse_router_workers_and_fakes() -> None:
     parsed = runner.parse_contestants("router, managed/small ,fake:oracle,router")
     assert [c.name for c in parsed] == ["router", "managed/small", "fake:oracle"]
+    pooled = runner.parse_contestants("best-of-n,relay")
+    assert [(c.name, c.worker, c.fake) for c in pooled] == [
+        ("best-of-n", None, None),
+        ("relay", None, None),
+    ]
     assert parsed[0].worker is None and parsed[0].fake is None
     assert parsed[1].worker == "managed/small"
     assert parsed[2].fake == "oracle" and parsed[2].worker == fakes.worker_id("oracle")
@@ -195,6 +200,58 @@ def test_the_router_contestant_routes_within_its_pool(project: Path) -> None:
     assert seen == {"router": ["managed/small", "local/large"], "managed/small": []}
     manifest = json.loads((out / MANIFEST_FILE).read_text(encoding="utf-8"))
     assert manifest["router_pool"] == ["managed/small", "local/large"]
+
+
+def test_the_best_of_n_contestant_runs_candidates_from_the_pool(
+    project: Path, tmp_path: Path
+) -> None:
+    from stepswitch.core.task import TaskResult
+
+    suite = load_suite("tiny", project)
+    seen: dict[str, Any] = {}
+    candidates = [
+        {"index": 0, "family": "alpha", "status": "done", "changed_lines": 3, "steps": 4},
+        {"index": 1, "family": "beta", "status": "failed", "changed_lines": 0, "steps": 9},
+    ]
+
+    def finished(spec: Any, **_kwargs: Any) -> TaskResult:
+        several = spec.best_of > 1
+        seen[spec.worker or ("best-of-n" if several else "router")] = spec
+        return TaskResult(
+            task_id="t-1",
+            status="done",
+            run_dir=str(tmp_path),
+            best_of=spec.best_of,
+            candidates=candidates if several else [],
+            winner=0 if several else None,
+            uncertain=several,
+        )
+
+    out = project / "bench" / "results" / "best-of-n"
+    runner.run_bench(
+        suite,
+        runner.parse_contestants("best-of-n,managed/small"),
+        root=project,
+        out_dir=out,
+        options=runner.BenchOptions(router_pool=["managed/small", "local/large"], best_of=3),
+        run_task=finished,
+    )
+    assert seen["best-of-n"].workers == ["managed/small", "local/large"]
+    assert seen["best-of-n"].best_of == 3 and seen["best-of-n"].worker is None
+    assert seen["managed/small"].best_of == 1
+    rows = {row["contestant"]: row for row in read_rows(out)}
+    best = rows["best-of-n"]
+    assert (best["best_of"], best["winner"], best["uncertain"]) == (3, 0, True)
+    assert best["candidates"] == [
+        {"index": 0, "family": "alpha", "status": "done", "changed_lines": 3},
+        {"index": 1, "family": "beta", "status": "failed", "changed_lines": 0},
+    ]
+    single = rows["managed/small"]
+    assert (single["best_of"], single["candidates"], single["winner"]) == (1, [], None)
+    manifest = json.loads((out / MANIFEST_FILE).read_text(encoding="utf-8"))
+    assert manifest["contestants"] == ["best-of-n", "managed/small"]
+    assert manifest["router_pool"] == ["managed/small", "local/large"]
+    assert manifest["best_of"] == 3
 
 
 def test_baseline_and_relay_options_reach_the_task(project: Path) -> None:
