@@ -3090,3 +3090,113 @@ Sources: `vllm/parser/granite.py`, `vllm/tool_parsers/granite_engine_tool_parser
 - **CSP in two places.** The built `index.html` carries a Content-Security-Policy meta tag. A
   meta tag cannot set `frame-ancestors`, so the server sends the full policy, including
   `frame-ancestors 'none'`, as a header (ADR 0023).
+
+## Verified during Phase 5
+
+### Tokenizer files (model hub, checked 2026-10-19)
+
+HANDOFF briefs are counted with the receiving model's tokenizer (SPEC §9, ADR 0024). Endpoint
+models such as the Ollama test models have no registry entry. They are mapped by name
+(`registry/tokenizers/tokenizers.toml`) to a `tokenizer.json` of the same family, pinned by
+revision and sha256:
+
+| Name | Matches | Hub ID | Revision | Size (bytes) | sha256 | License |
+|---|---|---|---|---|---|---|
+| `gpt-oss` | `gpt-oss*` | `openai/gpt-oss-120b` | `b5c939de8f754692c1647ca79fbf85e8c1e70f8a` | 27,868,174 | `0614fe83cadab421296e664e1f48f4261fa8fef6e03e63bb75c20f38e37d07d3` | Apache-2.0 |
+| `qwen2.5` | `qwen2.5*` | `Qwen/Qwen2.5-32B-Instruct` | `5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd` | 7,031,645 | `c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539` | Apache-2.0 |
+| `qwen3` | `qwen3*` | `Qwen/Qwen3-4B-Instruct-2507` | `cdbee75f17c01a7cc42f958dc650907174af0554` | 11,422,654 | `aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4` | Apache-2.0 |
+
+- `ssw models pull --tokenizers` downloaded all three. The files matched the sizes and hashes
+  above, and `tokenizers` 0.23.3 (`Tokenizer.from_file`) loaded each one.
+- The `qwen3` file is also the registry tokenizer of `qwen3-4b-instruct-2507`, the T0 handoff
+  writer.
+- The live relay smoke run (calc-bug, relay at step 4) sent a 417-token brief to
+  `gpt-oss:120b`. The count was exact, through the mapped `gpt-oss` tokenizer.
+- Sources: https://huggingface.co/api/models/openai/gpt-oss-120b?blobs=true,
+  https://huggingface.co/api/models/Qwen/Qwen2.5-32B-Instruct?blobs=true,
+  https://huggingface.co/api/models/Qwen/Qwen3-4B-Instruct-2507?blobs=true
+
+### tree-sitter grammar wheels (installed versions, checked 2026-10-19)
+
+The repository map (TK2) uses py-tree-sitter with one grammar wheel per language. The tags
+queries that ship inside the wheels are not used; Stepswitch has its own (ADR 0024).
+
+- py-tree-sitter 0.26.0: `LANGUAGE_VERSION` 15, `MIN_COMPATIBLE_LANGUAGE_VERSION` 13. The pin
+  is `tree-sitter>=0.25,<0.27`, because the ABI-15 grammars need 0.25 or later.
+- The grammar is compiled into each wheel, so nothing is downloaded at runtime:
+
+  | Wheel | Version | ABI | License |
+  |---|---|---|---|
+  | tree-sitter-c | 0.24.2 | 15 | MIT |
+  | tree-sitter-cpp | 0.23.4 | 14 | MIT |
+  | tree-sitter-go | 0.25.0 | 15 | MIT |
+  | tree-sitter-java | 0.23.5 | 14 | MIT |
+  | tree-sitter-javascript | 0.25.0 | 15 | MIT |
+  | tree-sitter-ruby | 0.23.1 | 14 | MIT |
+  | tree-sitter-rust | 0.24.2 | 15 | MIT |
+  | tree-sitter-typescript (`language_typescript`, `language_tsx`) | 0.23.2 | 14 | MIT |
+
+- Basis: `importlib.metadata` versions and license fields, and `Language(...).abi_version` for
+  every grammar.
+
+### Structured output on the local test models (live, 2026-10-19)
+
+The constrained reviewer (TK8) sends a strict JSON Schema (`{approve: bool, issues: [str]}`).
+A one-line diff was reviewed through the Ollama native format (`format` set to the schema):
+
+| Model | Effort | Wall time | Tokens in / out | Result |
+|---|---|---|---|---|
+| `gpt-oss:120b` | medium | 1.4 s | 199 / 66 | schema-valid JSON, approve |
+| `qwen2.5:32b` | none | 0.6 s | 136 / 11 | schema-valid JSON, approve |
+
+Both answers parsed (`parse_review`), and the codec reported no losses.
+
+### LLMLingua-2 for the reference compression server (source, checked 2026-10-19)
+
+`extras/llmlingua-server` (TK11) was written against llmlingua 0.2.2 and the `main` source of
+`llmlingua/prompt_compressor.py`:
+
+- **Constructor.** `PromptCompressor(model_name="NousResearch/Llama-2-7b-hf",
+  device_map="cuda", model_config={}, open_api_config={}, use_llmlingua2=False,
+  use_slingua=False, llmlingua2_config={})`.
+  - It calls `tiktoken.encoding_for_model("gpt-3.5-turbo")`, so it needs the `cl100k_base` BPE
+    file. The file is downloaded on first use unless it is already cached.
+  - With `use_llmlingua2`, it calls `init_llmlingua2(**llmlingua2_config)`.
+- **Model loading.** `load_model` sets `trust_remote_code` to True unless `model_config` sets
+  it. The server passes `{"trust_remote_code": False}`.
+  - `device_map="cpu"` loads in float32.
+  - The config, tokenizer and model come from `from_pretrained(model_name)`, so a local
+    directory works.
+- **Compression.** `compress_prompt(context, ..., rate=0.5, ..., force_tokens=[],
+  drop_consecutive=False, ...)` returns `compress_prompt_llmlingua2(...)` when
+  `use_llmlingua2` is set.
+  - That path defaults `use_context_level_filter` to False.
+  - It returns `compressed_prompt`, `compressed_prompt_list`, `origin_tokens`,
+    `compressed_tokens`, `ratio`, `rate` and `saving`.
+- **Checkpoint.** `microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank` at
+  revision `5f0c82792b7ea14c6484e015b6a072009496b7f2` (last modified 2025-01-08).
+  - Files: `config.json` (875 B), `model.safetensors` (709,388,104 B, sha256
+    `22b9ecde52fec5c97e8c54a293be768727df95a81c6c8dccb03f262a50c58324`), `tokenizer.json`
+    (2,919,362 B), `tokenizer_config.json` (1,191 B), `special_tokens_map.json` (125 B) and
+    `vocab.txt` (995,526 B).
+- **Word rules come from the model name.** `utils.is_begin_of_new_word` and `get_pure_token`
+  look for `bert-base-multilingual-cased` or `xlm-roberta-large` in `model_name`; any other
+  name raises `NotImplementedError` on every compression. A checkpoint stored as
+  `llmlingua-2-small` loaded fine and then failed every request. The server therefore requires
+  the directory to carry the checkpoint's name.
+- **Live check (2026-10-19).** Environment: llmlingua 0.2.2, torch 2.14.1, transformers
+  5.20.1, tiktoken 0.14.0, Python 3.12, Windows, CPU only. The checkpoint download matched
+  the sha256 above.
+  - `--prefetch` took 14.5 s, including fetching the tiktoken file into `TIKTOKEN_CACHE_DIR`.
+    Afterwards the server loaded in about 13 s behind the offline guard and needed no network.
+  - Through `HttpCompressor` at rate 0.5, 6,000 characters of docs/ARCHITECTURE.md came back
+    as 3,409 characters. Three runs took 0.42 to 0.51 s each, and every request was audited as
+    local.
+  - The interpreter's working set was 1,231 MB.
+  - transformers warns that the sequence is longer than 512 tokens; LLMLingua-2 splits long
+    text into windows itself.
+  - The output drops function words and inserts spaces inside paths and numbers (`docs / SPEC.
+    md`, `2026 - 10 - 16`). A model reading such text cannot use it to name files.
+- Sources: https://raw.githubusercontent.com/microsoft/LLMLingua/main/llmlingua/prompt_compressor.py,
+  `llmlingua/utils.py` of the installed 0.2.2 wheel,
+  https://huggingface.co/api/models/microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank?blobs=true

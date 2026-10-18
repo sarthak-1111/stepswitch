@@ -91,7 +91,14 @@ Pipeline (SPEC §7.1):
 3. **Policy**: priors from registry roles and probe results (Phase 2); contextual Thompson
    sampling over workers from Phase 7 (SPEC §10).
 4. **Cost model**: expected time and tokens per candidate, plus the cache-aware switch cost of
-   SPEC §7.2. Phase 2 uses a simple estimate; Phase 5 adds calibration and the prefix registry.
+   SPEC §7.2 (ADR 0024):
+   - A per-server prefix registry predicts how much of the prompt each server already holds.
+     It is calibrated from the cached-token counts that servers report, and
+     `ssw calibrate --cache` seeds it.
+   - Staying costs the current worker its own unread tool results.
+   - A switch past the brief threshold discounts the new worker's success by a learned
+     handoff recovery.
+   - Success rates measured by `ssw bench calibrate` replace tier rates for benched models.
 
 Escalation ladder: T0 → T1/T2 → T3 → remote (opt-in), triggered by gate failures after K
 attempts, disagreement, low classifier confidence or high risk (SPEC §7.3). Each escalation is a
@@ -109,7 +116,10 @@ replay relies on (SPEC §11).
 3. When the chosen endpoint differs from the previous step's, the router estimates uncached
    tokens on the new server from the per-server prefix registry. Above the threshold (default
    24k tokens) the new model receives a HANDOFF brief (SPEC §9) instead of the transcript.
-   Reasoning text never crosses models (SPEC §4.5).
+   A T0 writer fills in the brief's free-text fields under a JSON schema. The brief is then
+   trimmed until the receiving model's tokenizer counts at most 1,500 tokens.
+   Reasoning text never crosses models (SPEC §4.5). With `--no-optimize` (the Phase 2
+   baseline) a switch always sends the transcript.
 4. The switch is logged as a `switch` event with from, to, reason, estimated cost and expected
    gain; C-002 asserts on these events, and the dashboard renders them as step badges.
 5. In proxy mode the same logic runs per request: the harness's model name acts as a slot hint
@@ -205,16 +215,25 @@ Interface (SPEC §12): `start(task, worktree, endpoint, settings) -> RunHandle`,
 
 - **Repo map** (TK2): tree-sitter tags, ranking over definition/reference edges, token-budgeted,
   cached per file content hash. Grammars come from pinned per-language wheels that work offline
-  (RESEARCH.md, "tree-sitter").
+  (RESEARCH.md, "tree-sitter grammar wheels").
 - **Hybrid search** (TK9): ripgrep when present, a Python fallback otherwise, plus T0 embeddings.
-- **Read dedup** (TK3), **tool-output distillation** by T0 (TK4, raw output kept in blobs),
-  **context pruning** (TK6), **HANDOFF briefs** (TK7, SPEC §9).
-- **LSP**: a thin client on a JSON-RPC library and the protocol types package, launching
-  language servers that the user has installed.
+- **Read dedup** (TK3): one stub per unchanged range, for reads of 500 tokens or more.
+- **Tool-output distillation** (TK4): error lines, file:line references and the tail, plus an
+  optional T0 summary. The raw output stays readable as `@output/<n>` for the rest of the task.
+- **Context pruning** (TK6): superseded results become stubs in batches. At 60% of the
+  transcript budget, older turns are replaced by a HANDOFF brief.
+- **HANDOFF briefs** (TK7, SPEC §9).
+- **Prompt compression** (TK11, off): Markdown and text reads only, through an
+  out-of-process server (`extras/llmlingua-server`).
+
+  All of these run only when the task's `optimize` flag is on (ADR 0024).
+- **LSP**: a JSON-RPC client written for Stepswitch, launching language servers that the user
+  has installed (ADR 0017).
 - **Token counting** (`stepswitch.context.tokens`, SPEC §9): counts with the receiving model's
-  tokenizer in a fixed order (local `tokenizer.json` from the registry, the llama.cpp server's
-  `/tokenize`, a mapped BPE encoding from a cache prefetched at install time, then a flagged
-  estimate) and records which one was used and whether the count is exact.
+  tokenizer in a fixed order and records which one was used and whether the count is exact.
+  The order: local `tokenizer.json` from the registry, then the llama.cpp server's
+  `/tokenize`, then a `tokenizer.json` mapped from the model name (`ssw models pull
+  --tokenizers`), then a flagged estimate.
 
 ## 9. Verification (`stepswitch.verify`)
 
