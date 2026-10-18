@@ -460,6 +460,7 @@ def _managed_factory(
             headers=info.headers(),
             local=True,
             options=CodecOptions(tool_parser=parser),
+            engine=info.engine,
         )
         client = ModelClient(
             target, egress=egress, purpose="model", task_id=task_id, timeout=timeout

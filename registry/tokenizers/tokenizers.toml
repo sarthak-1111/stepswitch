@@ -1,0 +1,40 @@
+# Tokenizer files for exact token counts (SPEC §9, ADR 0024). A model entry names its own with
+# `tokenizer = "<name>"`; models without an entry (endpoint models) are mapped by `match`, a
+# list of glob patterns over the lowercase model name. `ssw models pull --tokenizers` downloads
+# the files into <models_dir>/tokenizers/<name>/ and checks them against `sha256`. Nothing is
+# downloaded while a task runs. Facts checked on the model hub on the date in `verified`
+# (docs/RESEARCH.md, "Tokenizer files").
+schema = 1
+
+[[tokenizer]]
+name = "qwen3"
+match = ["qwen3*", "qwen3-*"]
+hub_id = "Qwen/Qwen3-4B-Instruct-2507"
+revision = "cdbee75f17c01a7cc42f958dc650907174af0554"
+file = "tokenizer.json"
+sha256 = "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"
+size_bytes = 11422654
+license = "apache-2.0"
+verified = 2026-10-19
+
+[[tokenizer]]
+name = "qwen2.5"
+match = ["qwen2.5*"]
+hub_id = "Qwen/Qwen2.5-32B-Instruct"
+revision = "5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd"
+file = "tokenizer.json"
+sha256 = "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539"
+size_bytes = 7031645
+license = "apache-2.0"
+verified = 2026-10-19
+
+[[tokenizer]]
+name = "gpt-oss"
+match = ["gpt-oss*"]
+hub_id = "openai/gpt-oss-120b"
+revision = "b5c939de8f754692c1647ca79fbf85e8c1e70f8a"
+file = "tokenizer.json"
+sha256 = "0614fe83cadab421296e664e1f48f4261fa8fef6e03e63bb75c20f38e37d07d3"
+size_bytes = 27868174
+license = "apache-2.0"
+verified = 2026-10-19

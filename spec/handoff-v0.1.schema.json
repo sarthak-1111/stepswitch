@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:stepswitch:spec:handoff:0.1",
+  "title": "HANDOFF v0.1",
+  "description": "A brief that hands a coding task from one model to another (spec/handoff-v0.1.md). It must stay at or under 1,500 tokens of the receiving model's tokenizer when rendered as Markdown.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "task_id",
+    "goal",
+    "track",
+    "constraints",
+    "acceptance",
+    "state",
+    "files",
+    "failing",
+    "budget_left",
+    "provenance"
+  ],
+  "properties": {
+    "version": {"const": "0.1"},
+    "task_id": {"type": "string", "minLength": 1, "maxLength": 200},
+    "goal": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "track": {"enum": ["general", "science"]},
+    "constraints": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {"type": "string", "minLength": 1, "maxLength": 500}
+    },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commands", "golden"],
+      "properties": {
+        "commands": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {"type": "string", "minLength": 1, "maxLength": 500}
+        },
+        "golden": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {"type": "string", "minLength": 1, "maxLength": 500}
+        }
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["done", "decisions", "open_questions"],
+      "properties": {
+        "done": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {"type": "string", "minLength": 1, "maxLength": 300}
+        },
+        "decisions": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["what", "why"],
+            "properties": {
+              "what": {"type": "string", "minLength": 1, "maxLength": 300},
+              "why": {"type": "string", "maxLength": 500}
+            }
+          }
+        },
+        "open_questions": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {"type": "string", "minLength": 1, "maxLength": 300}
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "symbols", "why"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1, "maxLength": 500},
+          "symbols": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {"type": "string", "minLength": 1, "maxLength": 200}
+          },
+          "why": {"type": "string", "maxLength": 300}
+        }
+      }
+    },
+    "failing": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["check", "excerpt"],
+        "properties": {
+          "check": {"type": "string", "minLength": 1, "maxLength": 200},
+          "excerpt": {"type": "string", "maxLength": 2000}
+        }
+      }
+    },
+    "budget_left": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tokens", "seconds"],
+      "properties": {
+        "tokens": {"type": ["integer", "null"], "minimum": 0},
+        "seconds": {"type": ["number", "null"], "minimum": 0}
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from_worker", "step", "tokenizer", "exact"],
+      "properties": {
+        "from_worker": {"type": "string", "minLength": 1, "maxLength": 300},
+        "step": {"type": "integer", "minimum": 0},
+        "tokenizer": {"type": "string", "minLength": 1, "maxLength": 300},
+        "exact": {"type": "boolean"}
+      }
+    }
+  }
+}

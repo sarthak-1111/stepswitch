@@ -19,6 +19,25 @@ dependencies = [
   # Science-track gates compare numerical outputs (SPEC §6.2). numpy 2.5 needs Python 3.12.
   "numpy>=2.4.6; python_version < '3.12'",
   "numpy>=2.5.3; python_version >= '3.12'",
+  # Definitions and references for the repository map, offline from pinned grammar wheels
+  # (TK2, ADR 0024). The ABI-15 grammars need tree-sitter 0.25 or later.
+  "tree-sitter>=0.25,<0.27",
+  "tree-sitter-c>=0.24.2",
+  "tree-sitter-cpp>=0.23.4",
+  "tree-sitter-go>=0.25.0",
+  "tree-sitter-java>=0.23.5",
+  "tree-sitter-javascript>=0.25.0",
+  "tree-sitter-ruby>=0.23.1",
+  "tree-sitter-rust>=0.24.2",
+  "tree-sitter-typescript>=0.23.2",
+]
+
+[project.optional-dependencies]
+# Exact token counts from local tokenizer.json files (SPEC §9, ADR 0024). Without it, counts come
+# from a model server's tokenize route or are flagged estimates. It brings the model hub client
+# and its dependencies with it; Stepswitch never calls the hub through it.
+tokens = [
+  "tokenizers>=0.22",
 ]
 
 [project.scripts]
@@ -49,6 +68,8 @@ packages = ["src/stepswitch"]
 # science-track glossaries (SPEC §6.2) and the built-in bench suites with their repositories and
 # golden patches (SPEC §16).
 "registry" = "stepswitch/_registry"
+# The open specs (HANDOFF v0.1 schema, edit format) that the code validates against.
+"spec" = "stepswitch/_spec"
 "science/glossaries" = "stepswitch/_science/glossaries"
 "bench/suites" = "stepswitch/_bench/suites"
 "bench/repos" = "stepswitch/_bench/repos"

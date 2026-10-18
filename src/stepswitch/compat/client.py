@@ -40,6 +40,9 @@ class Endpoint:
     headers: dict[str, str] = field(default_factory=dict)
     local: bool = True
     options: CodecOptions = field(default_factory=CodecOptions)
+    # The engine behind the endpoint when known ("llamacpp", "ollama", ...): it says which
+    # side routes exist, such as the llama.cpp server's /tokenize (`context.tokens`).
+    engine: str | None = None
 
     @classmethod
     def from_config(
@@ -60,6 +63,7 @@ class Endpoint:
             headers=headers,
             local=config.is_local(),
             options=CodecOptions(tool_parser=getattr(config, "tool_parser", None)),
+            engine=getattr(config, "engine", None),
         )
 
 
