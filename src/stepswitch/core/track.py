@@ -49,6 +49,8 @@ class TrackPolicy:
     test_command: list[str] | None
     notes: list[str] = field(default_factory=list)
     glossary: str | None = None
+    # Golden cases of the science track (science.toml), for HANDOFF briefs.
+    golden: list[str] = field(default_factory=list)
 
     def system_notes(self) -> str:
         parts = list(self.notes)
@@ -134,6 +136,11 @@ def track_policy(
     offline_default = bool(settings.get("offline", track == "science"))
     notes = science_notes(science) if track == "science" else []
     glossary = glossary_for(features.domain, repo) if features is not None else None
+    golden = [
+        str(item.get("case"))
+        for item in science.get("golden") or []
+        if isinstance(item, dict) and item.get("case")
+    ]
     return TrackPolicy(
         name=track,
         gates=gates.gates_for(track, config),
@@ -142,4 +149,5 @@ def track_policy(
         test_command=test_command,
         notes=notes,
         glossary=glossary if track == "science" else None,
+        golden=golden,
     )

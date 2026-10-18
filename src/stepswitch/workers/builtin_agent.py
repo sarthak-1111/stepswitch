@@ -13,11 +13,39 @@ Calling `finish` runs the track's gates. A failure goes back to the worker as th
 and after `gate_attempts` failures on one rung the escalation ladder moves up (SPEC §7.3).
 Budgets are checked at every step boundary (SPEC §7.4). After the gates pass, a review step
 may send the work back once, and a summary step writes the result.
+
+Token and cache optimization (SPEC §13, ADR 0024) is on unless the task runs the Phase 2
+baseline (`optimize` false: `ssw run --no-optimize`, `ssw bench run --baseline`):
+
+* TK1: the system text is the stable prefix (role prompt and track notes, repository map,
+  glossary); everything volatile is appended as messages.
+* TK3: a read of an unchanged range whose earlier result is still visible returns a stub.
+* TK4: a tool output longer than `distill_tokens` is distilled (key lines verbatim, a T0
+  summary when a summarizer is available); the raw output stays readable as `@output/<n>`.
+* TK6: superseded results are stubbed in batches, and at 60% of the transcript budget the
+  older turns are replaced by a HANDOFF brief, keeping the latest exchange (a rolling summary).
+* TK7 and SPEC §7.2: a switch or failover whose worker would re-read more uncached tokens than
+  the threshold, and the bench's relay, hand the task over with a HANDOFF brief (SPEC §9):
+  written by the T0 summarizer from the work log, fitted to 1,500 tokens of the receiving
+  model's tokenizer, recorded in `handoffs` and the run directory's `handoffs.jsonl`.
+* TK8: the review step answers one JSON object under a JSON Schema constraint (text that is not
+  valid JSON is read the Phase 2 way).
+* TK10: output caps and reasoning effort per step type; effort goes only to reasoning workers.
+* TK11: optional prose compression of documentation reads.
+* Cached tokens per server come from the prefix registry (`router.cache`), calibrated by the
+  cached-token counts the servers report.
+
+Every model call goes through `stepswitch.compat` (working rule 2); briefs and summaries are
+written by a local worker and contain repository-relative paths only.
 """
 
 from __future__ import annotations
 
+import dataclasses
+import functools
 import json
+import re
+import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -29,22 +57,33 @@ from stepswitch.compat.errors import ModelError
 from stepswitch.compat.ir import (
     Message,
     Request,
+    ResponseFormat,
     Sampling,
     TextPart,
     ToolCallPart,
     ToolResultPart,
     ToolSpec,
+    Usage,
 )
+from stepswitch.context import dedup, distill, handoff, prune
+from stepswitch.context import tokens as token_counts
+from stepswitch.context.compress import maybe_compress
+from stepswitch.context.prefix import StablePrefix
+from stepswitch.context.settings import ContextSettings
 from stepswitch.core.budget import BudgetTracker
 from stepswitch.core.task import TaskSpec
 from stepswitch.ledger import Ledger, LedgerRow, estimate_tokens, gpu_seconds_of, usage_row_fields
+from stepswitch.router import cost
+from stepswitch.router.budgets import RoleBudget, role_budget
+from stepswitch.router.cache import Chain, PrefixRegistry, chain_of
 from stepswitch.router.escalation import Ladder
 from stepswitch.router.features import TaskFeatures
 from stepswitch.router.router import Decision, RouterState, route
 from stepswitch.router.rules import Rule
 from stepswitch.trajectory.record import Trajectory
+from stepswitch.workers.base import Worker, WorkerSpec
 from stepswitch.workers.catalog import Catalog
-from stepswitch.workers.tools import CONTROL_TOOLS, TOOL_NAMES, ToolOutput
+from stepswitch.workers.tools import CONTROL_TOOLS, TOOL_ALIASES, TOOL_NAMES, ToolOutput
 
 __all__ = ["CONTROL_TOOLS", "TOOL_NAMES", "AgentLoop", "LoopOutcome"]
 
@@ -54,8 +93,6 @@ STUCK_STEPS = 8
 TEXT_ONLY_LIMIT = 2
 REVIEW_ROUNDS = 1
 DIFF_PROMPT_CHARS = 6000
-WORK_OUTPUT_TOKENS = {"cpu": 1024}
-DEFAULT_WORK_OUTPUT_TOKENS = 2048
 # Rough output sizes for the cost model's time estimates.
 EXPECTED_OUTPUT_TOKENS = {"plan": 250, "review": 150, "summarize": 100}
 DEFAULT_EXPECTED_OUTPUT = 200
@@ -69,6 +106,15 @@ REPEAT_HINT = (
     "changes nothing: act on the result (for example, change the code with `edit`), try "
     "something else, or call `finish`.]"
 )
+# The work step of the bench's relay (`ssw bench run --relay`) at which the task is handed
+# from the first worker to the second with a HANDOFF brief.
+RELAY_STEP = 6
+# The size of a brief-writing call, for the router's estimate of the time a handoff takes.
+WRITER_INPUT_TOKENS = 2500
+WRITER_OUTPUT_TOKENS = 400
+DIGEST_CHARS = 8000
+WORK_LOG_ITEMS = 40
+PATH_KEYS = ("path", "file", "filename", "file_path", "filepath")
 
 WORK_PROMPT = """\
 You are the coding agent of Stepswitch. You work in a git checkout of the user's repository
@@ -97,10 +143,42 @@ Check the diff against the task. If the change does what the task asks and nothi
 reply with APPROVE on the first line. Otherwise reply with ISSUES on the first line, followed
 by a short list of concrete problems."""
 
+REVIEW_JSON_PROMPT = """\
+You review a change that a coding agent made.
+Step: review
+Check the diff against the task. Answer with one JSON object: {"approve": true, "issues": []}
+when the change does what the task asks and nothing harmful, otherwise {"approve": false,
+"issues": [...]} with a short list of concrete problems."""
+
+# TK8: the reviewer's answer.
+REVIEW_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "approve": {"type": "boolean"},
+        "issues": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {"type": "string", "minLength": 1, "maxLength": 300},
+        },
+    },
+    "required": ["approve", "issues"],
+    "additionalProperties": False,
+}
+
 SUMMARY_PROMPT = """\
 You summarize a finished coding task.
 Step: summarize
 In one or two sentences, say what was changed and how it was verified."""
+
+HANDOFF_INTRO = """\
+You take over this coding task from another worker. Its state is in the HANDOFF brief below.
+Continue from it: read the files you need before you edit them (the brief shows no line
+anchors), run the tests, and call finish when the task is done."""
+
+COMPACT_INTRO = """\
+The earlier part of this task's transcript was replaced by the HANDOFF brief below to keep
+the context small; the latest exchange follows it. Read a file again before you edit it if
+its anchors are not shown."""
 
 
 def _canonical_arguments(arguments: str) -> str:
@@ -109,6 +187,55 @@ def _canonical_arguments(arguments: str) -> str:
         return json.dumps(json.loads(arguments), sort_keys=True)
     except ValueError:
         return arguments.strip()
+
+
+def parse_review(text: str) -> dict[str, Any] | None:
+    """A JSON review that matches REVIEW_SCHEMA, as {"approved", "text"}, or None."""
+    import jsonschema
+
+    start, end = text.find("{"), text.rfind("}")
+    if not 0 <= start < end:
+        return None
+    try:
+        data = json.loads(text[start : end + 1])
+        jsonschema.validate(data, REVIEW_SCHEMA)
+    except (ValueError, jsonschema.ValidationError):
+        return None
+    issues = [" ".join(str(issue).split()) for issue in data["issues"]]
+    if data["approve"]:
+        return {"approved": True, "text": "APPROVE"}
+    return {"approved": False, "text": "ISSUES\n" + "\n".join(f"- {i}" for i in issues)}
+
+
+def _int_or_none(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value)
+    return None
+
+
+def _endpoint_of(model: Any) -> Any:
+    """The compat `Endpoint` behind a step model (a client, or a protocol wrapper of one)."""
+    for _ in range(3):
+        endpoint = getattr(model, "endpoint", None)
+        if endpoint is not None:
+            return endpoint
+        model = getattr(model, "client", None)
+        if model is None:
+            return None
+    return None
+
+
+def path_pattern(path: str) -> re.Pattern[str]:
+    """`path` with either separator, case-insensitive on Windows."""
+    text = path.rstrip("\\/")
+    lead = r"[\\/]" if text[:1] in "\\/" else ""
+    parts = [re.escape(part) for part in re.split(r"[\\/]+", text) if part]
+    flags = re.IGNORECASE if sys.platform == "win32" else 0
+    return re.compile(lead + r"[\\/]+".join(parts), flags)
 
 
 class StepModelLike(Protocol):
@@ -157,6 +284,24 @@ class AgentLoop:
     overview: str = ""
     allow_remote: bool = False
     offline: bool = False
+    # Phase 5 (ADR 0024). `optimize` false is the Phase 2 baseline.
+    optimize: bool = True
+    settings: ContextSettings = field(default_factory=ContextSettings)
+    glossary: str = ""
+    constraints: Sequence[str] = ()
+    golden: Sequence[str] = ()
+    # The T0 worker that writes briefs and output summaries; None writes briefs from facts.
+    summarizer: Worker | None = None
+    models_dir: Path | None = None
+    egress: Any = None
+    compressor: Any = None
+    # The bench's relay: (first worker, second worker), handed over at `relay_step`.
+    relay: tuple[str, str] | None = None
+    relay_step: int = RELAY_STEP
+    handoff_recovery: float = cost.DEFAULT_HANDOFF_RECOVERY
+    base_rates: dict[str, float] = field(default_factory=dict)
+    # Absolute paths replaced in briefs and digests: (path, replacement), longest first.
+    scrub_paths: Sequence[tuple[str, str]] = ()
 
     step: int = 0
     current: str | None = None
@@ -173,26 +318,69 @@ class AgentLoop:
     context_caps: dict[str, int] = field(default_factory=dict)
     overflowed: bool = False
     last_call: tuple[str, str, str] | None = None  # name, arguments, result of the last call
+    last_worker: str | None = None
+    failovers: int = 0
+    compactions: int = 0
+    relayed: bool = False
+    registry: PrefixRegistry = field(default_factory=PrefixRegistry)
+    records: list[prune.ResultRecord] = field(default_factory=list)
+    read_cache: dedup.ReadCache = field(default_factory=dedup.ReadCache)
+    outputs: distill.OutputStore = field(default_factory=distill.OutputStore)
+    handoffs: list[dict[str, Any]] = field(default_factory=list)
+    work_log: list[str] = field(default_factory=list)
+    file_notes: dict[str, handoff.FileNote] = field(default_factory=dict)
+    failing: list[handoff.Failure] = field(default_factory=list)
+    stats: dict[str, int] = field(
+        default_factory=lambda: {
+            "pruned": 0,
+            "pruned_tokens": 0,
+            "dedup": 0,
+            "distilled": 0,
+            "compressed": 0,
+        }
+    )
+
+    def __post_init__(self) -> None:
+        for spec in self.catalog.specs():
+            self.registry.seed(spec.id, spec.cache_ratio)
+        self._scrubbers = [
+            (path_pattern(path), replacement)
+            for path, replacement in sorted(self.scrub_paths, key=lambda p: -len(p[0]))
+            if path.strip("\\/")
+        ]
 
     # ------------------------------------------------------------------------------------
-    # Routing and model calls
+    # Requests
     # ------------------------------------------------------------------------------------
 
     def _system_prompt(self) -> str:
-        parts = [WORK_PROMPT]
-        if self.track_notes:
-            parts.append(self.track_notes)
-        if self.overview:
-            parts.append(self.overview)
-        return "\n\n".join(parts)
+        glossary = f"Domain glossary:\n{self.glossary}" if self.glossary else ""
+        if not self.optimize:
+            # Phase 2: role prompt, track notes with the glossary, repository overview.
+            notes = "\n\n".join(part for part in (self.track_notes, glossary) if part)
+            return "\n\n".join(part for part in (WORK_PROMPT, notes, self.overview) if part)
+        system = "\n\n".join(part for part in (WORK_PROMPT, self.track_notes) if part)
+        return StablePrefix(system, repo_map=self.overview, glossary=glossary).text()
 
-    def _work_request(self, model: str, max_output: int) -> Request:
+    def _budget(self, step_type: str, spec: WorkerSpec | None) -> RoleBudget:
+        tier = spec.tier if spec is not None else "t1"
+        return role_budget(step_type, tier, self.config, optimize=self.optimize)
+
+    def _effort(self, budget: RoleBudget, spec: WorkerSpec | None) -> Any:
+        """The step's reasoning effort, for workers that reason (TK10)."""
+        if not self.optimize or spec is None or not spec.reasoning:
+            return None
+        return budget.effort
+
+    def _work_request(self, step_type: str, spec: WorkerSpec | None) -> Request:
+        budget = self._budget(step_type, spec)
         return Request(
-            model=model,
+            model=spec.model if spec is not None else "",
             system=[TextPart(text=self._system_prompt())],
             messages=list(self.messages),
             tools=self.toolbox.specs(),
-            max_output_tokens=max_output,
+            max_output_tokens=budget.max_output_tokens,
+            effort=self._effort(budget, spec),
             sampling=Sampling(temperature=0.2, seed=self.spec.seed),
         )
 
@@ -203,20 +391,76 @@ class AgentLoop:
         size += sum(len(json.dumps(t.model_dump(exclude_none=True))) for t in request.tools)
         return size
 
-    def _decide(self, step_type: str, prompt_tokens: int, *, work: bool) -> Decision:
+    def _prompt_tokens(self, request: Request) -> int:
+        return estimate_tokens(self._chars(request))
+
+    # ------------------------------------------------------------------------------------
+    # Routing and model calls
+    # ------------------------------------------------------------------------------------
+
+    def _relay_pin(self, work: bool) -> tuple[str | None, int]:
+        """The worker this step is pinned to and the handoff threshold for it."""
+        threshold = self.settings.handoff_threshold
+        if self.relay is None:
+            return self.spec.worker, threshold
+        first, second = self.relay
+        if self.relayed:
+            return second, threshold
+        if work and self.step + 1 >= self.relay_step:
+            return second, 0  # the relay always hands over with a brief
+        return first, threshold
+
+    def _handoff_seconds(self) -> float:
+        if self.summarizer is None or not self.optimize:
+            return 0.0
+        return cost.estimate(
+            self.summarizer.spec,
+            input_tokens=WRITER_INPUT_TOKENS,
+            output_tokens=WRITER_OUTPUT_TOKENS,
+            uncached_tokens=WRITER_INPUT_TOKENS,
+        ).seconds
+
+    def _seen(self, probe: Request, prompt_tokens: int) -> tuple[dict[str, int], int]:
+        """Tokens of the prompt each server holds, and the stable prefix's share (estimated
+        tokens), from the prefix registry."""
+        chain = chain_of(probe)
+        if not chain.tokens:
+            return {}, 0
+        seen: dict[str, int] = {}
+        for spec in self.catalog.specs():
+            cached = self.registry.cached_tokens(spec.id, chain)
+            if cached:
+                seen[spec.id] = min(prompt_tokens, round(prompt_tokens * cached / chain.tokens))
+        return seen, round(prompt_tokens * chain.prefix_tokens / chain.tokens)
+
+    def _decide(self, step_type: str, probe: Request, *, work: bool) -> Decision:
+        prompt_tokens = self._prompt_tokens(probe)
+        seen: dict[str, int] = {}
+        prefix_tokens = 0
+        if work and self.optimize:
+            seen, prefix_tokens = self._seen(probe, prompt_tokens)
+        elif work:
+            seen = dict(self.seen_tokens)
+        pin, threshold = self._relay_pin(work)
         state = RouterState(
             step=self.step + 1,
             current=self.current,
             level=self.ladder.level,
             transcript_tokens=prompt_tokens,
             output_tokens=EXPECTED_OUTPUT_TOKENS.get(step_type, DEFAULT_EXPECTED_OUTPUT),
-            seen_tokens=dict(self.seen_tokens) if work else {},
+            seen_tokens=seen,
+            prefix_tokens=prefix_tokens,
+            handoff_seconds=self._handoff_seconds(),
+            handoff_recovery=self.handoff_recovery,
+            handoff_threshold=threshold,
+            handoff_allowed=self.optimize and work,
             track=self.spec.track,
             offline=self.offline,
             allow_remote=self.allow_remote,
-            worker_pin=self.spec.worker,
+            worker_pin=pin,
             failed=frozenset(self.failed),
             context_caps=dict(self.context_caps),
+            base_rates=dict(self.base_rates) if self.optimize else {},
         )
         decision = route(
             self.features,
@@ -258,24 +502,35 @@ class AgentLoop:
                 reason=decision.reason,
                 cost=decision.switch_cost or {"seconds": 0.0, "tokens": 0.0},
                 expected_gain=decision.expected_gain,
+                handoff=decision.handoff,
             )
             self.echo(f"  switch: {decision.reason}")
         return decision
 
     def _call(
-        self, step_type: str, request_for: Callable[[str, int], Request], *, work: bool
+        self, step_type: str, request_for: Callable[[WorkerSpec | None], Request], *, work: bool
     ) -> tuple[Completion, str] | None:
         """Route one step and run it, retrying on another worker after a model error."""
         while True:
-            probe = request_for("", self._output_budget(None))
-            decision = self._decide(step_type, estimate_tokens(self._chars(probe)), work=work)
+            probe = request_for(None)
+            decision = self._decide(step_type, probe, work=work)
             if decision.chosen is None:
                 self.last_error = self.last_error or decision.reason
                 return None
             worker = self.catalog.get(decision.chosen)
             spec = worker.spec
-            request = request_for(spec.model, self._output_budget(spec.tier))
-            prompt_tokens = estimate_tokens(self._chars(request))
+            relay_now = (
+                work and self.relay is not None and not self.relayed and spec.id == self.relay[1]
+            )
+            if relay_now:
+                self.relayed = True
+            if decision.handoff and work and self.optimize:
+                reason = "relay" if relay_now else "switch" if decision.switched else "failover"
+                self._handoff(decision, spec, reason, self._prompt_tokens(probe))
+            request = request_for(spec)
+            prompt_tokens = self._prompt_tokens(request)
+            chain = chain_of(request) if self.optimize else None
+            predicted = self.registry.predicted(spec.id, chain) if chain is not None else 0
             self.step += 1
             started = self.clock()
             try:
@@ -290,6 +545,8 @@ class AgentLoop:
                 else:
                     self.failed.add(spec.id)
                 self.last_error = f"{spec.id}: {exc}"
+                self.failovers += 1
+                self.registry.forget(spec.id)
                 self.trajectory.emit(
                     "model_error",
                     step=self.step,
@@ -306,13 +563,27 @@ class AgentLoop:
                 continue
             wall = max(0.0, self.clock() - started)
             self._account(step_type, spec, request, completion, wall, prompt_tokens, work=work)
+            if chain is not None:
+                self._observe_cache(spec.id, chain, predicted, completion.response.usage)
+                if not work:
+                    self.registry.record(spec.id, chain)
             self.current = spec.id
+            self.last_worker = spec.id
             return completion, spec.id
 
-    def _output_budget(self, tier: str | None) -> int:
-        if tier is None:
-            return DEFAULT_WORK_OUTPUT_TOKENS
-        return WORK_OUTPUT_TOKENS.get(tier, DEFAULT_WORK_OUTPUT_TOKENS)
+    def _observe_cache(
+        self, worker_id: str, chain: Chain, predicted: int, usage: Usage | None
+    ) -> None:
+        """Calibrate the registry: the cached share the server reported vs the predicted one."""
+        if usage is None or not usage.input_tokens or not chain.tokens:
+            return
+        expected = round(usage.input_tokens * predicted / chain.tokens)
+        self.registry.observe(worker_id, expected, usage.cached_input_tokens)
+
+    def _remember_prefix(self, worker_id: str) -> None:
+        """`worker_id`'s server now holds the transcript up to its reply."""
+        if self.optimize:
+            self.registry.record(worker_id, chain_of(self._work_request("navigate", None)))
 
     def _account(
         self,
@@ -374,18 +645,79 @@ class AgentLoop:
             f"[{self.step}] {step_type:9} {spec.id}" + (f" -> {', '.join(calls)}" if calls else "")
         )
 
+    def _account_aux(
+        self,
+        purpose: str,
+        spec: WorkerSpec,
+        completion: Completion | None,
+        wall: float,
+        request_chars: int,
+    ) -> None:
+        """Record a call that serves the agent rather than taking a step: a brief or summary."""
+        if completion is None:
+            return
+        response = completion.response
+        fields = usage_row_fields(
+            response.usage,
+            request_chars=request_chars,
+            response_chars=len(response.message.text_content()),
+        )
+        gpu = gpu_seconds_of(response, wall, gpu=spec.gpu)
+        self.ledger.record(
+            LedgerRow(
+                task_id=self.task_id,
+                step=self.step,
+                step_type="summarize",
+                endpoint=spec.endpoint,
+                model=spec.model,
+                wall_seconds=round(wall, 6),
+                gpu_seconds=round(gpu, 6),
+                data={
+                    "worker": spec.id,
+                    "purpose": purpose,
+                    "attempts": completion.attempts,
+                    "finish_reason": response.finish_reason,
+                },
+                **fields,
+            )
+        )
+        self.budget.charge(tokens=fields["input_tokens"] + fields["output_tokens"], gpu_seconds=gpu)
+        if spec.endpoint not in self.endpoints:
+            self.endpoints.append(spec.endpoint)
+        # The summarizer's server now holds this prompt, not a work transcript.
+        self.registry.forget(spec.id)
+        self.trajectory.emit(
+            "aux",
+            step=self.step,
+            purpose=purpose,
+            worker=spec.id,
+            endpoint=spec.endpoint,
+            model=spec.model,
+            usage=dict(fields),
+            wall_seconds=round(wall, 3),
+        )
+
     # ------------------------------------------------------------------------------------
     # Text steps
     # ------------------------------------------------------------------------------------
 
-    def _text_step(self, step_type: str, prompt: str, user: str, max_output: int) -> str | None:
-        def request_for(model: str, _budget: int) -> Request:
+    def _text_step(
+        self,
+        step_type: str,
+        prompt: str,
+        user: str,
+        response_format: ResponseFormat | None = None,
+    ) -> str | None:
+        def request_for(spec: WorkerSpec | None) -> Request:
+            budget = self._budget(step_type, spec)
             return Request(
-                model=model,
+                model=spec.model if spec is not None else "",
                 system=[TextPart(text=prompt)],
                 messages=[Message.text("user", user)],
-                max_output_tokens=max_output,
+                max_output_tokens=budget.max_output_tokens,
+                effort=self._effort(budget, spec),
                 sampling=Sampling(temperature=0.2, seed=self.spec.seed),
+                response_format=response_format,
             )
 
         self.overflowed = False
@@ -407,6 +739,285 @@ class AgentLoop:
         return diff or "(no changes)"
 
     # ------------------------------------------------------------------------------------
+    # HANDOFF briefs (TK7) and the rolling summary (TK6)
+    # ------------------------------------------------------------------------------------
+
+    def _scrub(self, text: str) -> str:
+        """`text` with the machine's absolute paths replaced (briefs reach other models and
+        bench records; working rule 5)."""
+        for pattern, replacement in self._scrubbers:
+            text = pattern.sub(replacement, text)
+        return text
+
+    def _facts(self, from_worker: str) -> handoff.HandoffFacts:
+        remaining = self.budget.remaining()
+        tokens_left = remaining.get("tokens")
+        seconds_left = remaining.get("wall_seconds")
+        decisions = (
+            [{"what": "Follow the plan", "why": self._scrub(self.plan)}] if self.plan else []
+        )
+        commands = [cmd.replace("{python}", "python") for cmd in self.spec.acceptance]
+        if not commands and getattr(self.toolbox, "test_command", None):
+            commands = ["the `test` tool runs the project's tests"]
+        return handoff.HandoffFacts(
+            task_id=self.task_id,
+            goal=self._scrub(self.spec.instruction.strip()),
+            track=self.spec.track,
+            constraints=[self._scrub(item) for item in self.constraints],
+            commands=commands,
+            golden=list(self.golden),
+            done=list(self.work_log),
+            decisions=decisions,
+            files=list(reversed(self.file_notes.values())),
+            failing=list(self.failing),
+            tokens_left=int(tokens_left) if tokens_left is not None else None,
+            seconds_left=float(seconds_left) if seconds_left is not None else None,
+            from_worker=from_worker,
+            step=self.step,
+        )
+
+    def _digest(self) -> str:
+        """What the summarizer reads to write the brief's state: the work log and notes."""
+        head = [f"Task: {self.spec.instruction.strip()[:3000]}"]
+        if self.plan:
+            head.append(f"Plan:\n{self.plan[:1500]}")
+        said = [
+            m.text_content().strip()
+            for m in self.messages
+            if m.role == "assistant" and m.text_content().strip()
+        ]
+        tail = []
+        if said:
+            tail.append(
+                "What the worker wrote (latest last):\n"
+                + "\n".join(f"- {s[:300]}" for s in said[-6:])
+            )
+        if self.failing:
+            tail.append(
+                "Failing checks:\n"
+                + "\n\n".join(f"{f.check}:\n{f.excerpt[-1500:]}" for f in self.failing[-2:])
+            )
+        log = self.work_log[-WORK_LOG_ITEMS:]
+        while True:
+            body = ["Work log:\n" + "\n".join(f"- {item}" for item in log)] if log else []
+            text = self._scrub("\n\n".join(head + body + tail))
+            if len(text) <= DIGEST_CHARS or not log:
+                return text[:DIGEST_CHARS]
+            log = log[len(log) // 4 + 1 :]
+
+    def _receiver(self, spec: WorkerSpec) -> token_counts.Receiver:
+        try:
+            endpoint = _endpoint_of(self.catalog.get(spec.id).get_model())
+        except Exception:  # noqa: BLE001 - a receiver without endpoint facts still has a name
+            endpoint = None
+        return token_counts.Receiver(
+            model=spec.model,
+            registry_id=spec.registry_id,
+            tokenizer=spec.tokenizer,
+            engine=getattr(endpoint, "engine", None),
+            base_url=getattr(endpoint, "base_url", None),
+            headers=dict(getattr(endpoint, "headers", None) or {}),
+        )
+
+    def _ask_writer(self) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+        """The brief's state from the T0 summarizer (TK8: a JSON-Schema-constrained answer)."""
+        assert self.summarizer is not None
+        digest = self._digest()
+        started = self.clock()
+        try:
+            state, details = handoff.write_state(
+                self.summarizer.get_model(), digest, seed=self.spec.seed
+            )
+        except Exception as exc:  # noqa: BLE001 - the facts still make a brief
+            state, details = None, {"writer": "fallback", "reason": f"{type(exc).__name__}: {exc}"}
+        wall = max(0.0, self.clock() - started)
+        completion = details.pop("completion", None)
+        self._account_aux(
+            "handoff",
+            self.summarizer.spec,
+            completion,
+            wall,
+            len(digest) + len(handoff.WRITER_PROMPT),
+        )
+        details["worker"] = self.summarizer.spec.id
+        if "reason" in details:
+            details["reason"] = self._scrub(str(details["reason"]))[:300]
+        return state, details
+
+    def _write_brief(
+        self, receiver: WorkerSpec, from_worker: str
+    ) -> tuple[handoff.Fitted, dict[str, Any], token_counts.Receiver] | None:
+        facts = self._facts(from_worker)
+        writer: dict[str, Any] = {"writer": "facts"}
+        if self.summarizer is not None:
+            state, writer = self._ask_writer()
+            if state is not None:
+                facts.done = [self._scrub(str(s)) for s in state.get("done") or []] or facts.done
+                facts.decisions = facts.decisions[:1] + [
+                    {"what": self._scrub(str(d["what"])), "why": self._scrub(str(d["why"]))}
+                    for d in state.get("decisions") or []
+                ]
+                facts.open_questions = [
+                    self._scrub(str(q)) for q in state.get("open_questions") or []
+                ]
+        target = self._receiver(receiver)
+        counter = token_counts.resolve(target, models_dir=self.models_dir, egress=self.egress)
+        try:
+            fitted = handoff.fit(handoff.build(facts), counter, limit=handoff.MAX_TOKENS)
+        except handoff.HandoffError as exc:
+            self.trajectory.emit("handoff_error", step=self.step, message=str(exc)[:500])
+            return None
+        return fitted, writer, target
+
+    def _record_brief(
+        self,
+        fitted: handoff.Fitted,
+        writer: dict[str, Any],
+        target: token_counts.Receiver,
+        *,
+        reason: str,
+        to_worker: str,
+        from_worker: str,
+        transcript_tokens: int,
+        decision: Decision | None = None,
+    ) -> None:
+        priors = {c.worker: c.prior for c in decision.candidates} if decision is not None else {}
+        record: dict[str, Any] = {
+            "task_id": self.task_id,
+            "step": self.step,
+            "reason": reason,
+            "from_worker": from_worker,
+            "to_worker": to_worker,
+            "receiver": target.as_dict(),
+            "tokenizer": fitted.count.tokenizer,
+            "exact": fitted.count.exact,
+            "tokens": fitted.count.tokens,
+            "limit": handoff.MAX_TOKENS,
+            "valid": fitted.valid,
+            "errors": fitted.errors[:5],
+            "trims": fitted.trims,
+            "writer": writer,
+            "transcript_tokens": transcript_tokens,
+            "p_current": priors.get(from_worker),
+            "p_new": priors.get(to_worker),
+            "brief": fitted.brief,
+            "markdown": fitted.markdown,
+        }
+        self.handoffs.append(record)
+        self.trajectory.emit(
+            "handoff",
+            step=self.step,
+            **{k: v for k, v in record.items() if k not in {"step", "brief", "markdown"}},
+        )
+        self.trajectory.write_file(
+            "handoffs.jsonl",
+            "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in self.handoffs),
+        )
+        self.echo(
+            f"  handoff ({reason}): {fitted.count.tokens} tokens"
+            f" ({fitted.count.tokenizer}) -> {to_worker}"
+        )
+
+    def _reset_results(self) -> None:
+        self.records = []
+        self.read_cache.reset()
+        self.last_call = None
+
+    def _handoff(
+        self, decision: Decision, spec: WorkerSpec, reason: str, transcript_tokens: int
+    ) -> bool:
+        """Replace the transcript with a HANDOFF brief for `spec` (SPEC §7.2, §9)."""
+        from_worker = decision.previous or self.last_worker or "unknown"
+        written = self._write_brief(spec, from_worker)
+        if written is None:
+            return False
+        fitted, writer, target = written
+        self.messages = [Message.text("user", f"{HANDOFF_INTRO}\n\n{fitted.markdown}")]
+        self._reset_results()
+        self._record_brief(
+            fitted,
+            writer,
+            target,
+            reason=reason,
+            to_worker=spec.id,
+            from_worker=from_worker,
+            transcript_tokens=transcript_tokens,
+            decision=decision,
+        )
+        return True
+
+    def _maybe_compact(self) -> None:
+        """At `compact_at` of the transcript budget, replace the older turns by a brief and keep
+        the latest exchange (TK6)."""
+        if self.current is None:
+            return
+        spec = self.catalog.get(self.current).spec
+        tokens = self._prompt_tokens(self._work_request("navigate", None))
+        window = self.settings.window_for(spec.context)
+        if not prune.should_compact(tokens, window, at=self.settings.compact_at):
+            return
+        tail = max(
+            (i for i, message in enumerate(self.messages) if message.role == "assistant"),
+            default=None,
+        )
+        if tail is None or tail < 2:
+            return
+        written = self._write_brief(spec, spec.id)
+        if written is None:
+            return
+        fitted, writer, target = written
+        kept = self.messages[tail:]
+        self.messages = [Message.text("user", f"{COMPACT_INTRO}\n\n{fitted.markdown}"), *kept]
+        shift = tail - 1
+        self.records = [
+            dataclasses.replace(record, index=record.index - shift)
+            for record in self.records
+            if record.index >= tail
+        ]
+        self.read_cache.reset()
+        self.compactions += 1
+        self._record_brief(
+            fitted,
+            writer,
+            target,
+            reason="compaction",
+            to_worker=spec.id,
+            from_worker=spec.id,
+            transcript_tokens=tokens,
+        )
+
+    def _prune(self) -> None:
+        """Stub superseded tool results, in batches worth a cache miss (TK6)."""
+        found = prune.plan(
+            self.records,
+            min_tokens=self.settings.prune_min_tokens,
+            keep_recent=self.settings.keep_recent,
+        )
+        if not found:
+            return
+        saved = 0
+        for record, text in found:
+            message = self.messages[record.index]
+            parts = [
+                part.model_copy(update={"content": [TextPart(text=text)]})
+                if isinstance(part, ToolResultPart)
+                else part
+                for part in message.content
+            ]
+            self.messages[record.index] = message.model_copy(update={"content": parts})
+            record.pruned = True
+            saved += max(0, record.tokens - estimate_tokens(len(text)))
+        self.stats["pruned"] += len(found)
+        self.stats["pruned_tokens"] += saved
+        self.trajectory.emit(
+            "prune",
+            step=self.step,
+            results=len(found),
+            tokens=saved,
+            indices=[record.index for record, _ in found],
+        )
+
+    # ------------------------------------------------------------------------------------
     # Tools and gates
     # ------------------------------------------------------------------------------------
 
@@ -423,9 +1034,35 @@ class AgentLoop:
             ],
         )
 
+    def _stored_output(self, call: ToolCallPart) -> ToolOutput | None:
+        """A `read` of `@output/<n>`, answered from the raw outputs kept by TK4."""
+        name = call.name.strip().lower()
+        if TOOL_ALIASES.get(name, name) != "read":
+            return None
+        try:
+            args = json.loads(call.arguments) if call.arguments.strip() else {}
+        except ValueError:
+            return None
+        if not isinstance(args, dict):
+            return None
+        path = next((str(args[k]) for k in PATH_KEYS if isinstance(args.get(k), str)), "")
+        number = self.outputs.parse(path.strip())
+        if number is None:
+            return None
+        limit = int(getattr(self.toolbox, "max_output_chars", 6000))
+        try:
+            text = self.outputs.show(
+                number, _int_or_none(args.get("start")), _int_or_none(args.get("end")), limit
+            )
+        except KeyError as exc:
+            return ToolOutput(str(exc.args[0]), is_error=True, data={"tool": "read"})
+        return ToolOutput(text, data={"tool": "read", "output": number})
+
     def _execute(self, call: ToolCallPart) -> tuple[ToolOutput, bool]:
         """Run one call; also say whether it repeats the previous call and its result."""
-        output = self.toolbox.execute(call.name, call.arguments)
+        output = self._stored_output(call) if self.optimize else None
+        if output is None:
+            output = self.toolbox.execute(call.name, call.arguments)
         payload = output.text
         key = (call.name, _canonical_arguments(call.arguments), payload)
         repeated = key == self.last_call
@@ -446,6 +1083,156 @@ class AgentLoop:
         )
         return output, repeated
 
+    def _visible(self, index: int) -> bool:
+        return any(r.index == index and not r.pruned for r in self.records)
+
+    def _summarize_output(self, text: str) -> str | None:
+        if self.summarizer is None:
+            return None
+        started = self.clock()
+        try:
+            summary, completion = distill.summarize(self.summarizer.get_model(), text)
+        except Exception:  # noqa: BLE001 - the key lines still stand without a summary
+            return None
+        self._account_aux(
+            "distill",
+            self.summarizer.spec,
+            completion,
+            max(0.0, self.clock() - started),
+            len(distill.summary_input(text)),
+        )
+        return summary
+
+    def _present(self, call: ToolCallPart, output: ToolOutput) -> tuple[str, str | None]:
+        """The text the transcript gets for `output`, and which technique shaped it."""
+        if not self.optimize:
+            return output.text, None
+        tool = str(output.data.get("tool") or call.name)
+        if tool == "read" and not output.is_error and "output" not in output.data:
+            earlier = self.read_cache.lookup(output.data, self._visible)
+            if earlier is not None:
+                self.stats["dedup"] += 1
+                return dedup.stub(output.data, earlier), "dedup"
+            compression = self.settings.compression
+            if compression.enabled and self.compressor is not None:
+                path = str(output.data.get("path") or "")
+                text, info = maybe_compress(output.text, path, compression, self.compressor)
+                if info is not None and info.get("compressed"):
+                    self.stats["compressed"] += 1
+                    return text, "compressed"
+            return output.text, None
+        raw = output.raw
+        if (
+            tool in distill.DISTILL_TOOLS
+            and raw is not None
+            and distill.too_long(raw, self.settings.distill_tokens)
+        ):
+            number = self.outputs.put(raw)
+            text = distill.distill(
+                raw, tool=tool, number=number, summary=self._summarize_output(raw)
+            )
+            self.stats["distilled"] += 1
+            return text, "distilled"
+        return output.text, None
+
+    def _add_result(
+        self, call: ToolCallPart, output: ToolOutput, text: str, index: int, shaped: str | None
+    ) -> None:
+        """Track a tool result for pruning (TK6) and read dedup (TK3)."""
+        if not self.optimize:
+            return
+        data = output.data
+        tool = str(data.get("tool") or call.name)
+        record = prune.ResultRecord(
+            index=index,
+            step=self.step,
+            # A dedup stub points to an earlier read; it must never supersede that read.
+            tool="dedup" if shaped == "dedup" else tool,
+            arguments=_canonical_arguments(call.arguments),
+            tokens=estimate_tokens(len(text)),
+            path=str(data["path"]) if isinstance(data.get("path"), str) else None,
+            start=_int_or_none(data.get("start")),
+            end=_int_or_none(data.get("end")),
+            total_lines=_int_or_none(data.get("total_lines")),
+            is_error=output.is_error,
+        )
+        self.records.append(record)
+        if tool == "read" and shaped is None and not output.is_error:
+            self.read_cache.remember(data, index, self.step)
+        if shaped is not None:
+            self.trajectory.emit(
+                "context",
+                step=self.step,
+                kind=shaped,
+                tool=tool,
+                chars=len(output.raw or output.text),
+                kept=len(text),
+            )
+
+    def _note_file(self, path: str, what: str) -> None:
+        note = self.file_notes.pop(path, None) or handoff.FileNote(path)
+        if what not in note.why.split(", "):
+            note.why = ", ".join(part for part in (note.why, what) if part)
+        self.file_notes[path] = note  # most recent last
+
+    def _log_tool(self, call: ToolCallPart, output: ToolOutput) -> None:
+        """One line of the work log, and the files and failures a brief carries (SPEC §9)."""
+        data = output.data
+        tool = str(data.get("tool") or call.name)
+        path = data.get("path") if isinstance(data.get("path"), str) else None
+        first = output.text.strip().splitlines()[0][:200] if output.text.strip() else ""
+        if output.is_error:
+            entry = f"{tool} failed: {first}"
+        elif tool == "read" and "output" in data:
+            entry = f"read the stored output @output/{data['output']}"
+        elif tool == "read" and data.get("directory"):
+            entry = f"listed {path}"
+        elif tool == "read":
+            entry = (
+                f"read {path} lines {data.get('start')}-{data.get('end')}"
+                f" of {data.get('total_lines')}"
+            )
+            self._note_file(str(path), "read")
+        elif tool == "edit":
+            if data.get("changed"):
+                entry = f"edited {path} (+{data.get('added', 0)} -{data.get('removed', 0)})"
+                self._note_file(str(path), "edited")
+            else:
+                entry = f"edit of {path} changed nothing"
+        elif tool == "test":
+            counts = data.get("counts") or {}
+            shown = ", ".join(f"{v} {k}" for k, v in counts.items() if v)
+            entry = ("tests passed" if data.get("ok") else "tests failed") + (
+                f" ({shown})" if shown else ""
+            )
+            failing = [str(item) for item in data.get("failing") or []][:5]
+            if failing:
+                entry += ": " + ", ".join(failing)
+        elif tool == "run":
+            entry = f"ran `{str(data.get('command'))[:120]}`: exit {data.get('exit_code')}"
+        else:
+            entry = f"{tool} {_canonical_arguments(call.arguments)[:160]}"
+        self.work_log.append(f"step {self.step}: {self._scrub(entry)}")
+        excerpt = self._scrub(output.text[-handoff.EXCERPT_CHARS :])
+        if tool == "test":
+            if data.get("ok"):
+                self.failing = []
+            else:
+                self.failing.append(handoff.Failure("tests", excerpt))
+        elif tool == "run" and isinstance(data.get("exit_code"), int) and data["exit_code"] != 0:
+            command = self._scrub(str(data.get("command")))[:80]
+            self.failing.append(handoff.Failure(f"run {command}", excerpt))
+
+    def _log_gates(self, verdict: Any) -> None:
+        if verdict.passed:
+            self.work_log.append(f"step {self.step}: verification passed")
+            self.failing = []
+            return
+        gate = verdict.failed_gate or "a"
+        self.work_log.append(f"step {self.step}: verification failed at the {gate} gate")
+        report = self._scrub(str(verdict.report or ""))
+        self.failing.append(handoff.Failure(f"{gate} gate", report[-handoff.EXCERPT_CHARS :]))
+
     def _run_gates(self) -> Any:
         self.gate_runs += 1
         artifacts = self.trajectory.run_dir / "artifacts" / f"gates-{self.gate_runs}"
@@ -462,6 +1249,7 @@ class AgentLoop:
         self.trajectory.emit("gates", step=self.step, run=self.gate_runs, verdict=data)
         status = "passed" if verdict.passed else f"failed at {verdict.failed_gate}"
         self.echo(f"  gates: {status}")
+        self._log_gates(verdict)
         return verdict
 
     # ------------------------------------------------------------------------------------
@@ -537,7 +1325,7 @@ class AgentLoop:
         limit = self._limit()
         if limit is not None:
             return limit
-        plan = self._text_step("plan", PLAN_PROMPT, f"Task: {task_text}\n\n{self.overview}", 400)
+        plan = self._text_step("plan", PLAN_PROMPT, f"Task: {task_text}\n\n{self.overview}")
         if plan:
             self.plan = plan
         first = f"Task: {task_text}"
@@ -555,16 +1343,18 @@ class AgentLoop:
             limit = self._limit()
             if limit is not None:
                 return limit
+            if self.optimize:
+                self._prune()
+                self._maybe_compact()
             result = self._call(
-                step_type,
-                lambda model, budget: self._work_request(model, budget),
-                work=True,
+                step_type, functools.partial(self._work_request, step_type), work=True
             )
             if result is None:
                 return self._limit() or self._no_worker()
-            completion, _worker = result
+            completion, worker_id = result
             message = completion.response.message
             self.messages.append(message.model_copy(update={"role": "assistant"}))
+            self._remember_prefix(worker_id)
             calls = message.tool_calls()
             finish: ToolCallPart | None = None
             if not calls:
@@ -592,8 +1382,12 @@ class AgentLoop:
                     output, repeated = self._execute(call)
                     outputs.append(output)
                     work_calls.append(call)
-                    text = f"{output.text}\n\n{REPEAT_HINT}" if repeated else output.text
+                    shown, shaped = self._present(call, output)
+                    text = f"{shown}\n\n{REPEAT_HINT}" if repeated else shown
+                    index = len(self.messages)
                     self.messages.append(self._tool_message(call, text, is_error=output.is_error))
+                    self._add_result(call, output, text, index, shaped)
+                    self._log_tool(call, output)
                     key = self._progress_key(call, output)
                     if key is not None and key not in seen_progress:
                         seen_progress.add(key)
@@ -660,6 +1454,7 @@ class AgentLoop:
                             + "\nAddress them, then call finish again.",
                         )
                     )
+                    self.work_log.append(f"step {self.step}: the review found issues")
                     step_type = "edit"
                     continue
             summary = self._summary(verdict)
@@ -671,21 +1466,29 @@ class AgentLoop:
         limit = self._limit()
         if limit is not None:
             return None
+        constrained = self.optimize
         text = self._text_step(
             "review",
-            REVIEW_PROMPT,
+            REVIEW_JSON_PROMPT if constrained else REVIEW_PROMPT,
             f"Task: {self.spec.instruction.strip()}\n\nDiff:\n{self._diff_text()}",
-            400,
+            ResponseFormat(
+                type="json_schema", name="review", json_schema=REVIEW_SCHEMA, strict=True
+            )
+            if constrained
+            else None,
         )
         if text is None:
             return None
-        head = text.lstrip("*# ").upper()
-        approved = not head.startswith("ISSUES")
-        review = {
-            "approved": approved,
-            "text": text[:2000],
-            "parsed": head.startswith(("APPROVE", "ISSUES")),
-        }
+        parsed = parse_review(text) if constrained else None
+        if parsed is not None:
+            review = {**parsed, "parsed": True, "constrained": True}
+        else:
+            head = text.lstrip("*# ").upper()
+            review = {
+                "approved": not head.startswith("ISSUES"),
+                "text": text[:2000],
+                "parsed": head.startswith(("APPROVE", "ISSUES")),
+            }
         self.last_review = review
         self.trajectory.emit("review", step=self.step, **review)
         return review
@@ -704,6 +1507,5 @@ class AgentLoop:
             SUMMARY_PROMPT,
             f"Task: {self.spec.instruction.strip()}\n\nChecks: {gates or 'none'}\n\n"
             f"Diff:\n{self._diff_text()}",
-            200,
         )
         return text or fallback

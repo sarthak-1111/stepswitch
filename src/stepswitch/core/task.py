@@ -84,6 +84,13 @@ class TaskSpec(BaseModel):
     include_uncommitted: bool = False
     # Allow routing to remote endpoints (the top of the escalation ladder is opt-in).
     allow_remote: bool = False
+    # Token and cache optimization (SPEC §13, ADR 0024); False runs the Phase 2 baseline.
+    # None follows `[context] optimize` in the config (on by default).
+    optimize: bool | None = None
+    # The bench's relay: the first worker hands the task to the second with a HANDOFF brief
+    # at work step `relay_step` (`ssw bench run --relay`).
+    relay: list[str] = Field(default_factory=list)
+    relay_step: int = 6
 
 
 def new_task_id() -> str:
@@ -109,3 +116,11 @@ class TaskResult(BaseModel):
     run_dir: str | None = None
     worktree: str | None = None
     branch: str | None = None
+    # Phase 5: whether the token optimizations ran, model errors that moved a step to another
+    # worker, HANDOFF briefs written (switches, failovers, relays and compactions) and what the
+    # context techniques did (`AgentLoop.stats`).
+    optimize: bool = True
+    failovers: int = 0
+    handoffs: int = 0
+    compactions: int = 0
+    context: dict[str, int] = Field(default_factory=dict)

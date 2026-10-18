@@ -6,6 +6,12 @@ status transitions, the trajectory (`.stepswitch/runs/<task id>/events.jsonl`), 
 decisions, the ledger, the diff and the final result. The repository itself is only changed
 when the task is done and `apply` was asked for; otherwise the change stays on the branch
 `stepswitch/<task id>`.
+
+With the token optimizations on (Phase 5, ADR 0024) the agent also gets the context settings,
+the T0 summarizer that writes HANDOFF briefs, the measured router parameters from the state
+database (handoff recovery and base rates, `stepswitch.router.calibration`), and the paths to
+keep out of briefs. Each finished task updates the learned handoff recovery with its outcome;
+its briefs are in the run directory's `handoffs.jsonl`.
 """
 
 from __future__ import annotations
@@ -29,6 +35,7 @@ from stepswitch.trajectory.record import Trajectory
 
 if TYPE_CHECKING:
     from stepswitch.config import Config
+    from stepswitch.context.settings import ContextSettings
     from stepswitch.workers.catalog import Catalog
 
 OVERVIEW_FILES = 60
@@ -201,6 +208,7 @@ def run_task(
 ) -> TaskResult:
     """Run one task to a final status and return its result."""
     from stepswitch import config as config_module
+    from stepswitch.context.settings import ContextSettings
     from stepswitch.core.track import track_policy
     from stepswitch.workers.builtin_agent import AgentLoop, LoopOutcome
     from stepswitch.workers.catalog import Catalog
@@ -240,9 +248,14 @@ def run_task(
         rules: list[Rule] = rules_from_config(config)
         if catalog is None:
             catalog = Catalog.from_config(config, root, egress=egress, db=db, task_id=task_id)
+        settings = ContextSettings.from_config(config)
+        optimize = settings.optimize if spec.optimize is None else spec.optimize
+        # The writer of briefs may be outside the routing pool: it never takes a step.
+        summarizer = catalog.summarizer() if optimize else None
         if spec.workers:
             catalog = catalog.subset(spec.workers)
             trajectory.emit("pool", workers=[w.spec.id for w in catalog.workers.values()])
+        relay = _relay(spec, catalog)
         for note in catalog.notes:
             say(f"  note: {note}")
         features = _classify(
@@ -313,14 +326,32 @@ def run_task(
             clock=clock,
             echo=say,
             diff=worktree.diff,
-            track_notes=policy.system_notes(),
+            track_notes="\n\n".join(policy.notes),
             overview=repo_overview(workdir, policy.test_command),
             allow_remote=allow_remote,
             offline=policy_offline,
+            glossary=policy.glossary or "",
+            constraints=list(policy.notes),
+            golden=list(policy.golden),
+            **_optimization(
+                optimize,
+                settings,
+                db=db,
+                catalog=catalog,
+                track=spec.track,
+                config=config,
+                egress=task_egress,
+                summarizer=summarizer,
+                relay=relay,
+                relay_step=spec.relay_step,
+                scrub=[(str(workdir), "."), (str(root), "<project>"), (str(Path.home()), "~")],
+            ),
         )
         row.update("running")
         trajectory.emit("status", status="running")
         outcome = agent.run()
+        if agent.optimize:
+            _learn_from_handoffs(db, agent.handoffs, success=outcome.status == "done")
     except _Cancelled:
         trajectory.emit("cancelled", step=0)
         outcome = LoopOutcome("stopped", "cancelled", detail="cancelled before it started")
@@ -376,6 +407,11 @@ def run_task(
         run_dir=str(trajectory.run_dir),
         worktree=None,
         branch=branch,
+        optimize=agent.optimize if agent is not None else True,
+        failovers=agent.failovers if agent is not None else 0,
+        handoffs=len(agent.handoffs) if agent is not None else 0,
+        compactions=agent.compactions if agent is not None else 0,
+        context=dict(agent.stats) if agent is not None else {},
     )
     data = result.model_dump(mode="json", exclude={"diff"})
     trajectory.write_file("result.json", json.dumps(data, indent=2) + "\n")
@@ -392,6 +428,87 @@ def run_task(
     say(f"{result.status}" + (f" ({result.stop_reason})" if result.stop_reason else ""))
     db.close()
     return result
+
+
+def _relay(spec: TaskSpec, catalog: Catalog) -> tuple[str, str] | None:
+    """The relay's two worker ids (`--relay first,second`), resolved in the catalog."""
+    if not spec.relay:
+        return None
+    if len(spec.relay) != 2:
+        raise ValueError("a relay names exactly two workers: first,second")
+    ids = []
+    for name in spec.relay:
+        worker = catalog.find(name)
+        if worker is None:
+            known = ", ".join(sorted(catalog.workers)) or "none configured"
+            raise ValueError(f"unknown relay worker {name!r} (workers: {known})")
+        ids.append(worker.spec.id)
+    if ids[0] == ids[1]:
+        raise ValueError("a relay hands the task to another worker: give two different ones")
+    return ids[0], ids[1]
+
+
+def _optimization(
+    optimize: bool,
+    settings: ContextSettings,
+    *,
+    db: StateDB,
+    catalog: Catalog,
+    track: str,
+    config: Config,
+    egress: net.Egress,
+    summarizer: Any,
+    relay: tuple[str, str] | None,
+    relay_step: int,
+    scrub: list[tuple[str, str]],
+) -> dict[str, Any]:
+    """The AgentLoop arguments of the token and cache optimizations (ADR 0024)."""
+    from stepswitch.context.compress import HttpCompressor
+    from stepswitch.router import calibration
+    from stepswitch.router.policy import BASE_BY_LEVEL
+
+    out: dict[str, Any] = {
+        "optimize": optimize,
+        "settings": settings,
+        "relay": relay,
+        "relay_step": relay_step,
+        "models_dir": config.models_dir(),
+        "egress": egress,
+        "scrub_paths": scrub,
+    }
+    if not optimize:
+        return out
+    table = calibration.load_priors(db)
+    rates = {}
+    for spec in catalog.specs():
+        rate = table.rate(spec.model, track, BASE_BY_LEVEL.get(spec.level, 0.6))
+        if rate is not None:
+            rates[spec.id] = round(rate, 4)
+    compression = settings.compression
+    out.update(
+        summarizer=summarizer,
+        handoff_recovery=calibration.load_recovery(db).mean,
+        base_rates=rates,
+        compressor=HttpCompressor(compression.endpoint, egress=egress)
+        if compression.enabled and compression.endpoint
+        else None,
+    )
+    return out
+
+
+def _learn_from_handoffs(db: StateDB, records: list[dict[str, Any]], *, success: bool) -> None:
+    """Update the learned handoff recovery (SPEC §7.2) with this task's handoffs."""
+    from stepswitch.router import calibration
+
+    pairs = [
+        (float(r["p_current"]), float(r["p_new"]))
+        for r in records
+        if r.get("reason") != "compaction"
+        and r.get("p_current") is not None
+        and r.get("p_new") is not None
+    ]
+    if pairs:
+        calibration.record_handoff_outcomes(db, pairs, success)
 
 
 def _default_gates() -> Callable[..., Any]:
