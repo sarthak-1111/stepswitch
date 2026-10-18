@@ -885,11 +885,33 @@ def _show_result(result: Any, *, json_out: bool) -> None:
         f"Steps: {result.steps}, switches: {result.switches}, escalations: {result.escalations},"
         f" tokens: {int(budget.get('tokens', 0))}, time: {budget.get('wall_seconds', 0):.1f} s"
     )
+    if result.best_of > 1:
+        passed = sum(1 for c in result.candidates if c.get("status") == "done")
+        winner = next((c for c in result.candidates if c.get("index") == result.winner), None)
+        chosen = f"; kept candidate {result.winner} ({winner.get('family')})" if winner else ""
+        typer.echo(f"Candidates: {len(result.candidates)}, {passed} passed the gates{chosen}")
+        report = result.disagreement or {}
+        if report.get("detected"):
+            settled = report.get("resolution") or "not settled: the task is uncertain"
+            typer.echo(f"Disagreement: passing candidates behave differently ({settled})")
     if result.changed_files:
         typer.echo("Changed: " + ", ".join(result.changed_files))
     if result.branch:
         typer.echo(f"Branch: {result.branch}")
     typer.echo(f"Trajectory: {result.run_dir}")
+
+
+DISAGREEMENT_POLICIES = ("flag", "tests", "escalate", "human")
+
+
+def _best_of(value: str) -> int:
+    """`--best-of`: a count from 1 to 5, or auto (0: by the classifier's difficulty)."""
+    text = value.strip().lower()
+    if text == "auto":
+        return 0
+    if not text.isdigit() or not 1 <= int(text) <= 5:
+        _fail("--best-of must be a number from 1 to 5, or auto")
+    return int(text)
 
 
 def _exit_code(status: str) -> int:
@@ -904,8 +926,26 @@ def cmd_run(
     task: Annotated[str, typer.Argument(help="What to do, in plain language.")],
     track: Annotated[str, typer.Option("--track", help="general or science.")] = "general",
     best_of: Annotated[
-        int, typer.Option("--best-of", help="Candidates across model families; keep the best.")
-    ] = 1,
+        str,
+        typer.Option(
+            "--best-of",
+            help="Candidates across model families, 1 to 5, or auto (by difficulty).",
+        ),
+    ] = "1",
+    on_disagreement: Annotated[
+        str,
+        typer.Option(
+            "--on-disagreement",
+            help="When passing candidates disagree: flag, tests, escalate or human.",
+        ),
+    ] = "flag",
+    probe_tests: Annotated[
+        bool,
+        typer.Option(
+            "--probe-tests/--no-probe-tests",
+            help="With two passing candidates, also ask a model for tests of the task.",
+        ),
+    ] = True,
     offline: Annotated[
         bool, typer.Option("--offline", help="Local endpoints only; refuse other connections.")
     ] = False,
@@ -967,8 +1007,9 @@ def cmd_run(
     state = _state(ctx)
     if track not in ("general", "science"):
         _fail("--track must be general or science")
-    if best_of > 1 and not json_out:
-        typer.echo("note: best-of-N arrives in Phase 6; running one candidate", err=True)
+    candidates = _best_of(best_of)
+    if on_disagreement not in DISAGREEMENT_POLICIES:
+        _fail("--on-disagreement must be one of " + ", ".join(DISAGREEMENT_POLICIES))
     with _user_errors():
         spec = TaskSpec(
             instruction=task,
@@ -981,7 +1022,9 @@ def cmd_run(
                 gpu_seconds=budget_gpu_seconds,
                 escalations=budget_escalations,
             ),
-            best_of=best_of,
+            best_of=candidates,
+            on_disagreement=on_disagreement,  # type: ignore[arg-type]
+            probe_tests=probe_tests,
             offline=offline,
             worker=worker,
             seed=seed,
@@ -1066,7 +1109,8 @@ def bench_run(
         str | None,
         typer.Option(
             "--workers",
-            help="Comma-separated contestants: `router`, worker ids, or `fake:oracle`/`fake:noop`.",
+            help="Comma-separated contestants: `router`, `best-of-n`, worker ids, or"
+            " `fake:oracle`/`fake:noop`.",
         ),
     ] = None,
     seeds: Annotated[int, typer.Option("--seeds", min=1, help="Repetitions per task.")] = 1,
@@ -1122,6 +1166,15 @@ def bench_run(
     relay_step: Annotated[
         int, typer.Option("--relay-step", min=2, help="The work step of the relay's handoff.")
     ] = 6,
+    best_of: Annotated[
+        int,
+        typer.Option(
+            "--best-of",
+            min=2,
+            max=5,
+            help="Candidates of the `best-of-n` contestant, from the pool's model families.",
+        ),
+    ] = 2,
 ) -> None:
     """Run a benchmark suite: every contestant on every task, once per seed."""
     import shlex
@@ -1163,6 +1216,7 @@ def bench_run(
             optimize=not baseline,
             relay=relay_pair or None,
             relay_step=relay_step,
+            best_of=best_of,
             prices=(
                 {"input_per_million": price_in, "output_per_million": price_out}
                 if price_in is not None and price_out is not None
@@ -1179,6 +1233,8 @@ def bench_run(
         args += (
             ["--relay", ",".join(relay_pair), "--relay-step", str(relay_step)] if relay_pair else []
         )
+        if any(c.name == runner.BEST_OF_N for c in contestants):
+            args += ["--best-of", str(best_of)]
         args += ["--max-steps", str(max_steps)] if max_steps else []
         args += ["--budget-tokens", str(budget_tokens)] if budget_tokens else []
         args += ["--budget-seconds", str(budget_seconds)] if budget_seconds else []

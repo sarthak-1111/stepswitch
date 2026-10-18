@@ -12,6 +12,7 @@ gates, escalation, review, model_error, budget, task_end.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import threading
@@ -72,13 +73,27 @@ class Trajectory:
         self.seq = 0
         self._lock = threading.Lock()
         self.listeners: list[Callable[[dict[str, Any]], None]] = []
+        # Fields added to every event of a view (`tagged`); the owner keeps the sequence.
+        self.fields: dict[str, Any] = {}
+        self._owner: Trajectory | None = None
+
+    def tagged(self, **fields: Any) -> Trajectory:
+        """A view whose events also carry `fields` (a best-of-N candidate's index, say). It
+        writes to the same files and shares this trajectory's sequence numbers."""
+        view = copy.copy(self)
+        view.fields = {**self.fields, **fields}
+        view._owner = self._owner or self
+        return view
 
     def emit(self, type_: str, *, step: int | None = None, **data: Any) -> dict[str, Any]:
-        with self._lock:
-            self.seq += 1
-            event = {"seq": self.seq, "ts": round(self.clock(), 3), "type": type_}
+        owner = self._owner or self
+        with owner._lock:
+            owner.seq += 1
+            seq = owner.seq
+            event = {"seq": seq, "ts": round(self.clock(), 3), "type": type_}
             if step is not None:
                 event["step"] = step
+            event.update(self.fields)
             event.update(data)
             line = json.dumps(event, sort_keys=False, default=str, ensure_ascii=False)
             with self.path.open("a", encoding="utf-8", newline="\n") as handle:
@@ -87,9 +102,9 @@ class Trajectory:
                 self.db.execute(
                     "INSERT INTO events (task_id, ts, seq, type, step, data)"
                     " VALUES (?, ?, ?, ?, ?, ?)",
-                    (self.task_id, event["ts"], self.seq, type_, step, line),
+                    (self.task_id, event["ts"], seq, type_, step, line),
                 )
-        for listener in list(self.listeners):
+        for listener in list(owner.listeners):
             listener(event)
         return event
 

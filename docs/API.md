@@ -79,9 +79,16 @@ Body (only `instruction` is required):
   "max_steps": 40,
   "review": true,
   "allow_remote": false,
-  "offline": false
+  "offline": false,
+  "best_of": 1,
+  "on_disagreement": "flag",
+  "probe_tests": true
 }
 ```
+
+`best_of` is the number of candidates across model families (1 to 5; 0 picks it from the
+task's difficulty) and `on_disagreement` what happens when passing candidates disagree:
+`flag`, `tests`, `escalate` or `human` (SPEC §8.3, §8.4; ADR 0025).
 
 `repo` defaults to the project the server runs in; a relative path is taken from there, and it
 must be a directory. Answer: `201 {"id": "...", "status": "queued"}`. Invalid bodies (unknown
@@ -104,6 +111,15 @@ A `TaskSummary` plus:
 
 `result` is null until the task ends. `events` is the number of trajectory events. `decisions`
 are in step order and `ledger` rows in the order the calls were made.
+
+A best-of-N result also has `best_of` (the candidate count), `candidates` (per candidate: its
+`index`, `family`, `workers`, `seed`, `status`, `changed_files`, `changed_lines`, `branch`,
+`review` and `tests_passed`), `winner` (the kept candidate's index), `disagreement` (the
+comparison report: `detected`, `clusters`, `splits`, `tests`, `probe_tests`, `outputs`,
+`policy`, `resolved`, `resolution`, `kept`) and `uncertain` (the passing candidates disagree
+and no policy settled it; nothing was applied). `review` is the winning change's review:
+`approved`, `issues` (`severity`, `file`, `line`, `note`), `score`, `blocking`, `reviewer`,
+`reviewer_family` and `cross_family`.
 
 ### `POST /api/tasks/{id}/cancel`
 

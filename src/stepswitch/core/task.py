@@ -66,7 +66,13 @@ class TaskSpec(BaseModel):
     track: Track = "general"
     acceptance: list[str] = Field(default_factory=list)
     budgets: Budgets = Field(default_factory=Budgets)
-    best_of: int = 1
+    # Best-of-N across model families (SPEC §8.3, ADR 0025): 1 runs one candidate, N >= 2 runs
+    # N, and 0 picks N from the classifier's difficulty.
+    best_of: int = Field(default=1, ge=0, le=5)
+    # What happens when passing candidates disagree (SPEC §8.4): flag, tests, escalate, human.
+    on_disagreement: Literal["flag", "tests", "escalate", "human"] = "flag"
+    # With two or more passing candidates, ask a model for probe tests of the task as well.
+    probe_tests: bool = True
     offline: bool = False
     worker: str | None = None
     # Route only among these workers (ids or names); empty means every configured worker.
@@ -124,3 +130,11 @@ class TaskResult(BaseModel):
     handoffs: int = 0
     compactions: int = 0
     context: dict[str, int] = Field(default_factory=dict)
+    # Phase 6 (SPEC §8.3 to §8.5): how many candidates ran, each one's outcome, the winner's
+    # index, the disagreement report, whether the task is uncertain, and the winner's review.
+    best_of: int = 1
+    candidates: list[dict[str, Any]] = Field(default_factory=list)
+    winner: int | None = None
+    disagreement: dict[str, Any] | None = None
+    uncertain: bool = False
+    review: dict[str, Any] | None = None

@@ -374,6 +374,8 @@ def test_submitted_tasks_run_in_the_background(project: Path, static: Path, tmp_
         "budgets": {"tokens": 1000},
         "workers": ["ws-local/qwen2.5:32b"],
         "max_steps": 7,
+        "best_of": 2,
+        "on_disagreement": "escalate",
     }
     created = api(application, "POST", "/api/tasks", json=body)
     assert created.status_code == 201
@@ -387,6 +389,7 @@ def test_submitted_tasks_run_in_the_background(project: Path, static: Path, tmp_
     assert ran_id == task_id
     assert spec.repo == project.resolve() and spec.budgets.tokens == 1000
     assert spec.max_steps == 7 and spec.workers == ["ws-local/qwen2.5:32b"]
+    assert spec.best_of == 2 and spec.on_disagreement == "escalate" and spec.probe_tests
     services.shutdown()
     services.close()
 
@@ -398,6 +401,10 @@ def test_task_bodies_are_validated(app: Any, tmp_path: Path) -> None:
     assert extra.status_code == 422
     track = api(app, "POST", "/api/tasks", json={"instruction": "x", "track": "music"})
     assert track.status_code == 422
+    many = api(app, "POST", "/api/tasks", json={"instruction": "x", "best_of": 6})
+    assert many.status_code == 422
+    policy = api(app, "POST", "/api/tasks", json={"instruction": "x", "on_disagreement": "vote"})
+    assert policy.status_code == 422
     nowhere = api(
         app, "POST", "/api/tasks", json={"instruction": "x", "repo": str(tmp_path / "no")}
     )

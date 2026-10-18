@@ -311,6 +311,10 @@ class TaskIn(BaseModel):
     review: bool = True
     allow_remote: bool = False
     offline: bool = False
+    # Best-of-N (SPEC §8.3 to §8.5, ADR 0025): 0 picks the count from the task's difficulty.
+    best_of: int = Field(default=1, ge=0, le=5)
+    on_disagreement: Literal["flag", "tests", "escalate", "human"] = "flag"
+    probe_tests: bool = True
 
 
 def _validation_message(errors: list[dict[str, Any]]) -> str:
@@ -500,6 +504,9 @@ def _task_routes(app: FastAPI, services: Services) -> None:
             review=body.review,
             allow_remote=body.allow_remote,
             offline=body.offline,
+            best_of=body.best_of,
+            on_disagreement=body.on_disagreement,
+            probe_tests=body.probe_tests,
         )
         try:
             task_id = services.runner().submit(spec)
