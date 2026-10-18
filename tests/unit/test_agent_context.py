@@ -31,6 +31,7 @@ from stepswitch.workers.base import Worker, WorkerSpec
 from stepswitch.workers.builtin_agent import (
     COMPACT_INTRO,
     HANDOFF_INTRO,
+    NUDGE,
     TOOL_NAMES,
     AgentLoop,
     parse_review,
@@ -428,6 +429,49 @@ def test_briefs_carry_no_absolute_paths(tmp_path: Path) -> None:
     text = json.dumps(record)
     assert str(tmp_path) not in text and tmp_path.as_posix() not in text
     assert "test_calc.py::test_add" in record["brief"]["failing"][0]["excerpt"]
+
+
+EDIT = Action(tool="edit", arguments={"path": "calc.py", "text": "return a + b"})
+TEST = Action(tool="test", arguments={})
+
+
+def nudged(requests: Sequence[Request]) -> bool:
+    return any(
+        message.role == "user" and NUDGE in message.text_content()
+        for request in requests
+        for message in request.messages
+    )
+
+
+def test_a_text_answer_after_the_tests_pass_on_a_change_finishes(tmp_path: Path) -> None:
+    done = Action(text="The fix is in and the tests pass.")
+    worker = scripted("a/m", "t2", sequence([read("calc.py"), EDIT, TEST, done, FINISH]))
+    loop = build(tmp_path, [worker], FileToolbox(SMALL))
+    assert loop.run().status == "done"
+    work = [r for r in worker.model.requests if r.tools]  # type: ignore[union-attr]
+    # no nudge turn: the answer after the passing tests was taken as finish
+    assert len(work) == 4 and not nudged(work)
+    assert loop.finish_summary == "The fix is in and the tests pass."
+    # the baseline nudges, as Phase 2 did
+    plain = scripted("a/m", "t2", sequence([read("calc.py"), EDIT, TEST, done, FINISH]))
+    base = build(tmp_path / "base", [plain], FileToolbox(SMALL), optimize=False)
+    assert base.run().status == "done"
+    base_work = [r for r in plain.model.requests if r.tools]  # type: ignore[union-attr]
+    assert len(base_work) == 5 and nudged(base_work)
+
+
+def test_a_text_answer_without_a_tested_change_is_still_nudged(tmp_path: Path) -> None:
+    said = Action(text="The tests pass already; let me look at add().")
+    # tests pass before any change: not a finished task
+    early = scripted("a/m", "t2", sequence([TEST, said, read("calc.py"), EDIT, FINISH]))
+    loop = build(tmp_path, [early], FileToolbox(SMALL))
+    assert loop.run().status == "done"
+    assert nudged([r for r in early.model.requests if r.tools])  # type: ignore[union-attr]
+    # a change after the last passing test run: not verified yet
+    late = scripted("a/m", "t2", sequence([EDIT, TEST, EDIT, said, FINISH]))
+    loop = build(tmp_path / "late", [late], FileToolbox(SMALL))
+    assert loop.run().status == "done"
+    assert nudged([r for r in late.model.requests if r.tools])  # type: ignore[union-attr]
 
 
 def test_role_budgets_and_effort_go_to_reasoning_workers_only(tmp_path: Path) -> None:

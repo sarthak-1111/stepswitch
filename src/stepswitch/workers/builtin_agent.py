@@ -338,6 +338,9 @@ class AgentLoop:
     work_log: list[str] = field(default_factory=list)
     file_notes: dict[str, handoff.FileNote] = field(default_factory=dict)
     failing: list[handoff.Failure] = field(default_factory=list)
+    # The project's tests passed after the latest edit that changed a file (and there was one).
+    tested_after_edit: bool = False
+    edits_made: bool = False
     stats: dict[str, int] = field(
         default_factory=lambda: {
             "pruned": 0,
@@ -1207,6 +1210,8 @@ class AgentLoop:
             if data.get("changed"):
                 entry = f"edited {path} (+{data.get('added', 0)} -{data.get('removed', 0)})"
                 self._note_file(str(path), "edited")
+                self.tested_after_edit = False
+                self.edits_made = True
             else:
                 entry = f"edit of {path} changed nothing"
         elif tool == "test":
@@ -1227,7 +1232,9 @@ class AgentLoop:
         if tool == "test":
             if data.get("ok"):
                 self.failing = []
+                self.tested_after_edit = self.edits_made
             else:
+                self.tested_after_edit = False
                 self.failing.append(handoff.Failure("tests", excerpt))
         elif tool == "run" and isinstance(data.get("exit_code"), int) and data["exit_code"] != 0:
             command = self._scrub(str(data.get("command")))[:80]
@@ -1373,7 +1380,11 @@ class AgentLoop:
             if not calls:
                 text_only += 1
                 said = message.text_content().strip().strip(".!`*\"' ").lower()
-                if text_only < TEXT_ONLY_LIMIT and said not in FINISH_WORDS:
+                # Optimized: a text answer right after the tests passed on a change is taken
+                # as `finish`. A nudge would be a new user turn, which costs a step and, with
+                # some chat templates, the server's prefix cache (ADR 0024).
+                settled = self.optimize and self.tested_after_edit
+                if text_only < TEXT_ONLY_LIMIT and said not in FINISH_WORDS and not settled:
                     self.messages.append(Message.text("user", NUDGE))
                     continue
                 self.finish_summary = message.text_content().strip()[:500]
