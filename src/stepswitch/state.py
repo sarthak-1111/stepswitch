@@ -82,6 +82,10 @@ MIGRATIONS: list[str] = [
     CREATE TABLE cancellations (task_id TEXT PRIMARY KEY, ts REAL NOT NULL);
     CREATE INDEX tasks_updated ON tasks(updated);
     """,
+    # 4: Phase 5: router parameters learned from outcomes (handoff recovery, bench priors)
+    """
+    CREATE TABLE router_params (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated REAL NOT NULL);
+    """,
 ]
 
 
