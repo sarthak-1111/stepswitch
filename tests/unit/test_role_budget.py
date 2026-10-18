@@ -4,14 +4,37 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from stepswitch.router.budgets import BASELINE, CPU_OUTPUT_CAP, RoleBudget, role_budget
+from stepswitch.router.budgets import (
+    BASELINE,
+    CPU_OUTPUT_CAP,
+    WORK_STEPS,
+    RoleBudget,
+    role_budget,
+)
 
 
-def test_navigation_is_low_effort_and_planning_high() -> None:
-    assert role_budget("navigate", "t3").effort == "low"
-    assert role_budget("run", "t3").effort == "low"
+def test_work_steps_share_one_effort_and_planning_is_high() -> None:
+    # one transcript, one effort: a change would alter the prompt's first system block
+    assert {role_budget(step, "t3").effort for step in WORK_STEPS} == {"medium"}
     assert role_budget("plan", "t3").effort == "high"
-    assert role_budget("edit", "t3").effort == "medium"
+    assert role_budget("summarize", "t3").effort == "low"
+    assert role_budget("review", "t3").effort == "medium"
+
+
+def test_the_edit_effort_applies_to_every_work_step() -> None:
+    roles = {
+        "edit": {"effort": "high"},
+        "read": {"effort": "low", "max_output_tokens": 1500},
+        "plan": {"effort": "max"},
+    }
+    config = SimpleNamespace(budgets=SimpleNamespace(model_extra={"roles": roles}))
+    assert {role_budget(step, "t3", config).effort for step in WORK_STEPS} == {"high"}
+    assert role_budget("read", "t3", config).max_output_tokens == 1500
+    assert role_budget("plan", "t3", config).effort == "max"
+    only_read = SimpleNamespace(
+        budgets=SimpleNamespace(model_extra={"roles": {"read": {"effort": "low"}}})
+    )
+    assert role_budget("read", "t3", only_read).effort == "medium"
 
 
 def test_cpu_workers_get_a_smaller_output_cap_for_work_steps() -> None:
