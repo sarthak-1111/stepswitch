@@ -35,13 +35,14 @@ from typing import Any
 from ruamel.yaml import YAML
 
 ROOT = Path(__file__).resolve().parents[1]
-MAX_PHASE = 4
+MAX_PHASE = 5
 PHASE_TITLES = {
     0: "Research and design",
     1: "Foundation and compatibility core",
     2: "Built-in agent, router v1, gates, tracks",
     3: "Bench, leaderboard, compatibility matrix",
     4: "Dashboard and task API",
+    5: "Token and cache optimization",
 }
 SY = Path(sys.executable).with_name("ssw.exe" if os.name == "nt" else "ssw")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -916,6 +917,220 @@ def _p4_playwright() -> tuple[bool, str]:
 def _p4_readme() -> tuple[bool, str]:
     code, out, err = ssw("prove", "--render-readme", "--check")
     return code == 0, "README is current" if code == 0 else (last_line(err) or last_line(out))
+
+
+# --------------------------------------------------------------------------------------------
+# Phase 5: token and cache optimization
+# --------------------------------------------------------------------------------------------
+
+HANDOFF_SPEC = "spec/handoff-v0.1.md"
+HANDOFF_SCHEMA = "spec/handoff-v0.1.schema.json"
+# SPEC §9: the keys of the brief and of each nested object ("[]" marks array items).
+HANDOFF_FIELDS: dict[str, set[str]] = {
+    "": {
+        "version",
+        "task_id",
+        "goal",
+        "track",
+        "constraints",
+        "acceptance",
+        "state",
+        "files",
+        "failing",
+        "budget_left",
+        "provenance",
+    },
+    "acceptance": {"commands", "golden"},
+    "state": {"done", "decisions", "open_questions"},
+    "state.decisions[]": {"what", "why"},
+    "files[]": {"path", "symbols", "why"},
+    "failing[]": {"check", "excerpt"},
+    "budget_left": {"tokens", "seconds"},
+    "provenance": {"from_worker", "step", "tokenizer", "exact"},
+}
+# SPEC §9 tokenizer resolution order (`stepswitch.context.tokens.RESOLUTION_ORDER`).
+TOKENIZER_ORDER = ("tokenizer.json", "server", "mapped", "estimate")
+# SPEC §13: the modules of each technique and name fragments of the tests that cover it.
+TK_PARTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    "TK1": (("stepswitch.context.prefix",), ("stable_prefix",)),
+    "TK2": (
+        ("stepswitch.context.repomap", "stepswitch.context.treesitter"),
+        ("repomap", "treesitter"),
+    ),
+    "TK3": (("stepswitch.context.dedup",), ("read_dedup",)),
+    "TK4": (("stepswitch.context.distill",), ("distill",)),
+    "TK5": (("stepswitch.context.edits",), ("context_edits",)),
+    "TK6": (("stepswitch.context.prune",), ("prune",)),
+    "TK7": (("stepswitch.context.handoff",), ("handoff",)),
+    "TK8": (
+        (
+            "stepswitch.router.classifier",
+            "stepswitch.compat.toolcall.fallback",
+            "stepswitch.context.handoff",
+        ),
+        ("constrained",),
+    ),
+    "TK9": (("stepswitch.context.search",), ("context_search",)),
+    "TK10": (("stepswitch.router.budgets",), ("role_budget",)),
+    "TK11": (("stepswitch.context.compress",), ("compress",)),
+    "TK12": (("stepswitch.ledger",), ("ledger",)),
+}
+# Languages whose definitions and references come from tree-sitter grammar wheels (TK2).
+TREE_SITTER_LANGUAGES = {"javascript", "typescript", "go", "rust", "java", "c", "cpp", "ruby"}
+SUITES = ("mini-general", "mini-science")
+
+
+def _schema_properties(schema: dict[str, Any]) -> dict[str, set[str]]:
+    """Property names per object path of a JSON Schema ("[]" marks array items)."""
+    found: dict[str, set[str]] = {}
+
+    def walk(node: Any, path: str) -> None:
+        if not isinstance(node, dict):
+            return
+        props = node.get("properties")
+        if isinstance(props, dict):
+            found[path] = set(props)
+            for name, child in props.items():
+                walk(child, f"{path}.{name}" if path else name)
+        if isinstance(node.get("items"), dict):
+            walk(node["items"], f"{path}[]")
+
+    walk(schema, "")
+    return found
+
+
+@check(5, "HANDOFF v0.1: spec, JSON Schema with the SPEC §9 fields, and a valid example")
+def _p5_handoff_spec() -> tuple[bool, str]:
+    text = read(HANDOFF_SPEC)
+    raw = read(HANDOFF_SCHEMA)
+    if not text or not raw:
+        return False, f"{HANDOFF_SPEC} and {HANDOFF_SCHEMA} must exist"
+    try:
+        from jsonschema import Draft202012Validator
+
+        schema = json.loads(raw)
+        Draft202012Validator.check_schema(schema)
+    except Exception as exc:  # noqa: BLE001 - an unreadable schema fails the check
+        return False, f"{HANDOFF_SCHEMA}: {exc}"
+    present = _schema_properties(schema)
+    problems = [
+        f"{path or 'brief'} lacks {', '.join(sorted(keys - present.get(path, set())))}"
+        for path, keys in HANDOFF_FIELDS.items()
+        if keys - present.get(path, set())
+    ]
+    if set(schema.get("required", [])) != HANDOFF_FIELDS[""]:
+        problems.append("every top-level field must be required")
+    examples = re.findall(r"```json\n(.*?)```", text, re.S)
+    if not examples:
+        problems.append(f"{HANDOFF_SPEC} has no JSON example")
+    for example in examples:
+        try:
+            errors = list(Draft202012Validator(schema).iter_errors(json.loads(example)))
+        except json.JSONDecodeError as exc:
+            problems.append(f"example is not JSON: {exc}")
+            continue
+        problems += [f"example: {error.message}" for error in errors[:3]]
+    return not problems, "; ".join(problems) or f"{len(examples)} example(s) validate"
+
+
+@check(5, "tokenizer resolution follows SPEC §9 (stepswitch.context.tokens)")
+def _p5_tokens() -> tuple[bool, str]:
+    try:
+        tokens = importlib.import_module("stepswitch.context.tokens")
+    except ImportError as exc:
+        return False, f"stepswitch.context.tokens: {exc}"
+    order = tuple(getattr(tokens, "RESOLUTION_ORDER", ()))
+    missing = [name for name in ("resolve", "TokenCount") if not hasattr(tokens, name)]
+    return combine(
+        (order == TOKENIZER_ORDER, f"RESOLUTION_ORDER is {order}, expected {TOKENIZER_ORDER}"),
+        (not missing, "missing: " + ", ".join(missing)),
+    )
+
+
+@check(5, "TK1-TK12: a module and tests for each technique (SPEC §13)")
+def _p5_techniques() -> tuple[bool, str]:
+    problems = []
+    for tk, (modules, tests) in TK_PARTS.items():
+        missing = [name for name in modules if not has_module(name)]
+        untested = tests_matching(*tests)
+        if missing:
+            problems.append(f"{tk} modules missing: {', '.join(missing)}")
+        if untested:
+            problems.append(f"{tk} no tests matching: {', '.join(untested)}")
+    return not problems, "; ".join(problems) or f"{len(TK_PARTS)} techniques"
+
+
+@check(5, "cache-aware switching: prefix registry, HANDOFF threshold, learned handoff penalty")
+def _p5_switching() -> tuple[bool, str]:
+    try:
+        cost = importlib.import_module("stepswitch.router.cost")
+        cache = importlib.import_module("stepswitch.router.cache")
+        calibration = importlib.import_module("stepswitch.router.calibration")
+    except ImportError as exc:
+        return False, str(exc)
+    threshold = getattr(cost, "HANDOFF_THRESHOLD_TOKENS", None)
+    untested = tests_matching("prefix_cache", "switch_cost", "router_calibration")
+    return combine(
+        (threshold == 24_000, f"HANDOFF_THRESHOLD_TOKENS is {threshold}, SPEC §7.2 says 24000"),
+        (hasattr(cache, "PrefixRegistry"), "stepswitch.router.cache.PrefixRegistry missing"),
+        (
+            hasattr(calibration, "HandoffRecovery"),
+            "stepswitch.router.calibration.HandoffRecovery missing",
+        ),
+        (not untested, "no tests matching: " + ", ".join(untested)),
+    )
+
+
+@check(5, "calibration commands: `ssw calibrate --cache` and `ssw bench calibrate`")
+def _p5_calibrate() -> tuple[bool, str]:
+    return combine(
+        help_check(["calibrate"], ["--cache"]),
+        help_check(["bench", "calibrate"], []),
+        help_check(["bench", "run"], ["--baseline"]),
+    )
+
+
+@check(5, "tree-sitter grammars for the core languages load offline")
+def _p5_treesitter() -> tuple[bool, str]:
+    try:
+        treesitter = importlib.import_module("stepswitch.context.treesitter")
+        available = set(treesitter.available_languages())
+    except Exception as exc:  # noqa: BLE001 - report import or grammar failures
+        return False, f"stepswitch.context.treesitter: {exc}"
+    missing = TREE_SITTER_LANGUAGES - available
+    return not missing, ("no grammar for: " + ", ".join(sorted(missing))) if missing else "ok"
+
+
+@check(5, "registry models that drive agent turns declare an agent context size")
+def _p5_agent_context() -> tuple[bool, str]:
+    problems = []
+    for path in sorted((ROOT / "registry").glob("*.toml")):
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        model = data.get("model", {})
+        roles = set(model.get("roles", []))
+        if not roles or roles <= {"embeddings", "search_ranking", "fim"}:
+            continue
+        agent_ctx = model.get("agent_ctx")
+        if not isinstance(agent_ctx, int) or agent_ctx < 8192:
+            problems.append(f"{path.name}: agent_ctx {agent_ctx!r} (need an integer >= 8192)")
+    return not problems, "; ".join(problems) or "ok"
+
+
+@check(5, "bench/results holds optimized and baseline runs of both mini suites")
+def _p5_bench_runs() -> tuple[bool, str]:
+    found: dict[tuple[str, bool], int] = {}
+    for run_file in (ROOT / "bench" / "results").glob("*/run.json"):
+        data = json.loads(run_file.read_text(encoding="utf-8"))
+        if "optimize" in data:
+            key = (str(data.get("suite")), bool(data["optimize"]))
+            found[key] = found.get(key, 0) + 1
+    missing = [
+        f"{suite} ({'optimized' if flag else 'baseline'})"
+        for suite in SUITES
+        for flag in (True, False)
+        if not found.get((suite, flag))
+    ]
+    return not missing, ("missing runs: " + ", ".join(missing)) if missing else "ok"
 
 
 # --------------------------------------------------------------------------------------------

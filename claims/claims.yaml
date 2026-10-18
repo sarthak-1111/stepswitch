@@ -225,7 +225,7 @@ claims:
     phase: 5
     tests:
       - tests/claims/test_c010_handoff.py::test_bench_handoffs_validate_and_fit_token_budget
-    thresholds: {schema_valid: 1.0, max_tokens: 1500}
+    thresholds: {schema_valid: 1.0, max_tokens: 1500, min_handoffs: 20}
     evidence: [claims/evidence/C-010.json]
     status: pending
 
@@ -243,6 +243,11 @@ claims:
       - tests/claims/test_c011_token_savings.py::test_optimized_uses_fewer_tokens_at_same_pass_rate
     thresholds: {token_reduction_pct_min: 0, pass_rate_not_lower: true}
     evidence: [claims/evidence/C-011.json]
+    readme_numbers:
+      - key: sections.comparison.token_reduction_percent
+        label: fewer tokens than the unoptimized baseline on the mini suites
+        unit: "%"
+        digits: 1
     status: pending
 
   - id: C-012
