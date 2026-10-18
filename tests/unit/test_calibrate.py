@@ -223,3 +223,51 @@ def test_median_rate_and_filler() -> None:
     assert text != calibrate.filler(500, seed=4)
     prompt = calibrate.prefill_prompt("nonce123")
     assert prompt.startswith("Notes nonce123:") and len(prompt) > 5_000
+
+
+def test_cache_ratio_compares_cached_with_shared_tokens() -> None:
+    first = Sample(kind="prefill", input_tokens=1524, cached_tokens=0)
+    second = Sample(kind="prefill", input_tokens=1530, cached_tokens=1000)
+    measured = calibrate.cache_ratio(first, second)
+    assert measured["shared_tokens"] == 1500 and measured["ratio"] == round(1000 / 1500, 4)
+    assert measured["source"] == "server"
+    silent = calibrate.cache_ratio(first, Sample(kind="prefill", input_tokens=1530))
+    assert silent["ratio"] is None and silent["source"] is None
+    full = calibrate.cache_ratio(first, Sample(kind="prefill", input_tokens=9, cached_tokens=5000))
+    assert full["ratio"] == 1.0
+
+
+def test_calibrate_cache_measures_the_prefix_cache() -> None:
+    from tests.unit.fixtures.probe.mock_servers import Brain
+
+    lines: list[str] = []
+    server = ChatServer(Brain(cache=True))
+    result = calibrate.run(
+        chat_config(),
+        egress=net.Egress(),
+        echo=lines.append,
+        transport=server.transport(),
+        repeats=1,
+        cache=True,
+    )
+    cache = result["cache"]
+    assert cache["source"] == "server" and 0.9 <= cache["ratio"] <= 1.0
+    assert cache["shared_tokens"] > 1000
+    assert any(line.startswith("  prefix cache: ") for line in lines)
+    cold = calibrate.run(
+        chat_config(),
+        egress=net.Egress(),
+        echo=lambda _line: None,
+        transport=ChatServer(Brain(cache=False)).transport(),
+        repeats=1,
+        cache=True,
+    )
+    assert cold["cache"]["ratio"] == 0.0
+    plain = calibrate.run(
+        chat_config(),
+        egress=net.Egress(),
+        echo=lambda _line: None,
+        transport=ChatServer().transport(),
+        repeats=1,
+    )
+    assert "cache" not in plain

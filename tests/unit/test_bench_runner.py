@@ -195,3 +195,71 @@ def test_the_router_contestant_routes_within_its_pool(project: Path) -> None:
     assert seen == {"router": ["managed/small", "local/large"], "managed/small": []}
     manifest = json.loads((out / MANIFEST_FILE).read_text(encoding="utf-8"))
     assert manifest["router_pool"] == ["managed/small", "local/large"]
+
+
+def test_baseline_and_relay_options_reach_the_task(project: Path) -> None:
+    suite = load_suite("tiny", project)
+    seen: dict[str, Any] = {}
+
+    def capture(spec: Any, **_kwargs: Any) -> Any:
+        seen[spec.worker or ("relay" if spec.relay else "router")] = spec
+        raise RuntimeError("stop here")
+
+    out = project / "bench" / "results" / "base"
+    runner.run_bench(
+        suite,
+        runner.parse_contestants("router"),
+        root=project,
+        out_dir=out,
+        options=runner.BenchOptions(optimize=False),
+        run_task=capture,
+    )
+    assert seen["router"].optimize is False
+    manifest = json.loads((out / MANIFEST_FILE).read_text(encoding="utf-8"))
+    assert manifest["optimize"] is False and "relay" not in manifest
+    relay_out = project / "bench" / "results" / "relay"
+    runner.run_bench(
+        suite,
+        runner.parse_contestants("relay"),
+        root=project,
+        out_dir=relay_out,
+        options=runner.BenchOptions(relay=["local/small", "local/large"], relay_step=4),
+        run_task=capture,
+    )
+    spec = seen["relay"]
+    assert spec.relay == ["local/small", "local/large"] == spec.workers
+    assert spec.relay_step == 4 and spec.optimize is True and spec.worker is None
+    manifest = json.loads((relay_out / MANIFEST_FILE).read_text(encoding="utf-8"))
+    assert manifest["optimize"] is True
+    assert manifest["relay"] == {"workers": ["local/small", "local/large"], "step": 4}
+
+
+def test_task_handoffs_are_collected_with_their_run(project: Path, tmp_path: Path) -> None:
+    from stepswitch.core.task import TaskResult
+
+    suite = load_suite("tiny", project)
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    records = [{"reason": "relay", "tokens": 300}, {"reason": "compaction", "tokens": 200}]
+    (run_dir / runner.HANDOFFS_FILE).write_text(
+        "".join(json.dumps(r) + "\n" for r in records), encoding="utf-8"
+    )
+
+    def finished(spec: Any, **_kwargs: Any) -> TaskResult:
+        return TaskResult(
+            task_id="t-1", status="done", run_dir=str(run_dir), handoffs=2, failovers=1
+        )
+
+    out = project / "bench" / "results" / "briefs"
+    runner.run_bench(
+        suite, runner.parse_contestants("router"), root=project, out_dir=out, run_task=finished
+    )
+    (row,) = read_rows(out)
+    assert (row["handoffs"], row["failovers"]) == (2, 1) and "_handoffs" not in row
+    lines = (out / runner.HANDOFFS_FILE).read_text(encoding="utf-8").splitlines()
+    got = [json.loads(line) for line in lines]
+    assert [r["reason"] for r in got] == ["relay", "compaction"]
+    assert all(
+        (r["suite"], r["task"], r["seed"], r["contestant"]) == ("tiny", "adder-fix", 0, "router")
+        for r in got
+    )

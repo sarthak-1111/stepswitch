@@ -615,3 +615,76 @@ def _pull_ollama(
             result.failed.append((item.id, f"Ollama pull of {name} failed: {exc}"))
             continue
         result.downloaded.append(item.id)
+
+
+# --------------------------------------------------------------------------------------------
+# Tokenizer files (`ssw models pull --tokenizers`, SPEC §9, ADR 0024)
+# --------------------------------------------------------------------------------------------
+
+
+def _file_sha256(path: Path) -> str:
+    import hashlib
+
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def pull_tokenizers(
+    names: Sequence[str],
+    *,
+    models_dir: Path,
+    egress: net.Egress | None = None,
+    transport: httpx.BaseTransport | None = None,
+    echo: Callable[[str], None] = print,
+    dry_run: bool = False,
+    specs: Any = None,
+) -> PullResult:
+    """Download the tokenizer files of registry/tokenizers (all of them, or `names`) into
+    `<models dir>/tokenizers/<name>/`, each verified by size and sha256. HANDOFF briefs are then
+    counted exactly with the receiving model's tokenizer; nothing is downloaded during a task."""
+    from stepswitch.context import tokens
+
+    specs = tokens.load_specs() if specs is None else specs
+    unknown = [name for name in names if name not in specs]
+    if unknown:
+        raise ValueError(
+            f"unknown tokenizer(s) {', '.join(unknown)} (known: {', '.join(sorted(specs))})"
+        )
+    result = PullResult()
+    chosen = [specs[name] for name in names] if names else [specs[n] for n in sorted(specs)]
+    for spec in chosen:
+        dest = spec.local_path(models_dir)
+        present = dest.is_file() and dest.stat().st_size == spec.size_bytes
+        if present and _file_sha256(dest) == spec.sha256:
+            result.installed.append(spec.name)
+            echo(f"{spec.name}: present and verified")
+            continue
+        if dry_run:
+            result.skipped.append((spec.name, "dry run"))
+            echo(f"{spec.name}: would download {spec.hub_id} {spec.file} ({spec.size_bytes} bytes)")
+            continue
+        if _offline(egress) and not net.is_local_url(hub.hub_url()):
+            reason = "offline mode (privacy.mode = local) blocks downloads from the model hub"
+            result.failed.append((spec.name, reason))
+            echo(f"{spec.name}: {reason}")
+            continue
+        try:
+            url = hub.file_url(spec.hub_id, spec.revision, spec.file)
+            digest = hub.download(
+                url,
+                dest,
+                size=spec.size_bytes,
+                sha256=spec.sha256,
+                egress=egress,
+                transport=transport,
+            )
+        except (hub.DownloadError, ValueError, OSError) as exc:
+            result.failed.append((spec.name, str(exc)))
+            echo(f"{spec.name}: failed: {exc}")
+            continue
+        result.downloaded.append(spec.name)
+        echo(f"{spec.name}: verified (sha256 {digest[:12]}...) into {dest.parent}")
+    return result

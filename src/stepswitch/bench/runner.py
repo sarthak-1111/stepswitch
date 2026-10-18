@@ -1,8 +1,14 @@
 """The bench runner (SPEC §16): contestants x tasks x seeds over one suite.
 
 A contestant is `router` (step-level routing over every configured worker, as `ssw run` does),
-a worker id or model name (every step pinned to it, as `ssw run --worker`), or a deterministic
-fake (`fake:oracle`, `fake:noop`) for CI.
+a worker id or model name (every step pinned to it, as `ssw run --worker`), a deterministic
+fake (`fake:oracle`, `fake:noop`) for CI, or `relay` (`--relay first,second`): the first worker
+starts every task and hands it to the second with a HANDOFF brief at work step `relay_step`,
+which measures briefs and what a handoff costs in success (SPEC §7.2, §9; ADR 0024).
+
+`--baseline` runs the Phase 2 configuration, every token optimization off (`optimize` false in
+`run.json`), for the comparison of SPEC §13 (claim C-011). Optimized runs also write
+`handoffs.jsonl`: one record per HANDOFF brief, with the suite, task, seed and contestant.
 
 Each run copies the task's repository into a fresh git repository under the project's state
 directory and calls `run_task` with the project's configuration, so endpoints and managed model
@@ -39,6 +45,8 @@ from stepswitch.core.task import Budgets, TaskResult, TaskSpec
 from stepswitch.verify import commands
 
 ROUTER = "router"
+RELAY = "relay"
+HANDOFFS_FILE = "handoffs.jsonl"
 SCORING = (
     "passes when every acceptance command exits with 0 on a fresh copy with the run's diff"
     " applied and the suite's protected paths restored"
@@ -60,7 +68,7 @@ def parse_contestants(text: str | None) -> list[Contestant]:
     names = [part.strip() for part in (text or ROUTER).split(",") if part.strip()]
     contestants = []
     for name in dict.fromkeys(names):
-        if name == ROUTER:
+        if name in {ROUTER, RELAY}:
             contestants.append(Contestant(name))
         elif name.startswith(fakes.PREFIX):
             kind = name.removeprefix(fakes.PREFIX)
@@ -86,6 +94,11 @@ class BenchOptions:
     prices: dict[str, float] | None = None
     # Workers the `router` contestant may route among; None means every configured worker.
     router_pool: list[str] | None = None
+    # False runs the Phase 2 baseline (`--baseline`): every token optimization off.
+    optimize: bool = True
+    # The `relay` contestant's two workers and the work step of the handoff.
+    relay: list[str] | None = None
+    relay_step: int = 6
 
 
 def _now() -> str:
@@ -267,6 +280,8 @@ def run_one(
     repo = workspace.copy_repo(task.repo, place / "repo")
     workspace.init_repo(repo)
     budgets = Budgets(**{**options.budgets.model_dump(exclude_none=True), **task.budgets})
+    relay = list(options.relay or []) if contestant.name == RELAY else []
+    pool = list(options.router_pool or []) if contestant.name == ROUTER else relay
     spec = TaskSpec(
         instruction=task.instruction,
         repo=repo,
@@ -274,10 +289,13 @@ def run_one(
         acceptance=acceptance_commands(task),
         budgets=budgets,
         worker=contestant.worker,
-        workers=list(options.router_pool or []) if contestant.name == ROUTER else [],
+        workers=pool,
         seed=seed,
         max_steps=task.max_steps or options.max_steps or 40,
         review=options.review,
+        optimize=options.optimize,
+        relay=relay,
+        relay_step=options.relay_step,
     )
     catalog = fakes.catalog_for(contestant.fake, task) if contestant.fake else None
     row: dict[str, Any] = {
@@ -304,6 +322,7 @@ def run_one(
     )
     tokens = (result.tokens if result is not None else {}) or {}
     budget = (result.budget if result is not None else {}) or {}
+    briefs = task_handoffs(result)
     row.update(
         {
             "status": result.status if result is not None else "error",
@@ -315,6 +334,10 @@ def run_one(
             "steps": result.steps if result is not None else 0,
             "switches": result.switches if result is not None else 0,
             "escalations": result.escalations if result is not None else 0,
+            "failovers": result.failovers if result is not None else 0,
+            "handoffs": len(briefs),
+            "compactions": result.compactions if result is not None else 0,
+            "context": dict(result.context) if result is not None else {},
             "endpoints": result.endpoints if result is not None else [],
             "changed_files": result.changed_files if result is not None else [],
             "tokens": {
@@ -331,7 +354,28 @@ def run_one(
     )
     if not options.keep:
         workspace.remove_tree(place)
+    if briefs:
+        row["_handoffs"] = [
+            {
+                "suite": suite.name,
+                "task": task.id,
+                "seed": seed,
+                "contestant": contestant.name,
+                **record,
+            }
+            for record in briefs
+        ]
     return row
+
+
+def task_handoffs(result: TaskResult | None) -> list[dict[str, Any]]:
+    """The HANDOFF records a task wrote to its run directory (`handoffs.jsonl`)."""
+    if result is None or not result.run_dir:
+        return []
+    path = Path(result.run_dir) / HANDOFFS_FILE
+    if not path.is_file():
+        return []
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
 def run_bench(
@@ -367,12 +411,17 @@ def run_bench(
         "review": options.review,
         "prices": options.prices,
         "router_pool": _router_pool(contestants, options, root, config, egress),
+        "optimize": options.optimize,
         "scoring": SCORING,
     }
+    if any(c.name == RELAY for c in contestants):
+        manifest["relay"] = {"workers": list(options.relay or []), "step": options.relay_step}
     manifest_path = out_dir / MANIFEST_FILE
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
     results = out_dir / RESULTS_FILE
     results.write_text("", encoding="utf-8")
+    handoffs = out_dir / HANDOFFS_FILE
+    handoffs.unlink(missing_ok=True)
     total = len(contestants) * len(suite.tasks) * options.seeds
     done = 0
     for contestant in contestants:
@@ -392,8 +441,13 @@ def run_bench(
                     egress=egress,
                     run_task=run_task,
                 )
+                briefs = row.pop("_handoffs", [])
                 with results.open("a", encoding="utf-8", newline="\n") as handle:
                     handle.write(json.dumps(row, sort_keys=True) + "\n")
+                if briefs:
+                    with handoffs.open("a", encoding="utf-8", newline="\n") as handle:
+                        for record in briefs:
+                            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
                 verdict = "passed" if row["passed"] else "failed"
                 echo(f"    {verdict} ({row['status']}, {row['wall_seconds']:.0f} s)")
     if not options.keep:

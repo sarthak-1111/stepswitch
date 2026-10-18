@@ -531,3 +531,58 @@ def test_default_ollama_url(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_unknown_engine(store: Store) -> None:
     with pytest.raises(ValueError, match="unknown engine"):
         store.execute(store.plan([store.add("alpha", 10)]), engine="vllm")
+
+
+def test_tokenizer_files_are_pulled_verified_and_kept(tmp_path: Path) -> None:
+    from stepswitch.context.tokens import TokenizerSpec
+
+    body = b'{"model": {"type": "WordLevel"}}'
+    spec = TokenizerSpec(
+        name="tiny",
+        hub_id="org/tiny",
+        revision="0" * 40,
+        file="tokenizer.json",
+        sha256=hashlib.sha256(body).hexdigest(),
+        size_bytes=len(body),
+        match=("tiny*",),
+        license="apache-2.0",
+    )
+    requests: list[str] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(str(request.url))
+        return httpx.Response(200, content=body)
+
+    lines: list[str] = []
+    result = modelstore.pull_tokenizers(
+        [],
+        models_dir=tmp_path,
+        egress=net.Egress(),
+        transport=httpx.MockTransport(handle),
+        echo=lines.append,
+        specs={"tiny": spec},
+    )
+    assert result.downloaded == ["tiny"] and not result.failed
+    assert (tmp_path / "tokenizers" / "tiny" / "tokenizer.json").read_bytes() == body
+    assert requests[0].endswith("/org/tiny/resolve/" + "0" * 40 + "/tokenizer.json")
+    again = modelstore.pull_tokenizers(
+        ["tiny"],
+        models_dir=tmp_path,
+        egress=net.Egress(),
+        echo=lines.append,
+        specs={"tiny": spec},
+    )
+    assert again.installed == ["tiny"] and len(requests) == 1
+    with pytest.raises(ValueError, match="unknown tokenizer"):
+        modelstore.pull_tokenizers(["nope"], models_dir=tmp_path, specs={"tiny": spec})
+    bad = TokenizerSpec(**{**spec.__dict__, "name": "bad", "sha256": "1" * 64})
+    failed = modelstore.pull_tokenizers(
+        [],
+        models_dir=tmp_path / "other",
+        egress=net.Egress(),
+        transport=httpx.MockTransport(handle),
+        echo=lines.append,
+        specs={"bad": bad},
+    )
+    assert failed.failed and failed.failed[0][0] == "bad"
+    assert not (tmp_path / "other" / "tokenizers" / "bad" / "tokenizer.json").exists()

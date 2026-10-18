@@ -24,6 +24,15 @@ source ("server" or "client"):
 Otherwise the client clock is used: prefill = uncached input tokens / TTFT and decode =
 (output tokens - 1) / (total time - TTFT). The clock is injectable, so the arithmetic is tested
 with deterministic timings.
+
+`--cache` also measures the prefix-cache hit ratio for the router's prefix registry (SPEC §7.2,
+ADR 0024): two requests share a prompt of about 1.5K tokens behind a fresh nonce and differ
+only in a short question at the end; the ratio is the cached tokens the server reports for the
+second one over the shared part (input tokens of the first minus the question). Servers report
+them per response (Ollama `prompt_eval_cached_count`, llama.cpp and the chat-completions
+format `usage.prompt_tokens_details.cached_tokens`; docs/RESEARCH.md). A server that reports
+no cached-token count gets no ratio, and the registry keeps its default of 1.0 until it
+observes one.
 """
 
 from __future__ import annotations
@@ -69,6 +78,12 @@ DECODE_PROMPT = (
     "stop early."
 )
 PREFILL_QUESTION = "In one word, what kind of text are these notes?"
+CACHE_QUESTIONS = (
+    "In one word, what kind of text are these notes?",
+    "In one word, are these notes long or short?",
+)
+# Tokens of a question and the chat template's tail, which the second request does not share.
+CACHE_TAIL_TOKENS = 24
 
 _KINDS: dict[str, ErrorKind] = {kind: kind for kind in get_args(ErrorKind)}
 
@@ -319,6 +334,38 @@ def median_rate(rates: list[tuple[float | None, str | None]]) -> tuple[float | N
 # --------------------------------------------------------------------------------------------
 
 
+def cache_ratio(first: Sample, second: Sample) -> dict[str, Any]:
+    """The prefix-cache hit ratio from two requests that share all but their last question."""
+    shared = None
+    if first.input_tokens is not None:
+        shared = max(0, first.input_tokens - CACHE_TAIL_TOKENS)
+    out: dict[str, Any] = {
+        "shared_tokens": shared,
+        "cached_tokens": second.cached_tokens,
+        "input_tokens": second.input_tokens,
+        "ratio": None,
+        "source": None,
+    }
+    if second.cached_tokens is not None and shared:
+        out["ratio"] = round(max(0.0, min(1.0, second.cached_tokens / shared)), 4)
+        out["source"] = "server"
+    return out
+
+
+def measure_cache(
+    client: ModelClient, target: Any, clock: Clock = time.perf_counter
+) -> dict[str, Any]:
+    """Send the two requests of the cache measurement and return `cache_ratio`."""
+    notes = f"Notes {uuid.uuid4().hex[:12]}:\n{filler(int(PREFILL_TOKENS * CHARS_PER_TOKEN), 7)}"
+    samples = []
+    for question in CACHE_QUESTIONS:
+        request = target.request(
+            [Message.text("user", f"{notes}\n\n{question}")], PREFILL_ANSWER_TOKENS
+        )
+        samples.append(sample(client, request, "prefill", clock))
+    return cache_ratio(samples[0], samples[1])
+
+
 def run(
     config: EndpointConfig,
     *,
@@ -329,6 +376,7 @@ def run(
     repeats: int = 2,
     clock: Clock = time.perf_counter,
     timeout: float = 300.0,
+    cache: bool = False,
 ) -> dict[str, Any]:
     """Measure prefill and decode throughput and TTFT of one endpoint (SPEC §14 RN11).
 
@@ -401,6 +449,22 @@ def run(
     }
     if target.extensions:
         result["settings"] = dict(target.extensions)
+    if cache:
+        try:
+            result["cache"] = measure_cache(client, target, clock)
+        except ModelError as exc:
+            message = target.scrub_text(f"cache: {exc.kind}: {exc.message}")[:300]
+            result["cache"] = {"ratio": None, "error": message}
+            errors.append(message)
+        ratio = result["cache"].get("ratio")
+        echo(
+            "  prefix cache: "
+            + (
+                f"{ratio:.0%} of the shared prompt was cached"
+                if ratio is not None
+                else "no cached-token count reported"
+            )
+        )
     if errors:
         result["errors"] = errors
     echo(

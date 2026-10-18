@@ -357,13 +357,43 @@ def models_pull(
         typer.Option("--engine", help="llamacpp (download GGUF files) or ollama (pull there)."),
     ] = "llamacpp",
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Show the plan only.")] = False,
+    tokenizers: Annotated[
+        bool,
+        typer.Option(
+            "--tokenizers",
+            help="Download tokenizer files instead (names: tokenizer names; default: all), for"
+            " exact HANDOFF token counts.",
+        ),
+    ] = False,
     json_out: Annotated[bool, typer.Option("--json", help="Print the result as JSON.")] = False,
 ) -> None:
     """Download models from their original source, verified by size and sha256."""
     state = _state(ctx)
+    from stepswitch import modelstore
+
+    if tokenizers:
+        with _user_errors():
+            pulled = modelstore.pull_tokenizers(
+                names or [],
+                models_dir=state.config.models_dir(),
+                egress=None if dry_run else state.egress(),
+                echo=(lambda _msg: None) if json_out else typer.echo,
+                dry_run=dry_run,
+            )
+        if json_out:
+            _print_json(
+                {
+                    "installed": pulled.installed,
+                    "downloaded": pulled.downloaded,
+                    "skipped": pulled.skipped,
+                    "failed": pulled.failed,
+                }
+            )
+        if pulled.failed:
+            raise typer.Exit(1)
+        return
     if not names and not tier:
         _fail("give model names or --tier (for example: ssw models pull --tier cpu)")
-    from stepswitch import modelstore
 
     with _user_errors():
         entries = modelstore.select(tier, names or [])
@@ -632,6 +662,10 @@ def cmd_calibrate(
         str | None, typer.Argument(help="Endpoint to measure (default: every local one).")
     ] = None,
     model: Annotated[str | None, typer.Option("--model", "-m", help="Model to measure.")] = None,
+    cache: Annotated[
+        bool,
+        typer.Option("--cache", help="Also measure the prefix-cache hit ratio (SPEC §7.2)."),
+    ] = False,
     json_out: Annotated[bool, typer.Option("--json", help="Print results as JSON.")] = False,
 ) -> None:
     """Measure prefill and decode throughput and time to first token per endpoint."""
@@ -654,6 +688,7 @@ def cmd_calibrate(
                 model=model,
                 egress=state.egress(),
                 echo=(lambda _msg: None) if json_out else typer.echo,
+                cache=cache,
             )
             results.append(result)
             if paths.state_dir(state.root).is_dir():
@@ -917,6 +952,13 @@ def cmd_run(
         bool,
         typer.Option("--include-uncommitted", help="Start from the working tree, not HEAD."),
     ] = False,
+    optimize: Annotated[
+        bool | None,
+        typer.Option(
+            "--optimize/--no-optimize",
+            help="Token and cache optimizations (default: [context] optimize, on).",
+        ),
+    ] = None,
     json_out: Annotated[bool, typer.Option("--json", help="Print the result as JSON.")] = False,
 ) -> None:
     """Run a task with step-level model routing."""
@@ -949,6 +991,7 @@ def cmd_run(
             apply=apply,
             include_uncommitted=include_uncommitted,
             allow_remote=allow_remote,
+            optimize=optimize,
         )
     result = _run_one(state, spec, json_out=json_out)
     _show_result(result, json_out=json_out)
@@ -1064,6 +1107,21 @@ def bench_run(
             help="Comma-separated workers the `router` contestant may use (default: all).",
         ),
     ] = None,
+    baseline: Annotated[
+        bool,
+        typer.Option("--baseline", help="Run the Phase 2 baseline: every token optimization off."),
+    ] = False,
+    relay: Annotated[
+        str | None,
+        typer.Option(
+            "--relay",
+            help="FIRST,SECOND: the `relay` contestant starts on FIRST and hands every task to"
+            " SECOND with a HANDOFF brief.",
+        ),
+    ] = None,
+    relay_step: Annotated[
+        int, typer.Option("--relay-step", min=2, help="The work step of the relay's handoff.")
+    ] = 6,
 ) -> None:
     """Run a benchmark suite: every contestant on every task, once per seed."""
     import shlex
@@ -1077,13 +1135,20 @@ def bench_run(
     with _user_errors():
         loaded = load_suite(suite, state.root)
         selected = loaded.select([t.strip() for t in tasks.split(",")] if tasks else None)
-        contestants = runner.parse_contestants(workers)
+        relay_pair = [name.strip() for name in relay.split(",") if name.strip()] if relay else []
+        if relay and len(relay_pair) != 2:
+            raise ValueError("--relay takes two workers: FIRST,SECOND")
+        contestants = runner.parse_contestants(workers or (runner.RELAY if relay else None))
+        if any(c.name == runner.RELAY for c in contestants) != bool(relay_pair):
+            raise ValueError("the `relay` contestant and --relay FIRST,SECOND go together")
+        if relay_pair and baseline:
+            raise ValueError("a relay hands over with a HANDOFF brief: it cannot run --baseline")
         pool = (
             [name.strip() for name in router_pool.split(",") if name.strip()]
             if router_pool
             else None
         )
-        _check_contestants(state, contestants, pool)
+        _check_contestants(state, contestants, [*(pool or []), *relay_pair])
         if (price_in is None) != (price_out is None):
             raise ValueError("give both --price-in and --price-out, or neither")
         stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
@@ -1095,6 +1160,9 @@ def bench_run(
             budgets=Budgets(tokens=budget_tokens, wall_seconds=budget_seconds),
             keep=keep,
             router_pool=pool,
+            optimize=not baseline,
+            relay=relay_pair or None,
+            relay_step=relay_step,
             prices=(
                 {"input_per_million": price_in, "output_per_million": price_out}
                 if price_in is not None and price_out is not None
@@ -1107,6 +1175,10 @@ def bench_run(
         args += ["--tasks", tasks] if tasks else []
         args += [] if review else ["--no-review"]
         args += ["--router-pool", ",".join(pool)] if pool else []
+        args += ["--baseline"] if baseline else []
+        args += (
+            ["--relay", ",".join(relay_pair), "--relay-step", str(relay_step)] if relay_pair else []
+        )
         args += ["--max-steps", str(max_steps)] if max_steps else []
         args += ["--budget-tokens", str(budget_tokens)] if budget_tokens else []
         args += ["--budget-seconds", str(budget_seconds)] if budget_seconds else []
@@ -1143,6 +1215,49 @@ def _check_contestants(
     if unknown:
         known = ", ".join(sorted(catalog.workers)) or "none configured"
         raise ValueError(f"unknown worker(s) {', '.join(unknown)} (workers: {known})")
+
+
+@bench_app.command("calibrate")
+def bench_calibrate(
+    ctx: typer.Context,
+    results: Annotated[
+        list[Path] | None,
+        typer.Argument(help="Results directories (default: every run under bench/results)."),
+    ] = None,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show the values without storing them.")
+    ] = False,
+    json_out: Annotated[bool, typer.Option("--json", help="Print the result as JSON.")] = False,
+) -> None:
+    """Learn the router's base rates and handoff recovery from bench results (SPEC §7.2)."""
+    from stepswitch import state as state_module
+    from stepswitch.bench.calibrate import calibrate
+    from stepswitch.router import calibration
+
+    state = _state(ctx)
+    with _user_errors():
+        folder = state.root / "bench" / "results"
+        dirs = results or sorted(path.parent for path in folder.glob("*/run.json"))
+        if not dirs:
+            raise ValueError("no bench results found; run `ssw bench run` first")
+        found = calibrate(dirs)
+        if not dry_run:
+            db = state_module.open_project_state(state.root)
+            calibration.save_param(db, calibration.PRIORS_KEY, found.priors.as_dict())
+            calibration.save_param(db, calibration.HANDOFF_KEY, found.recovery.as_dict())
+            db.close()
+    summary = {**found.summary(), "stored": not dry_run}
+    if json_out:
+        _print_json(summary)
+        return
+    typer.echo(f"Runs: {len(found.runs)} ({len(found.skipped)} merged runs skipped)")
+    for key, value in summary["priors"].items():
+        typer.echo(f"  {key}: {value['passes']}/{value['runs']} passed")
+    recovery = summary["handoff_recovery"]
+    typer.echo(
+        f"Handoff recovery: {recovery['mean']:.2f} from {recovery['observations']} handoff(s)"
+    )
+    typer.echo("Stored in the project state." if not dry_run else "Not stored (--dry-run).")
 
 
 @bench_app.command("report")
