@@ -35,7 +35,7 @@ from typing import Any
 from ruamel.yaml import YAML
 
 ROOT = Path(__file__).resolve().parents[1]
-MAX_PHASE = 5
+MAX_PHASE = 6
 PHASE_TITLES = {
     0: "Research and design",
     1: "Foundation and compatibility core",
@@ -43,6 +43,7 @@ PHASE_TITLES = {
     3: "Bench, leaderboard, compatibility matrix",
     4: "Dashboard and task API",
     5: "Token and cache optimization",
+    6: "Best-of-N, disagreement, cross-family review",
 }
 SY = Path(sys.executable).with_name("ssw.exe" if os.name == "nt" else "ssw")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -1130,6 +1131,109 @@ def _p5_bench_runs() -> tuple[bool, str]:
         for flag in (True, False)
         if not found.get((suite, flag))
     ]
+    return not missing, ("missing runs: " + ", ".join(missing)) if missing else "ok"
+
+
+# --------------------------------------------------------------------------------------------
+# Phase 6: best-of-N, disagreement, cross-family review
+# --------------------------------------------------------------------------------------------
+
+# SPEC §8.3: candidates per classifier difficulty (d <= 2 -> 1, d = 3 -> 2, d >= 4 -> 3).
+BEST_OF_N = {1: 1, 2: 1, 3: 2, 4: 3, 5: 3}
+# SPEC §8.5: the review answer and each of its issues ("[]" marks array items).
+REVIEW_FIELDS: dict[str, set[str]] = {
+    "": {"approve", "issues"},
+    "issues[]": {"severity", "file", "line", "note"},
+}
+# SPEC §8.4: what happens when passing candidates disagree.
+DISAGREEMENT_POLICIES = {"flag", "tests", "escalate", "human"}
+RESULT_FIELDS = {"best_of", "candidates", "winner", "disagreement", "uncertain"}
+BEST_OF_N_CONTESTANT = "best-of-n"
+
+
+@check(6, "best-of-N: candidates per difficulty as in SPEC §8.3, family plan and selection")
+def _p6_best_of_n() -> tuple[bool, str]:
+    try:
+        module = importlib.import_module("stepswitch.verify.best_of_n")
+    except ImportError as exc:
+        return False, f"stepswitch.verify.best_of_n: {exc}"
+    count = getattr(module, "candidate_count", None)
+    wrong = {d: count(d) for d in BEST_OF_N if count(d) != BEST_OF_N[d]} if callable(count) else {}
+    missing = [name for name in ("plan_candidates", "select") if not hasattr(module, name)]
+    untested = tests_matching("best_of_n")
+    return combine(
+        (callable(count), "candidate_count(difficulty) missing"),
+        (not wrong, f"candidate_count differs from SPEC §8.3: {wrong}"),
+        (not missing, "missing: " + ", ".join(missing)),
+        (not untested, "no tests matching: " + ", ".join(untested)),
+    )
+
+
+@check(6, "cross-family review answers the SPEC §8.5 schema")
+def _p6_review() -> tuple[bool, str]:
+    try:
+        module = importlib.import_module("stepswitch.verify.review")
+    except ImportError as exc:
+        return False, f"stepswitch.verify.review: {exc}"
+    schema = getattr(module, "REVIEW_SCHEMA", None)
+    if not isinstance(schema, dict):
+        return False, "stepswitch.verify.review.REVIEW_SCHEMA missing"
+    present = _schema_properties(schema)
+    problems = [
+        f"{path or 'review'} lacks {', '.join(sorted(keys - present.get(path, set())))}"
+        for path, keys in REVIEW_FIELDS.items()
+        if keys - present.get(path, set())
+    ]
+    untested = tests_matching("cross_review")
+    problems += ["no tests matching: " + ", ".join(untested)] if untested else []
+    return not problems, "; ".join(problems) or "ok"
+
+
+@check(6, "disagreement signal: test and science comparisons, the SPEC §8.4 policies")
+def _p6_disagreement() -> tuple[bool, str]:
+    try:
+        module = importlib.import_module("stepswitch.verify.disagreement")
+    except ImportError as exc:
+        return False, f"stepswitch.verify.disagreement: {exc}"
+    policies = set(getattr(module, "POLICIES", ()))
+    missing = [name for name in ("analyze", "compare_outputs") if not hasattr(module, name)]
+    untested = tests_matching("disagreement")
+    return combine(
+        (policies == DISAGREEMENT_POLICIES, f"POLICIES is {sorted(policies)}"),
+        (not missing, "missing: " + ", ".join(missing)),
+        (not untested, "no tests matching: " + ", ".join(untested)),
+    )
+
+
+@check(6, "CLI: `ssw run --best-of --on-disagreement`, bench contestant best-of-n")
+def _p6_cli() -> tuple[bool, str]:
+    return combine(
+        help_check(["run"], ["--best-of", "--on-disagreement"]),
+        help_check(["bench", "run"], ["--best-of", BEST_OF_N_CONTESTANT]),
+    )
+
+
+@check(6, "task results carry the candidates, the winner and the disagreement report")
+def _p6_result() -> tuple[bool, str]:
+    try:
+        task = importlib.import_module("stepswitch.core.task")
+    except ImportError as exc:
+        return False, str(exc)
+    fields = set(getattr(task.TaskResult, "model_fields", {}))
+    missing = sorted(RESULT_FIELDS - fields)
+    return not missing, ("TaskResult lacks: " + ", ".join(missing)) if missing else "ok"
+
+
+@check(6, "bench/results holds best-of-N runs with every pool worker as a single contestant")
+def _p6_bench_runs() -> tuple[bool, str]:
+    found: set[str] = set()
+    for run_file in (ROOT / "bench" / "results").glob("*/run.json"):
+        data = json.loads(run_file.read_text(encoding="utf-8"))
+        contestants = list(data.get("contestants", []))
+        pool = list(data.get("router_pool") or [])
+        if BEST_OF_N_CONTESTANT in contestants and pool and set(pool) <= set(contestants):
+            found.add(str(data.get("suite")))
+    missing = [suite for suite in SUITES if suite not in found]
     return not missing, ("missing runs: " + ", ".join(missing)) if missing else "ok"
 
 
