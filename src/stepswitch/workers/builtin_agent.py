@@ -136,6 +136,14 @@ Step: plan
 Write a short numbered plan (at most five steps) for the task below. Name the files to
 inspect or change when you can tell. Do not write code."""
 
+# Optimized runs: every work step re-sends the plan, so it is kept to one line per step.
+PLAN_PROMPT_SHORT = """\
+You plan the work of a coding agent.
+Step: plan
+Write a short numbered plan for the task below: at most five steps, one line each. Name the
+files to inspect or change when you can tell. Do not write code."""
+PLAN_CHARS = 1200
+
 REVIEW_PROMPT = """\
 You review a change that a coding agent made.
 Step: review
@@ -1109,8 +1117,10 @@ class AgentLoop:
             return output.text, None
         tool = str(output.data.get("tool") or call.name)
         if tool == "read" and not output.is_error and "output" not in output.data:
-            earlier = self.read_cache.lookup(output.data, self._visible)
+            large = estimate_tokens(len(output.text)) >= self.settings.dedup_min_tokens
+            earlier = self.read_cache.lookup(output.data, self._visible) if large else None
             if earlier is not None:
+                self.read_cache.mark_stubbed(output.data)
                 self.stats["dedup"] += 1
                 return dedup.stub(output.data, earlier), "dedup"
             compression = self.settings.compression
@@ -1325,9 +1335,12 @@ class AgentLoop:
         limit = self._limit()
         if limit is not None:
             return limit
-        plan = self._text_step("plan", PLAN_PROMPT, f"Task: {task_text}\n\n{self.overview}")
+        prompt = PLAN_PROMPT_SHORT if self.optimize else PLAN_PROMPT
+        plan = self._text_step("plan", prompt, f"Task: {task_text}\n\n{self.overview}")
         if plan:
             self.plan = plan
+            if self.optimize and len(plan) > PLAN_CHARS:
+                self.plan = plan[:PLAN_CHARS].rstrip() + "\n[plan cut]"
         first = f"Task: {task_text}"
         if self.plan:
             first += f"\n\nPlan:\n{self.plan}"

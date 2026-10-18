@@ -8,6 +8,7 @@
     keep_recent = 2                  # the newest results of each kind are never stubbed
     handoff_threshold_tokens = 24000 # uncached tokens above which a switch sends a brief
     distill_tokens = 2000            # longer tool outputs are distilled (TK4)
+    dedup_min_tokens = 500           # shorter reads are never answered with a stub (TK3)
 
     [context.compression]            # TK11, off by default (`context.compress`)
     enabled = false
@@ -21,6 +22,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from stepswitch.context import dedup
 from stepswitch.context.compress import CompressionSettings
 from stepswitch.context.distill import DISTILL_TOKENS
 from stepswitch.context.prune import COMPACT_AT, KEEP_RECENT, PRUNE_MIN_TOKENS
@@ -46,6 +48,7 @@ class ContextSettings:
     keep_recent: int = KEEP_RECENT
     handoff_threshold: int = HANDOFF_THRESHOLD_TOKENS
     distill_tokens: int = DISTILL_TOKENS
+    dedup_min_tokens: int = dedup.MIN_TOKENS
     compression: CompressionSettings = field(default_factory=CompressionSettings)
 
     @classmethod
@@ -67,6 +70,7 @@ class ContextSettings:
                 section.get("handoff_threshold_tokens"), HANDOFF_THRESHOLD_TOKENS, 0
             ),
             distill_tokens=_int(section.get("distill_tokens"), DISTILL_TOKENS, 256),
+            dedup_min_tokens=_int(section.get("dedup_min_tokens"), dedup.MIN_TOKENS, 0),
             compression=CompressionSettings.from_config(config),
         )
 

@@ -183,15 +183,26 @@ def assert_valid(record: Mapping[str, Any]) -> None:
 # ------------------------------------------------------------------------------------------
 
 
-def test_an_unchanged_visible_read_is_answered_with_a_stub(tmp_path: Path) -> None:
+def test_an_unchanged_visible_read_is_answered_with_a_stub_once(tmp_path: Path) -> None:
+    script = sequence([read("a"), read("a"), read("a"), FINISH])
+    loop = build(tmp_path, [scripted("a/m", "t2", script)], FileToolbox(BIG))
+    assert loop.run().status == "done"
+    first, second, third = tool_texts(loop)[:3]
+    assert "unchanged since the read in step 2" in second and "line 3 of a" not in second
+    # Asked again right after the stub: the text is shown, never a second stub, and the
+    # first copy is then a superseded result that pruning removes.
+    assert "line 3 of a" in third
+    assert first.startswith("[superseded: a was read again in step 4")
+    assert loop.stats["dedup"] == 1
+    assert [e["kind"] for e in events(loop, "context")] == ["dedup"]
+
+
+def test_small_reads_are_never_stubbed(tmp_path: Path) -> None:
     script = sequence([read("calc.py"), read("calc.py"), FINISH])
     loop = build(tmp_path, [scripted("a/m", "t2", script)], FileToolbox(SMALL))
     assert loop.run().status == "done"
-    first, second = tool_texts(loop)[:2]
-    assert "return a - b" in first
-    assert "unchanged since the read in step" in second and "return a - b" not in second
-    assert loop.stats["dedup"] == 1
-    assert [e["kind"] for e in events(loop, "context")] == ["dedup"]
+    assert all("return a - b" in text for text in tool_texts(loop)[:2])
+    assert loop.stats["dedup"] == 0
 
 
 def test_a_changed_file_is_read_in_full_again(tmp_path: Path) -> None:
@@ -427,7 +438,7 @@ def test_role_budgets_and_effort_go_to_reasoning_workers_only(tmp_path: Path) ->
     requests = thinker.model.requests  # type: ignore[union-attr]
     plan, navigate = requests[0], requests[1]
     assert (plan.effort, plan.max_output_tokens) == ("high", 1200)
-    assert (navigate.effort, navigate.max_output_tokens) == ("low", 1024)
+    assert (navigate.effort, navigate.max_output_tokens) == ("low", 2048)
     plain = scripted("a/m", "t2", sequence([read("calc.py"), FINISH]))
     loop = build(tmp_path / "plain", [plain], FileToolbox(SMALL))
     assert loop.run().status == "done"

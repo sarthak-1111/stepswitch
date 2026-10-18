@@ -30,12 +30,15 @@ class RoleBudget:
     effort: str | None = None
 
 
+# Work-step types are predictions (a model may edit in a step predicted as `read`), so their
+# output caps keep the Phase 2 size: a lower cap saves nothing a model does not generate and can
+# cut a tool call short. What differs per work step is the reasoning effort.
 DEFAULTS: dict[str, RoleBudget] = {
     "plan": RoleBudget(1200, "high"),
-    "navigate": RoleBudget(1024, "low"),
-    "read": RoleBudget(1024, "low"),
+    "navigate": RoleBudget(2048, "low"),
+    "read": RoleBudget(2048, "low"),
     "edit": RoleBudget(2048, "medium"),
-    "run": RoleBudget(1024, "low"),
+    "run": RoleBudget(2048, "low"),
     "triage": RoleBudget(2048, "medium"),
     "review": RoleBudget(600, "medium"),
     "summarize": RoleBudget(300, "low"),

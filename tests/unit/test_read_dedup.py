@@ -32,3 +32,17 @@ def test_directories_and_errors_have_no_key() -> None:
 def test_stub_points_to_the_earlier_step() -> None:
     text = stub(READ, 3)
     assert "a.py lines 1-40" in text and "step 3" in text
+
+
+def test_a_stub_is_served_once_per_range_and_content() -> None:
+    cache = ReadCache()
+    cache.remember(READ, index=5, step=3)
+    assert cache.lookup(READ, lambda _i: True) == 3
+    cache.mark_stubbed(READ)
+    assert cache.lookup(READ, lambda _i: True) is None
+    cache.remember(READ, index=9, step=6)
+    assert cache.lookup(READ, lambda _i: True) is None  # still shown in full
+    changed = {**READ, "sha256": "2" * 64}
+    cache.remember(changed, index=12, step=8)
+    assert cache.lookup(changed, lambda _i: True) == 8  # new content: a stub again
+    assert "anchors" in stub(READ, 3)
