@@ -1,7 +1,8 @@
-"""Repository map (SPEC §13 TK2, Phase 2 version): ranked definitions within a token budget.
+"""Repository map (SPEC §13 TK2): ranked definitions within a token budget.
 
-Definitions come from Python's `ast` for Python and from line regexes for JavaScript,
-TypeScript, Go, Rust, Java, C, C++ and Ruby (tree-sitter replaces the regexes in Phase 5).
+Definitions come from Python's `ast` for Python and from tree-sitter grammars for JavaScript,
+TypeScript, Go, Rust, Java, C, C++ and Ruby (`context.treesitter`); line regexes remain the
+fallback for a language whose grammar is not installed.
 
 Ranking follows the design recorded in docs/RESEARCH.md ("Aider repo map"), reimplemented:
 files are nodes; each identifier that one file uses and another defines adds an edge from the
@@ -35,7 +36,7 @@ from stepswitch.context.walk import MAX_FILE_BYTES, IgnoreMatcher, iter_files, l
 
 TokenCounter = Callable[[str], int]
 DEFAULT_MAP_TOKENS = 2048
-TAGS_VERSION = 3
+TAGS_VERSION = 4
 SIGNATURE_CHARS = 150
 UNREFERENCED_SHARE = 0.1  # of its file's rank, for a definition no other file uses
 MIN_OUT_WEIGHT = 1.0  # a file whose references weigh less passes on only part of its rank
@@ -658,6 +659,11 @@ def extract_tags(text: str, language: str) -> FileTags:
     """Definitions and identifier counts for one file's text."""
     if language == "python":
         return _python_file_tags(text)
+    from stepswitch.context import treesitter
+
+    parsed: FileTags | None = treesitter.file_tags(text, language)
+    if parsed is not None:
+        return parsed
     tags = _regex_tags(text, language)
     if language in _BRACES:  # count references in code only, not in strings and comments
         strings = _RUST_STRINGS_RE if language == "rust" else _STRINGS_RE

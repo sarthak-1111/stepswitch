@@ -148,6 +148,7 @@ SAMPLES: dict[str, tuple[str, list[tuple[str, str, int, int, str | None]]]] = {
         "}\n",
         [
             ("Shape", "interface", 1, 3, None),
+            ("area", "method", 2, 2, "Shape"),
             ("Point", "type", 5, 5, None),
             ("Color", "enum", 7, 9, None),
             ("Polygon", "class", 11, 15, None),
