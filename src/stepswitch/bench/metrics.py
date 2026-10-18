@@ -97,6 +97,48 @@ def bootstrap_ci(
     )
 
 
+def bootstrap_ratio_ci(
+    clusters: Sequence[tuple[float, float]],
+    *,
+    confidence: float = DEFAULT_CONFIDENCE,
+    resamples: int = DEFAULT_RESAMPLES,
+    seed: int = DEFAULT_SEED,
+) -> Interval:
+    """Confidence interval of sum(numerators) / sum(denominators) over `clusters`.
+
+    One cluster per task holds the totals of its runs, for example (optimized tokens, baseline
+    tokens) over the task's seeds. Each resample draws as many tasks as there are, with
+    replacement. With fewer than two clusters there is nothing to resample and the interval is
+    the point value with method "none".
+    """
+    if not 0 < confidence < 1:
+        raise ValueError(f"confidence must be between 0 and 1, not {confidence}")
+    if resamples < 1:
+        raise ValueError(f"resamples must be at least 1, not {resamples}")
+    usable = [(float(n), float(d)) for n, d in clusters]
+    total = sum(d for _, d in usable)
+    if len(usable) < 2 or total <= 0:
+        point = sum(n for n, _ in usable) / total if total > 0 else math.nan
+        return Interval(point, point, confidence, "none")
+    rng = random.Random(seed)
+    count = len(usable)
+    stats = []
+    for _ in range(resamples):
+        drawn = [usable[rng.randrange(count)] for _ in range(count)]
+        denominator = sum(d for _, d in drawn)
+        if denominator > 0:
+            stats.append(sum(n for n, _ in drawn) / denominator)
+    stats.sort()
+    alpha = 1 - confidence
+    return Interval(
+        quantile(stats, alpha / 2),
+        quantile(stats, 1 - alpha / 2),
+        confidence,
+        BOOTSTRAP,
+        resamples,
+    )
+
+
 def _number(value: Any) -> float:
     return float(value) if isinstance(value, int | float) and not isinstance(value, bool) else 0.0
 

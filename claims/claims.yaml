@@ -241,7 +241,9 @@ claims:
     phase: 5
     tests:
       - tests/claims/test_c011_token_savings.py::test_optimized_uses_fewer_tokens_at_same_pass_rate
-    thresholds: {token_reduction_pct_min: 0, pass_rate_not_lower: true}
+    thresholds:
+      {token_reduction_pct_min: 0, pass_rate_not_lower: true, significant: true,
+       confidence_level: 0.95}
     evidence: [claims/evidence/C-011.json]
     readme_numbers:
       - key: sections.comparison.token_reduction_percent

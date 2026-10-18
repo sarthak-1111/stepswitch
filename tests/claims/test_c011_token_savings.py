@@ -13,8 +13,14 @@ baseline run with the same suite, contestants, router pool, tasks and seeds, and
   tokens count as input; the ledger of each run is what the rows add up);
 * pass rate: the share of task runs whose acceptance commands passed.
 
-The claim holds when every suite uses fewer tokens and passes at least as often. The README
-number is the reduction over both suites together.
+The claim holds when every suite uses fewer tokens and passes at least as often, and, with the
+`significant` threshold, when the reduction over both suites together is significant: its
+confidence interval (a cluster bootstrap over tasks, each task's runs of both configurations
+kept together; `stepswitch.bench.metrics.bootstrap_ratio_ci`) lies above the minimum
+reduction. Run-to-run variation in the number of steps is large, so a point estimate alone
+would be noise (ADR 0024). The README number is the reduction over both suites together. The
+evidence also reports uncached tokens (input not served from the server's prefix cache, plus
+output), which is what a server has to compute.
 """
 
 from __future__ import annotations
@@ -23,6 +29,7 @@ from typing import Any
 
 import pytest
 
+from stepswitch.bench import metrics
 from tests.claims import evidence
 from tests.claims.bench_runs import Run, runs, tokens
 
@@ -48,6 +55,12 @@ def pairs() -> dict[str, tuple[Run, Run]]:
     return found
 
 
+def uncached(row: dict[str, Any]) -> int:
+    counts = row.get("tokens") or {}
+    used = int(counts.get("input") or 0) - int(counts.get("cached_input") or 0)
+    return max(0, used) + int(counts.get("output") or 0)
+
+
 def summary(run: Run) -> dict[str, Any]:
     rows = run.rows
     passed = sum(1 for row in rows if row.get("passed"))
@@ -60,31 +73,77 @@ def summary(run: Run) -> dict[str, Any]:
         "tokens": sum(tokens(row) for row in rows),
         "input_tokens": sum(int((row.get("tokens") or {}).get("input") or 0) for row in rows),
         "output_tokens": sum(int((row.get("tokens") or {}).get("output") or 0) for row in rows),
+        "uncached_tokens": sum(uncached(row) for row in rows),
+    }
+
+
+def clusters(baseline: Run, optimized: Run, measure: Any) -> list[tuple[float, float]]:
+    """(optimized, baseline) totals per task over the seeds both runs have."""
+    base = {(row["task"], row["seed"]): row for row in baseline.rows}
+    opt = {(row["task"], row["seed"]): row for row in optimized.rows}
+    shared = sorted(set(base) & set(opt))
+    by_task: dict[str, list[float]] = {}
+    for key in shared:
+        totals = by_task.setdefault(str(key[0]), [0.0, 0.0])
+        totals[0] += measure(opt[key])
+        totals[1] += measure(base[key])
+    return [(o, b) for o, b in by_task.values()]
+
+
+def reduction(cluster_list: list[tuple[float, float]], confidence: float) -> dict[str, Any]:
+    """The reduction in percent with its interval (flipped from the ratio's)."""
+    opt, base = sum(c[0] for c in cluster_list), sum(c[1] for c in cluster_list)
+    ratio = metrics.bootstrap_ratio_ci(cluster_list, confidence=confidence)
+    return {
+        "percent": round(100.0 * (1.0 - opt / base), 2) if base else None,
+        "interval": {
+            "low": round(100.0 * (1.0 - ratio.high), 2),
+            "high": round(100.0 * (1.0 - ratio.low), 2),
+            "confidence": confidence,
+            "method": ratio.method,
+            "tasks": len(cluster_list),
+        },
     }
 
 
 def test_optimized_uses_fewer_tokens_at_same_pass_rate() -> None:
     limits = evidence.thresholds("C-011")
+    confidence = float(limits.get("confidence_level", metrics.DEFAULT_CONFIDENCE))
     found = pairs()
     assert set(found) == set(SUITES), f"no baseline/optimized pair for {set(SUITES) - set(found)}"
     suites: dict[str, Any] = {}
     problems = []
+    all_tokens: list[tuple[float, float]] = []
+    all_uncached: list[tuple[float, float]] = []
     for suite, (baseline, optimized) in found.items():
         base, opt = summary(baseline), summary(optimized)
         assert base["runs"] == opt["runs"] > 0, (suite, base["runs"], opt["runs"])
-        reduction = 100.0 * (1.0 - opt["tokens"] / base["tokens"])
+        by_tokens = clusters(baseline, optimized, tokens)
+        by_uncached = clusters(baseline, optimized, uncached)
+        all_tokens += by_tokens
+        all_uncached += by_uncached
+        measured = reduction(by_tokens, confidence)
         suites[suite] = {
             "baseline": base,
             "optimized": opt,
-            "token_reduction_percent": round(reduction, 2),
+            "token_reduction_percent": measured["percent"],
+            "token_reduction_interval": measured["interval"],
+            "uncached_reduction": reduction(by_uncached, confidence),
         }
-        if reduction <= limits["token_reduction_pct_min"]:
-            problems.append(f"{suite}: {reduction:.1f}% fewer tokens")
+        if measured["percent"] is None or measured["percent"] <= limits["token_reduction_pct_min"]:
+            problems.append(f"{suite}: {measured['percent']}% fewer tokens")
         if limits["pass_rate_not_lower"] and opt["pass_rate"] < base["pass_rate"]:
             problems.append(f"{suite}: pass rate {opt['pass_rate']} < {base['pass_rate']}")
     base_total = sum(s["baseline"]["tokens"] for s in suites.values())
     opt_total = sum(s["optimized"]["tokens"] for s in suites.values())
     overall = round(100.0 * (1.0 - opt_total / base_total), 1)
+    interval = reduction(all_tokens, confidence)["interval"]
+    if limits.get("significant") and interval["low"] <= limits["token_reduction_pct_min"]:
+        problems.append(
+            f"overall: {overall}% fewer tokens, but the {confidence:.0%} interval"
+            f" ({interval['low']}% to {interval['high']}%) does not lie above"
+            f" {limits['token_reduction_pct_min']}%"
+        )
     evidence.write(
         "C-011",
         "comparison",
@@ -93,6 +152,8 @@ def test_optimized_uses_fewer_tokens_at_same_pass_rate() -> None:
             "baseline_tokens": base_total,
             "optimized_tokens": opt_total,
             "token_reduction_percent": overall,
+            "token_reduction_interval": interval,
+            "uncached_reduction": reduction(all_uncached, confidence),
             "problems": problems,
         },
         command="uv run ssw bench run --suite <suite> --baseline ... ; uv run ssw bench run "

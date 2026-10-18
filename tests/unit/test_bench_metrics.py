@@ -11,6 +11,7 @@ from stepswitch.bench.metrics import (
     BOOTSTRAP,
     WILSON,
     bootstrap_ci,
+    bootstrap_ratio_ci,
     quantile,
     summarize,
     wilson_interval,
@@ -120,3 +121,17 @@ def test_summarize_computes_every_metric_and_ranks_contestants() -> None:
     assert tiny.cache_hit_rate == pytest.approx(800 / 5000)
     assert summarize(rows)[0].reference_cost is None  # no price, no cost
     assert router.to_dict()["ci"]["method"] == BOOTSTRAP
+
+
+def test_ratio_bootstrap_resamples_tasks_with_their_totals() -> None:
+    # two tasks: 50 of 100 and 150 of 100; resamples give 0.5, 1.0 or 1.5 (a quarter, a half,
+    # a quarter), so a 40% interval is the middle value and the 95% interval spans the ends
+    clusters = [(50.0, 100.0), (150.0, 100.0)]
+    middle = bootstrap_ratio_ci(clusters, confidence=0.4, resamples=8_000, seed=2)
+    assert middle.low == middle.high == 1.0 and middle.method.startswith("cluster bootstrap")
+    wide = bootstrap_ratio_ci(clusters, resamples=8_000, seed=2)
+    assert (wide.low, wide.high) == (0.5, 1.5)
+    assert bootstrap_ratio_ci(clusters, seed=5) == bootstrap_ratio_ci(clusters, seed=5)
+    single = bootstrap_ratio_ci([(30.0, 40.0)])
+    assert (single.low, single.high, single.method) == (0.75, 0.75, "none")
+    assert math.isnan(bootstrap_ratio_ci([]).low)
