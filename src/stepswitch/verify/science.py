@@ -830,10 +830,7 @@ def _compare_quantity(
         key=quantity.data_key,
     )
     expected_path = case_dir / quantity.expected_path
-    if quantity.file.startswith("{"):
-        actual_path = Path(commands.expand([quantity.file], values)[0])
-    else:
-        actual_path = output / quantity.file
+    actual_path = output_path(quantity, output, values)
     try:
         e = read_array(expected_path, quantity.data_key)
         xe = read_array(expected_path, quantity.x_key, keyed=True) if quantity.x_key else None
@@ -877,6 +874,36 @@ def _compare_quantity(
     return base, drawn
 
 
+def case_values(repo: Path, case: GoldenCase, *, python: str, output: Path) -> dict[str, str]:
+    """The placeholders of a golden case: {python}, {case}, {output} and {repo}."""
+    case_dir = repo / GOLDEN_DIR / case.case
+    return {"python": python, "case": str(case_dir), "output": str(output), "repo": str(repo)}
+
+
+def output_path(quantity: Quantity, output: Path, values: Mapping[str, str]) -> Path:
+    """Where a run of the case wrote `quantity` (`{output}` is the run's output directory)."""
+    if quantity.file.startswith("{"):
+        return Path(commands.expand([quantity.file], values)[0])
+    return output / quantity.file
+
+
+def run_case_command(
+    repo: Path,
+    case: GoldenCase,
+    *,
+    python: str,
+    env: Mapping[str, str],
+    timeout: float,
+    output: Path,
+) -> commands.CommandResult:
+    """Run one golden case's command, writing its outputs to `output`, which the caller keeps.
+
+    Used to compare the outputs of best-of-N candidates with each other (SPEC §8.4).
+    """
+    argv = commands.expand(case.command, case_values(repo, case, python=python, output=output))
+    return commands.run(argv, cwd=repo, timeout=case.timeout or timeout, env=env)
+
+
 def _run_case(
     repo: Path,
     case: GoldenCase,
@@ -894,7 +921,7 @@ def _run_case(
         )
     with tempfile.TemporaryDirectory(prefix="ssw-golden-", ignore_cleanup_errors=True) as tmp:
         output = Path(tmp)
-        values = {"python": python, "case": str(case_dir), "output": str(output), "repo": str(repo)}
+        values = case_values(repo, case, python=python, output=output)
         argv = commands.expand(case.command, values)
         run = commands.run(argv, cwd=repo, timeout=case.timeout or timeout, env=env)
         result = CaseResult(case.case, "passed", argv, run.returncode, run.seconds)
