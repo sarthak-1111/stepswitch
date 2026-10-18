@@ -53,6 +53,12 @@ class WorkerSpec:
     gpu: bool = False
     registry_id: str | None = None
     notes: tuple[str, ...] = ()
+    # The model reasons before answering, so a reasoning effort applies to it (TK10).
+    reasoning: bool = False
+    # The registry's tokenizer name for HANDOFF counts (SPEC §9), when it has one.
+    tokenizer: str | None = None
+    # Reported / predicted cached prompt tokens measured by `ssw calibrate --cache`.
+    cache_ratio: float | None = None
     # Models that are not meant to drive agent turns (completion-only models) are used only
     # when `--worker` pins them.
     pin_only: bool = False
@@ -78,6 +84,9 @@ class WorkerSpec:
             "context": self.context,
             "gpu": self.gpu,
             "pin_only": self.pin_only,
+            "reasoning": self.reasoning,
+            "tokenizer": self.tokenizer,
+            "cache_ratio": self.cache_ratio,
         }
 
 

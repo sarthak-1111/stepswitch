@@ -266,18 +266,19 @@ def _mapped_level(
 def resolve(
     receiver: Receiver,
     *,
-    models_dir: Path,
+    models_dir: Path | None,
     egress: net.Egress | None = None,
     specs: Mapping[str, TokenizerSpec] | None = None,
 ) -> Counter:
-    """The first available counter in `RESOLUTION_ORDER` for `receiver`."""
+    """The first available counter in `RESOLUTION_ORDER` for `receiver` (without a models
+    directory, the local file levels are skipped)."""
     specs = load_specs() if specs is None else specs
-    counter = _file_level(receiver, models_dir, specs)
+    counter = _file_level(receiver, models_dir, specs) if models_dir is not None else None
     if counter is not None:
         return counter
     if receiver.engine == "llamacpp" and receiver.base_url:
         return ServerCounter(receiver.base_url, headers=receiver.headers, egress=egress)
-    counter = _mapped_level(receiver, models_dir, specs)
+    counter = _mapped_level(receiver, models_dir, specs) if models_dir is not None else None
     if counter is not None:
         return counter
     return EstimateCounter()

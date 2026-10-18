@@ -23,6 +23,9 @@ file_size_gb = 1.06
 ram_gb = 2.67
 ram_ctx = 8192
 context = 8192
+# The server's context when the model drives agent turns (ADR 0024); compaction keeps the
+# work transcript under 60% of it (TK6).
+agent_ctx = 8192
 tool_calls = "none"
 reasoning = "none"
 roles = ["summarizer", "log_triage", "commit_message"]

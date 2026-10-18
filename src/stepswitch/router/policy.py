@@ -1,8 +1,10 @@
 """Success priors per (worker, step type, task features) (SPEC §7.1 item 3).
 
 Phase 2 priors come from the worker's tier and registry or config roles; probe results lower
-them for capabilities a worker failed. Phase 7 replaces this with a learned policy (SPEC §10).
-The numbers are deliberately simple and explainable: every decision records them.
+them for capabilities a worker failed. From Phase 5, `ssw bench calibrate` measures success
+rates per model and track, which replace the tier's base rate (`base`, shrunk towards it in
+`stepswitch.router.calibration.PriorTable`). Phase 7 replaces this with a learned policy
+(SPEC §10). The numbers are deliberately simple and explainable: every decision records them.
 """
 
 from __future__ import annotations
@@ -30,8 +32,10 @@ ROLES_FOR_STEP: dict[str, tuple[str, ...]] = {
 LIGHT_STEPS = frozenset({"navigate", "summarize", "write-text"})
 
 
-def prior(spec: WorkerSpec, step_type: str, features: TaskFeatures) -> float:
-    p = BASE_BY_LEVEL.get(spec.level, 0.6)
+def prior(
+    spec: WorkerSpec, step_type: str, features: TaskFeatures, *, base: float | None = None
+) -> float:
+    p = BASE_BY_LEVEL.get(spec.level, 0.6) if base is None else base
     if step_type in LIGHT_STEPS:
         p += 0.15 * (1.0 - spec.level / 3.0)
     if set(ROLES_FOR_STEP.get(step_type, ())) & set(spec.roles):

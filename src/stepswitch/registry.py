@@ -67,6 +67,11 @@ class ModelEntry(BaseModel):
     ram_gb: float
     ram_ctx: int | None = None
     context: int
+    # The context size the server gets when the model drives agent turns (Phase 5); the
+    # engine recipe's own size applies otherwise.
+    agent_ctx: int | None = None
+    # A tokenizer name from registry/tokenizers/tokenizers.toml (SPEC §9 counts).
+    tokenizer: str | None = None
     tool_calls: ToolCalls = "fallback"
     tool_syntax: str | None = None
     reasoning: str = "none"

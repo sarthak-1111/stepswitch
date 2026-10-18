@@ -23,6 +23,9 @@ file_size_gb = 1.55
 ram_gb = 2.22
 ram_ctx = 8192
 context = 131072
+# The server's context when the model drives agent turns (ADR 0024); compaction keeps the
+# work transcript under 60% of it (TK6).
+agent_ctx = 16384
 tool_calls = "native"
 tool_syntax = "granite"
 reasoning = "none"

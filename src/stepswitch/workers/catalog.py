@@ -17,6 +17,7 @@ protocol (working rule 2).
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
@@ -40,6 +41,8 @@ DEFAULT_TIER = "t1"
 NO_CHAT_ROLES = frozenset({"embeddings", "search_ranking"})
 PIN_ONLY_ROLES = frozenset({"fim"})
 CLASSIFIER_ROLES = ("classifier", "router")
+# Registry roles of models that write HANDOFF briefs and output summaries, best first.
+SUMMARIZER_ROLES = ("handoff_writer", "summarizer")
 _SIZE = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)\s*[bB](?![a-zA-Z])")
 
 
@@ -86,6 +89,18 @@ class ModelFacts:
     decode_tps: float | None = None
     registry_id: str | None = None
     notes: tuple[str, ...] = ()
+    reasoning: bool = False
+    tokenizer: str | None = None
+    cache_ratio: float | None = None
+
+
+def _reasons(value: Any) -> bool | None:
+    """A `reasoning` value from a model table or registry entry ("none", "always", a note)."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.strip():
+        return not value.strip().lower().startswith(("none", "no", "false"))
+    return None
 
 
 def model_facts(
@@ -144,6 +159,11 @@ def model_facts(
         context = probed
     calibration = calibration or {}
     family = table.get("family") if isinstance(table.get("family"), str) else None
+    reasoning = _reasons(table.get("reasoning"))
+    if reasoning is None and entry is not None:
+        reasoning = _reasons(entry.reasoning)
+    tokenizer = table.get("tokenizer") if isinstance(table.get("tokenizer"), str) else None
+    ratio = _number(calibration.get("cache_ratio"))
     return ModelFacts(
         tier=tier,
         family=family or (entry.family if entry is not None else None),
@@ -155,6 +175,9 @@ def model_facts(
         decode_tps=_number(calibration.get("decode_tps")),
         registry_id=entry.id if entry is not None else None,
         notes=tuple(notes),
+        reasoning=bool(reasoning),
+        tokenizer=tokenizer or (entry.tokenizer if entry is not None else None),
+        cache_ratio=None if ratio is None else max(0.0, min(1.0, ratio)),
     )
 
 
@@ -237,6 +260,27 @@ class Catalog:
                 chosen.append(worker)
         return Catalog(chosen, notes=list(self.notes))
 
+    def summarizer(self) -> Worker | None:
+        """The T0 worker that writes HANDOFF briefs and output summaries (SPEC §9, TK4): a local
+        level-0 chat model with a summarizer role, `handoff_writer` first."""
+        candidates = [
+            w
+            for w in self.workers.values()
+            if w.spec.level == 0
+            and w.spec.local
+            and not w.spec.pin_only
+            and set(SUMMARIZER_ROLES) & set(w.spec.roles)
+        ]
+        if not candidates:
+            return None
+
+        def rank(worker: Worker) -> tuple[int, str]:
+            roles = set(worker.spec.roles)
+            best = min(i for i, role in enumerate(SUMMARIZER_ROLES) if role in roles)
+            return best, worker.spec.id
+
+        return min(candidates, key=rank)
+
     def classifier(self) -> Worker | None:
         """The T0 worker that classifies tasks: a local level-0 model with a router role."""
         candidates = [
@@ -313,6 +357,9 @@ class Catalog:
                     gpu=gpu_host and endpoint.is_local() and facts.tier != "cpu",
                     registry_id=facts.registry_id,
                     notes=facts.notes + parser_notes,
+                    reasoning=facts.reasoning,
+                    tokenizer=facts.tokenizer,
+                    cache_ratio=facts.cache_ratio,
                 )
                 factory = _endpoint_factory(endpoint, spec, egress, task_id, timeout)
                 workers.append(Worker(spec, factory=factory))
@@ -326,7 +373,7 @@ class Catalog:
                     continue
                 pin_only = bool(entry.roles) and set(entry.roles) <= NO_CHAT_ROLES | PIN_ONLY_ROLES
                 llama = entry.engines.get("llamacpp")
-                ctx = _ctx_from_args(llama.args) if llama is not None else None
+                ctx = entry.agent_ctx or (_ctx_from_args(llama.args) if llama is not None else None)
                 table = config.models.get(entry.id) or {}
                 facts = model_facts(
                     entry.id,
@@ -359,6 +406,9 @@ class Catalog:
                     registry_id=entry.id,
                     notes=facts.notes + parser_notes,
                     pin_only=pin_only,
+                    reasoning=facts.reasoning,
+                    tokenizer=facts.tokenizer,
+                    cache_ratio=facts.cache_ratio,
                 )
                 factory = _managed_factory(
                     config,
@@ -393,11 +443,21 @@ def _latest_calibration(db: StateDB | None, endpoint: str, model: str) -> dict[s
     if db is None:
         return None
     rows = db.query(
-        "SELECT prefill_tps, decode_tps, ttft_ms FROM calibrations WHERE endpoint = ? AND model = ?"
-        " ORDER BY created DESC LIMIT 1",
+        "SELECT prefill_tps, decode_tps, ttft_ms, details FROM calibrations"
+        " WHERE endpoint = ? AND model = ? ORDER BY created DESC LIMIT 1",
         (endpoint, model),
     )
-    return rows[0] if rows else None
+    if not rows:
+        return None
+    row = dict(rows[0])
+    try:
+        details = json.loads(row.pop("details") or "{}")
+    except (TypeError, ValueError):
+        details = {}
+    cache = details.get("cache") if isinstance(details, dict) else None
+    if isinstance(cache, dict):
+        row["cache_ratio"] = cache.get("ratio")
+    return row
 
 
 def wrap_protocol(client: StepModel, spec: WorkerSpec) -> StepModel:
@@ -450,7 +510,9 @@ def _managed_factory(
         from stepswitch.serve.manager import ServerManager
 
         servers = manager or ServerManager(root, config)
-        info = servers.ensure(spec.model)
+        # Models that drive agent turns get their agent context size (ADR 0024).
+        ctx = entry.agent_ctx if entry is not None else None
+        info = servers.ensure(spec.model, ctx_size=ctx) if ctx else servers.ensure(spec.model)
         parser = pinned or (entry.text_tool_parser(info.engine) if entry else spec.tool_parser)
         target = Endpoint(
             name="managed",

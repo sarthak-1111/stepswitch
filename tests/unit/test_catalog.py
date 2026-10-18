@@ -278,3 +278,36 @@ def test_a_task_routes_only_within_its_worker_pool(tmp_path: Path) -> None:
     assert set(result.endpoints) == {"alpha"}
     events = read_events(Path(str(result.run_dir)))
     assert next(e for e in events if e["type"] == "pool")["workers"] == ["fake/alpha"]
+
+
+def test_summarizer_reasoning_tokenizer_and_cache_ratio(tmp_path: Path) -> None:
+    writer = Worker(
+        WorkerSpec(id="m/writer", tier="cpu", roles=("summarizer", "handoff_writer")),
+        ScriptedModel([]),
+    )
+    summary = Worker(WorkerSpec(id="m/a-sum", tier="cpu", roles=("summarizer",)), ScriptedModel([]))
+    big = Worker(WorkerSpec(id="m/big", tier="t2", roles=("summarizer",)), ScriptedModel([]))
+    assert Catalog([summary, writer, big]).summarizer() is writer
+    assert Catalog([summary, big]).summarizer() is summary
+    assert Catalog([big]).summarizer() is None
+
+    facts = model_facts("x", local=True, entry=entry(reasoning="hybrid", tokenizer="qwen3"))
+    assert facts.reasoning and facts.tokenizer == "qwen3"
+    assert not model_facts("x", local=True, entry=entry()).reasoning
+    table = {"reasoning": "effort via think level low|medium|high", "tokenizer": "gpt-oss"}
+    configured = model_facts("x", local=True, table=table, calibration={"cache_ratio": 1.7})
+    assert configured.reasoning and configured.tokenizer == "gpt-oss"
+    assert configured.cache_ratio == 1.0
+    assert not model_facts("x", local=True, table={"reasoning": "none"}).reasoning
+
+    db = open_project_state(tmp_path)
+    db.save_calibration("lab", "big:70b", 2000.0, 40.0, 150.0, {"cache": {"ratio": 0.25}})
+    config = Config.model_validate(
+        {
+            "endpoints": [{"name": "lab", "url": "http://127.0.0.1:9", "models": ["big:70b"]}],
+            "storage": {"models_dir": str(tmp_path / "models")},
+        }
+    )
+    spec = Catalog.from_config(config, tmp_path, db=db, include_managed=False).specs()[0]
+    db.close()
+    assert spec.cache_ratio == 0.25 and spec.as_dict()["cache_ratio"] == 0.25

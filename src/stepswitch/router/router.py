@@ -18,8 +18,9 @@ Pipeline:
    the rung itself, so after an escalation the rung that failed no longer does the work. If
    nothing is left, the nearest rung that has an eligible worker is used and the decision says
    so.
-4. Priors (`policy.prior`) plus `prefer` bonuses, and the cost model: score =
-   (prior + bonus) * value_of_success - estimated seconds.
+4. Priors (`policy.prior`, with measured base rates where `ssw bench calibrate` has them) plus
+   `prefer` bonuses, and the cost model: score = (prior + bonus) * value_of_success - estimated
+   seconds.
 5. Cache-aware switching (SPEC §7.2, `cost.switch_terms`): the previous step's worker keeps
    the step unless another worker's expected gain minus its switch cost (re-reading what its
    server has not cached, or reading a HANDOFF brief above the threshold) exceeds the margin;
@@ -88,6 +89,8 @@ class RouterState:
     failed: frozenset[str] = frozenset()
     # Prompt sizes (estimated tokens) at which a worker's server refused the context.
     context_caps: dict[str, int] = field(default_factory=dict)
+    # Measured base success rates per worker id (`ssw bench calibrate`), replacing the tier's.
+    base_rates: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -251,7 +254,7 @@ def route(
         )
         estimates[spec.id] = est
         cand = candidates[spec.id]
-        cand.prior = prior(spec, step_type, features)
+        cand.prior = prior(spec, step_type, features, base=state.base_rates.get(spec.id))
         cand.estimate = est.as_dict()
         cand.score = round((cand.prior + cand.bonus) * value_of_success - est.seconds, 3)
 

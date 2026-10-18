@@ -251,6 +251,8 @@ class ToolOutput:
     is_error: bool = False
     data: dict[str, Any] = field(default_factory=dict)  # facts for trajectories
     changed_files: list[str] = field(default_factory=list)
+    # The whole text when `max_output_chars` cut it; the agent distills it (TK4).
+    raw: str | None = None
 
 
 class ToolError(Exception):
@@ -438,6 +440,8 @@ class Toolbox:
             output = ToolOutput(f"edit refused: {exc}", is_error=True)
         except Exception as exc:  # noqa: BLE001 - a tool failure must never end the agent loop
             output = ToolOutput(f"{tool} failed: {type(exc).__name__}: {exc}", is_error=True)
+        if len(output.text) > self.max_output_chars:
+            output.raw = output.text
         output.text = bound(output.text, self.max_output_chars)
         output.data.setdefault("tool", tool)
         return output
