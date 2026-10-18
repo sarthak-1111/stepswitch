@@ -240,11 +240,30 @@ Interface (SPEC §12): `start(task, worktree, endpoint, settings) -> RunHandle`,
 Gate order, cheapest first (SPEC §8.1): format → lint → typecheck → impacted tests →
 golden/numerical (science) → full suite → review. The first hard failure stops the chain and a
 distilled failure report goes back to the worker. Test impact analysis selects tests affected by
-changed files (SPEC §8.2). Best-of-N runs candidates from different model families in pooled
-worktrees and picks by gates → smaller diff → cross-review score (SPEC §8.3). Disagreement
-between passing candidates marks a task uncertain (SPEC §8.4). Science gates add golden
-fixtures with per-quantity tolerances, numerical diff reports with plots, invariant tests,
-protected zones and reproducibility records (SPEC §6.2).
+changed files (SPEC §8.2). Science gates add golden fixtures with per-quantity tolerances,
+numerical diff reports with plots, invariant tests, protected zones and reproducibility
+records (SPEC §6.2).
+
+Best-of-N, the disagreement signal and cross-family review (SPEC §8.3 to §8.5, ADR 0025):
+
+- **Candidates** (`verify.best_of_n`). `ssw run --best-of N` (or `auto`, N by difficulty) plans
+  one candidate per model family, ranked by the family's best edit prior. Candidates run one
+  after another, each in its own worktree, sharing the task's budget. Each routes its steps
+  only among its family's workers (`RouterState.families`).
+- **Comparison** (`verify.disagreement`). When two or more candidates pass, each one's added
+  tests run against every other passing candidate's code, together with one probe test file
+  that a model writes from the task and an outline of the new names. In the science track the
+  candidates' golden outputs are also compared pairwise at the case tolerances. Candidates that
+  agree form clusters; more than one cluster flags the task. The `--on-disagreement` policy
+  then flags it (uncertain, never applied), asks for targeted tests, runs one more candidate
+  for a majority, or ends it as `needs-human`.
+- **Review** (`verify.review`). A reviewer from a family that did not write the change answers
+  the §8.5 schema; the router moves the review to another rung if that is where another
+  family is. Every passing candidate is reviewed, and selection takes gates → cross and probe
+  tests passed → a non-blocking review → change size band → review score → plan order.
+- **Records.** The winner's branch is `stepswitch/<task_id>`, the others'
+  `stepswitch/<task_id>-c<i>`; the run directory keeps every candidate's patch, and the
+  trajectory events of a candidate carry its index.
 
 ## 10. State, ledger and trajectories
 

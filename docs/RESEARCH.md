@@ -3221,3 +3221,29 @@ bench round, before both, the optimized runs used more uncached tokens than the 
 - Sources: https://raw.githubusercontent.com/microsoft/LLMLingua/main/llmlingua/prompt_compressor.py,
   `llmlingua/utils.py` of the installed 0.2.2 wheel,
   https://huggingface.co/api/models/microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank?blobs=true
+
+## Verified during Phase 6
+
+### pytest JUnit reports for cross-running tests (pytest 9.1.1, checked 2026-10-19)
+
+The disagreement signal (ADR 0025) runs one candidate's tests against another candidate's code
+and reads the outcomes from a JUnit XML report. Checked with the installed pytest 9.1.1 on
+scratch projects (and pinned by `tests/unit/test_disagreement.py`):
+
+- A test module that fails to import is a collection error. By default one collection error
+  interrupts the session (exit code 2) and no test runs. With
+  `--continue-on-collection-errors` the other modules run; the exit code is then 1 when any
+  test failed or errored.
+- In the `--junitxml` report a collection error is a `<testcase>` with an empty `classname`,
+  `name` set to the module's dotted path and an `<error message="collection failure">` child.
+- A collected test is a `<testcase>` whose `classname` is the dotted path of its file relative
+  to the rootdir (`.ssw-probe/c0/tests/test_mod.py` gives `.ssw-probe.c0.tests.test_mod`) and
+  whose `name` is the test function. A failed test has a `<failure>` child, a test whose setup
+  failed an `<error>` child and a skipped one a `<skipped>` child.
+- `--import-mode=importlib` lets two test files with the same name in different directories
+  run in one session.
+- `python -B` writes no `__pycache__`, `-p no:cacheprovider` no `.pytest_cache`, and
+  `-o addopts=` clears the project's `addopts` (so options such as `--testmon` stay off).
+- `python -m pytest` run from a worktree puts that directory first on `sys.path` (the
+  interpreter's `-m` rule, docs.python.org/3/using/cmdline.html), so the copied tests import
+  the candidate's own modules.
