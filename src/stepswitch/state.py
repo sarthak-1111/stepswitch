@@ -86,6 +86,26 @@ MIGRATIONS: list[str] = [
     """
     CREATE TABLE router_params (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated REAL NOT NULL);
     """,
+    # 5: Phase 9: spawned processes in the audit log (SPEC §15) and the slow-lane job queue
+    # (SPEC §13 RN9)
+    """
+    CREATE TABLE process_audit (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts REAL NOT NULL, task_id TEXT, executable TEXT NOT NULL, argv TEXT NOT NULL,
+        cwd TEXT, pid INTEGER, offline INTEGER NOT NULL
+    );
+    CREATE INDEX process_audit_task ON process_audit(task_id, ts);
+    CREATE INDEX egress_audit_task ON egress_audit(task_id, ts);
+    CREATE TABLE jobs (
+        id TEXT PRIMARY KEY,
+        created REAL NOT NULL, updated REAL NOT NULL,
+        kind TEXT NOT NULL, status TEXT NOT NULL, task_id TEXT, worker TEXT,
+        payload TEXT NOT NULL, result TEXT, error TEXT,
+        attempts INTEGER NOT NULL DEFAULT 0, started REAL, finished REAL, runner TEXT
+    );
+    CREATE INDEX jobs_status ON jobs(status, created);
+    CREATE INDEX jobs_task ON jobs(task_id, created);
+    """,
 ]
 
 
@@ -199,6 +219,21 @@ class StateDB:
         placeholders = ", ".join("?" for _ in columns)
         self.execute(
             f"INSERT INTO egress_audit ({', '.join(columns)}) VALUES ({placeholders})", values
+        )
+
+    def record_process(self, row: dict[str, Any]) -> None:
+        self.execute(
+            "INSERT INTO process_audit (ts, task_id, executable, argv, cwd, pid, offline)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                row["ts"],
+                row.get("task_id"),
+                row.get("executable") or "",
+                json.dumps(row.get("argv") or []),
+                row.get("cwd"),
+                row.get("pid"),
+                int(bool(row.get("offline"))),
+            ),
         )
 
     def save_probe(self, endpoint: str, model: str, fmt: str, profile: dict[str, Any]) -> int:

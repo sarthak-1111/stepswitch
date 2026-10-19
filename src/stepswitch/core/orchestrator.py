@@ -352,6 +352,8 @@ def run_task(
     optimize = True
     learning_settings: Any = None
     features_seen: Any = None
+    # The audit task ID of requests and spawned processes on this thread (SPEC §15).
+    task_token = net.CURRENT_TASK.set(task_id)
     try:
         if db.cancel_requested(task_id):
             raise _Cancelled
@@ -365,8 +367,13 @@ def run_task(
         row.update("routing")
         trajectory.emit("status", status="routing")
         rules: list[Rule] = rules_from_config(config)
+        # One egress layer per task. Its model clients, context services and gates use it, so
+        # offline mode (asked for, configured, or the track's policy decided below) refuses
+        # non-local connections at the transport, not only in routing. A caller that passes
+        # its own catalog owns that catalog's egress.
+        task_egress = (egress or net.default()).child(offline=offline)
         if catalog is None:
-            catalog = Catalog.from_config(config, root, egress=egress, db=db, task_id=task_id)
+            catalog = Catalog.from_config(config, root, egress=task_egress, db=db, task_id=task_id)
         settings = ContextSettings.from_config(config)
         if replay is not None:
             catalog = replay.catalog(catalog)
@@ -407,12 +414,8 @@ def run_task(
         features_seen = features
         policy = track_policy(spec.track, workdir, config, features)
         policy_offline = offline or policy.offline
-        task_egress = egress or net.default()
-        if policy_offline and not task_egress.policy.offline:
-            task_egress = net.Egress(
-                net.EgressPolicy(offline=True, allow_hosts=set(task_egress.policy.allow_hosts)),
-                sinks=list(task_egress.sinks[1:]),
-            )
+        if policy_offline:
+            task_egress.policy.offline = True
         pinned = catalog.find(spec.worker) if spec.worker else None
         if spec.worker and pinned is None:
             known = ", ".join(sorted(catalog.workers)) or "none configured"
@@ -486,6 +489,7 @@ def run_task(
             if run.toolbox is not None:
                 with contextlib.suppress(Exception):
                     run.toolbox.close()
+        net.CURRENT_TASK.reset(task_token)
 
     chosen = runs[winner] if runs else None
     outcome = failure or (chosen.outcome if chosen is not None else None)
@@ -603,6 +607,8 @@ def _run_candidate(shared: _Shared, run: _Run) -> None:
 
     spec = shared.spec
     plan = run.plan
+    # Candidates may run on threads of their own: their requests and processes are the task's.
+    net.CURRENT_TASK.set(shared.task_id)
     trajectory = (
         shared.trajectory if run.index is None else shared.trajectory.tagged(candidate=run.index)
     )

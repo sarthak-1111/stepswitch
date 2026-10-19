@@ -434,6 +434,11 @@ def audit(
         f" SUM(CASE WHEN local = 0 THEN 1 ELSE 0 END) AS non_local FROM egress_audit{clause}",
         tuple(params),
     )[0]
+    process_clause = " WHERE task_id = ?" if task else ""
+    processes = db.query(
+        f"SELECT * FROM process_audit{process_clause} ORDER BY id DESC LIMIT ?",
+        (*([task] if task else []), limit),
+    )
     return {
         "rows": [
             {**row, "allowed": bool(row["allowed"]), "local": bool(row["local"])} for row in rows
@@ -442,7 +447,13 @@ def audit(
             "requests": int(counts["requests"] or 0),
             "denied": int(counts["denied"] or 0),
             "non_local": int(counts["non_local"] or 0),
+            "processes": len(processes),
         },
+        # Spawned processes (SPEC §15): in-process observation cannot see their connections.
+        "processes": [
+            {**row, "argv": json.loads(row["argv"] or "[]"), "offline": bool(row["offline"])}
+            for row in processes
+        ],
     }
 
 

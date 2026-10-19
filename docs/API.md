@@ -421,12 +421,19 @@ The newest prove report (`prove-report.json` at the project root, else
             "port": 11434, "path": "/v1/chat/completions", "purpose": "model", "task_id": "...",
             "allowed": true, "local": true, "status": 200, "bytes_out": 5120, "bytes_in": 830,
             "error": null}],
-  "totals": {"requests": 120, "denied": 0, "non_local": 0}
+  "totals": {"requests": 120, "denied": 0, "non_local": 0, "processes": 14},
+  "processes": [{"id": 1, "ts": 1760600001.0, "task_id": "...", "executable": "git",
+                 "argv": ["git", "worktree", "add", "..."], "cwd": "...", "pid": 4242,
+                 "offline": true}]
 }
 ```
 
-Every connection the egress layer opened or refused, newest first. `totals` count the rows
-that match the filters (`task`, `denied`), not only the ones returned under `limit`.
+Every request the egress layer sent or refused, newest first. `bytes_out` and `bytes_in` are
+the body bytes on the wire, streams included (a row is written when its response body closes).
+`totals` count the rows that match the filters (`task`, `denied`), not only the ones returned
+under `limit`. `processes` lists the programs Stepswitch (or a library it called) started,
+with secrets in their command lines redacted: in-process observation cannot see their
+connections, so on Linux OS-level isolation is the enforcement layer for them (SPEC §15).
 
 ### `GET /api/science?task=<id>`
 

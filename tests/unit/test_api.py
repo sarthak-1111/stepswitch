@@ -560,8 +560,9 @@ def app_with_defaults(project: Path, static: Path, tmp_path: Path) -> Any:
 
 def test_audit_rows_and_totals(app: Any) -> None:
     data = api(app, "GET", "/api/audit").json()
-    assert data["totals"] == {"requests": 2, "denied": 1, "non_local": 1}
+    assert data["totals"] == {"requests": 2, "denied": 1, "non_local": 1, "processes": 0}
     assert [row["allowed"] for row in data["rows"]] == [False, True]
+    assert data["processes"] == []
     denied = api(app, "GET", "/api/audit?denied=true").json()
     assert len(denied["rows"]) == 1 and denied["totals"]["requests"] == 1
 

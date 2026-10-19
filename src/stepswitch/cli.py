@@ -70,10 +70,16 @@ class AppState:
         from stepswitch import net, paths, state
 
         if not self._egress_ready:
+            from stepswitch import redact
+
             net.configure(offline=self.config.offline)
+            redact.configure(mode=self.config.privacy.redact, known=self.config.secret_values())
             if paths.state_dir(self.root).is_dir():
                 db = state.open_project_state(self.root)
                 net.configure(sink=lambda row: db.record_audit(row.as_dict()))
+                net.audit_processes(sink=lambda row: db.record_process(row.as_dict()))
+            else:
+                net.audit_processes()
             self._egress_ready = True
         return net.default()
 
@@ -885,30 +891,58 @@ def cmd_audit(
     ctx: typer.Context,
     limit: Annotated[int, typer.Option("--limit", help="Most recent N rows.")] = 50,
     blocked: Annotated[bool, typer.Option("--blocked", help="Only refused connections.")] = False,
+    task: Annotated[str | None, typer.Option("--task", help="Only this task's rows.")] = None,
+    processes: Annotated[
+        bool, typer.Option("--processes", help="Spawned processes instead of connections.")
+    ] = False,
     json_out: Annotated[bool, typer.Option("--json", help="Print rows as JSON.")] = False,
 ) -> None:
-    """Show the egress audit log: every connection Stepswitch made or refused."""
+    """Show the egress audit log: every connection Stepswitch made or refused (host, bytes,
+    purpose, task), or with --processes every process it started."""
     from stepswitch import paths, state
 
     root = _state(ctx).root
     rows: list[dict[str, Any]] = []
     if paths.state_db_path(root).is_file():
         db = state.open_project_state(root)
-        where = "WHERE allowed = 0 " if blocked else ""
-        rows = db.query(f"SELECT * FROM egress_audit {where}ORDER BY id DESC LIMIT ?", (limit,))
+        clauses: list[str] = []
+        params: list[Any] = []
+        if blocked and not processes:
+            clauses.append("allowed = 0")
+        if task:
+            clauses.append("task_id = ?")
+            params.append(task)
+        where = f"WHERE {' AND '.join(clauses)} " if clauses else ""
+        table = "process_audit" if processes else "egress_audit"
+        rows = db.query(f"SELECT * FROM {table} {where}ORDER BY id DESC LIMIT ?", (*params, limit))
+        if processes:
+            for row in rows:
+                row["argv"] = json.loads(row["argv"] or "[]")
     if json_out:
         _print_json({"rows": rows})
         return
     if not rows:
         typer.echo(
-            "No connections recorded." if paths.state_dir(root).is_dir() else "Run `ssw init`."
+            ("No processes recorded." if processes else "No connections recorded.")
+            if paths.state_dir(root).is_dir()
+            else "Run `ssw init`."
         )
         return
     for row in reversed(rows):
+        owner = row["task_id"] or "-"
+        if processes:
+            command = " ".join(row["argv"])[:160]
+            typer.echo(f"{row['ts']:.0f}  {owner:22}  pid {row['pid'] or '-':>6}  {command}")
+            continue
         verdict = "allowed" if row["allowed"] else "BLOCKED"
         where = "local" if row["local"] else "remote"
         target = f"{row['scheme']}://{row['host']}:{row['port'] or ''}{row['path']}"
-        typer.echo(f"{row['ts']:.0f}  {verdict:7}  {where:6}  {row['purpose']:14}  {target}")
+        sent, received = row["bytes_out"] or 0, row["bytes_in"]
+        size = f"{sent}/{received if received is not None else '?'} B"
+        typer.echo(
+            f"{row['ts']:.0f}  {verdict:7}  {where:6}  {row['purpose']:14}  {owner:22}"
+            f"  {size:>14}  {target}"
+        )
 
 
 # --------------------------------------------------------------------------------------------
@@ -922,10 +956,15 @@ def _run_one(state: AppState, spec: Any, *, json_out: bool) -> Any:
     from stepswitch.core.orchestrator import run_task
 
     echo = (lambda _msg: None) if json_out else typer.echo
+    egress = state.egress()
+    if spec.offline:
+        # This process runs one task: everything it does (model pulls by a managed engine,
+        # context services) follows the task's offline mode, not only the task's own clients.
+        from stepswitch import net
+
+        net.configure(offline=True)
     with _user_errors():
-        return run_task(
-            spec, root=state.root, config=state.config, egress=state.egress(), echo=echo
-        )
+        return run_task(spec, root=state.root, config=state.config, egress=egress, echo=echo)
 
 
 def _show_result(result: Any, *, json_out: bool) -> None:
@@ -1195,6 +1234,10 @@ def cmd_proxy(
             allow_remote=allow_remote,
         )
         server = ProxyServer(service, port=port)
+    if service.settings.offline:
+        from stepswitch import net
+
+        net.configure(offline=True)  # the whole process, as for `ssw run --offline`
     if not len(service.catalog):
         typer.echo("warning: no workers are configured (ssw models add / ssw init)", err=True)
     typer.echo(f"Stepswitch proxy for {state.root}")

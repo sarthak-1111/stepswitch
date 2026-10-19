@@ -60,8 +60,10 @@ def build_service(
     db = db if db is not None else open_project_state(root)
     settings = proxy_settings(config, offline=offline, allow_remote=allow_remote)
     if catalog is None:
+        # Offline mode refuses non-local connections at the transport too, not only in routing.
+        base = (egress or net.default()).child(offline=settings.offline)
         # The wrapper offers the `client()` that model clients call (see TaskEgress).
-        audited = cast(net.Egress, TaskEgress(egress or net.default()))
+        audited = cast(net.Egress, TaskEgress(base))
         catalog = Catalog.from_config(config, root, egress=audited, db=db)
     return ProxyService(root, catalog, db=db, settings=settings, rules=rules_from_config(config))
 
