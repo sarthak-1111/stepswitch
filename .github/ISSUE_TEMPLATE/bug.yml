@@ -1,0 +1,54 @@
+name: Bug report
+description: Something does not work as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please leave out keys, tokens, host names and private code; use
+        placeholders instead. Security problems go to the private form described in SECURITY.md.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: The commands you ran, with the smallest project or task that shows the problem.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The output of `ssw --version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Environment
+      description: The output of `ssw doctor`, and the engine and model involved, if any.
+      render: text
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: The relevant part of the output, of the task's events in the dashboard, or of `ssw audit`.
+      render: text

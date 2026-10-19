@@ -1,0 +1,34 @@
+name: Model or engine report
+description: A model or an engine that misbehaves, or a probe result to add to the compatibility matrix.
+labels: ["models"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Probe results feed the compatibility matrix, which is generated, never written by hand.
+        `ssw probe --export <file>` writes a shareable result without host names or keys.
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      description: The model's hub ID or name and its quantization, for example `Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF` Q4_K_M.
+    validations:
+      required: true
+  - type: input
+    id: engine
+    attributes:
+      label: Engine and version
+      description: For example llama.cpp b11669, or the engine's own version string.
+    validations:
+      required: true
+  - type: textarea
+    id: probe
+    attributes:
+      label: Probe result
+      description: The exported probe result, or the output of `ssw probe --json`.
+      render: json
+  - type: textarea
+    id: notes
+    attributes:
+      label: What you saw
+      description: Anything the probe does not show, such as wrong tool calls or a chat-template problem.
