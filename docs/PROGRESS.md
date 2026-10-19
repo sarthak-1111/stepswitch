@@ -4,6 +4,53 @@ Newest phase first. Each phase records what was done, what research changed, ope
 actions that only the maintainer can take. Phase checks: `uv run python scripts/phase_check.py N`
 (one phase) or `--upto N` (phases 0 to N).
 
+## Phase 9: Slow lane and zero-egress
+
+Status: done on 2026-10-19. `scripts/phase_check.py 9` passes 10 of 10 checks. `uv run pytest -q`
+with the CPU models present: 1962 passed, 9 skipped (among them the tests that need a
+configured local model server). `ssw prove --quick --phase 9` (687 s): eighteen claims
+passing, C-006 among them for the first time, and C-016 pending CI.
+
+### Done
+
+- **The slow lane** (ADR 0030).
+  - The SL tier is pin-only: it never joins the interactive ladder or best-of-N.
+  - **AirLLM** runs behind an out-of-process HTTP shim over its transformers wrapper. It loads
+    local directories only (no hub IDs), and macOS is refused in favour of MLX.
+  - **KTransformers** is an SGLang profile (`sglang-kt`). It checks the CPU features each
+    `--kt-method` needs, and its readiness check never runs a generation.
+  - **The job queue** lives in the project state: `ssw jobs submit|list|show|run|cancel`, and
+    `GET /api/jobs`.
+    - A claimed job is requeued when its worker goes stale. A job times out after six hours.
+    - Cancelling a running task job stops its task. The job records the task's id before the
+      task starts.
+  - **Review jobs** add their comments to the original task's events and to the dashboard.
+    `ssw run --slow-review` queues one when a task is done.
+- **Zero egress** (ADR 0031).
+  - Offline mode is enforced per task at the transport: only loopback connections. Child
+    processes get the offline switches of each tool and harness.
+  - Local endpoints that forward to a hosted service (cloud model tags, proxies) count as
+    remote.
+  - The audit records each connection with its bytes, and each child process. See
+    `ssw audit --processes --task --blocked`.
+  - Secrets are redacted in requests to non-local endpoints, by pattern and by entropy.
+  - One deny list (`privacy.deny_paths`) applies to the built-in agent and every harness.
+  - `ssw prefetch` downloads what the context services use offline, and only when asked.
+- **C-006**: the offline flow (`ssw init`, then `ssw run --offline` on the toy repository with a
+  local scripted model and a configured hosted endpoint, then `ssw audit`) runs under a
+  recorder that wraps sockets, name lookups and process starts and refuses non-local
+  traffic.
+  - On this machine the task made 8 connections, all to the local model, and none was
+    refused. The audit's destinations equal the observed ones.
+  - CI repeats the flow under OS-level network isolation on Linux.
+
+### Open issues
+
+- The AirLLM and KTransformers adapters are tested against fakes built from their source and
+  documentation. This machine has neither AirLLM nor a Linux host with AMX.
+- On this Windows machine C-006 has only the in-process recorder, without OS-level network
+  isolation. The isolated run is CI's Linux job, which needs the remote (C-016).
+
 ## Phase 8: Proxy and external harness adapters
 
 Status: done on 2026-10-19. `scripts/phase_check.py 8` passes 6 of 6 checks, the live run among
@@ -742,6 +789,7 @@ Details are in the SPEC change table and the ADRs. The main points:
    Node 22.12 or later (the current LTS line is recommended) before Phase 4. The Ollama release
    that was researched is 0.40.5; older installs may lack routes the research relies on.
 
-## Next: Phase 9
+## Next: Phase 10
 
-The slow lane and zero egress (SPEC §23). Claim due: C-006.
+Launch polish: the README, the docs site, the demo, the installers and the
+release workflow (SPEC §23). Claim due: C-017.
