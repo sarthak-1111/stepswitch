@@ -56,7 +56,12 @@ Narrower runs are faster: `uv run pytest tests/unit/test_router.py -q`.
   evidence (add `--claim C-0xx` for one claim).
 - **Dashboard:** `cd dashboard && npm ci && npm run build`. The browser smoke test needs
   `uv sync --group e2e`.
-- **Docs site:** `uv sync --group docs`, then `uv run sphinx-build -W -b html docs docs/_build`.
+- **Docs site:** `uv sync --group docs`, then
+  `uv run python -m sphinx -W --keep-going -b html docs/site docs/site/_build/html`. The pages
+  are in `docs/site`; some show the README, the task API, the science.toml reference, the
+  compatibility matrix or the examples, so edit those files rather than the page.
+- **Demo:** `uv run python scripts/record_demo.py` records `docs/assets/demo.gif` (needs Docker,
+  the CPU tier's models and Ollama with the demo's models; see the script).
 
 Some tests use real models: the tiny CPU tier (`ssw models pull --tier cpu`) or a local model
 server. They are skipped, with the reason, when what they need is missing.
