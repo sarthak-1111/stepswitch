@@ -68,7 +68,7 @@ Research corrected three SPEC assumptions (docs/RESEARCH.md, "SPEC corrections")
 6. **Compaction (TK6).**
    - At 60% of the transcript budget, the older turns are replaced by a brief. The budget is
      min(32,768, the worker's context), and the latest exchange is kept verbatim.
-   - Compaction briefs are recorded like switch briefs (reason `compact`), so C-010 covers
+   - Compaction briefs are recorded like switch briefs (reason `compaction`), so C-010 covers
      them as well.
    - Superseded results become one-line stubs, applied in batches of at least 800 tokens so
      that server caches are invalidated rarely. The two newest results of each kind are kept.
