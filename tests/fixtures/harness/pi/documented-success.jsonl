@@ -1,0 +1,15 @@
+{"type":"session","version":3,"id":"0199f0a1-7c00-7000-8000-00000000pi01","timestamp":"2026-10-19T10:00:00.000Z","cwd":"/work"}
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"message_start","message":{"role":"assistant","content":[]}}
+{"type":"message_update","usage":{"input":800,"output":4,"cacheRead":0,"cacheWrite":0,"totalTokens":804,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"Fixing add()."}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"Fixing add()."},{"type":"toolCall","id":"call_1","name":"edit","arguments":{"path":"calc.py"}}],"api":"openai-completions","provider":"stepswitch","model":"ssw-auto","usage":{"input":800,"output":30,"cacheRead":0,"cacheWrite":0,"totalTokens":830,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"toolUse","timestamp":1760868000000}}
+{"type":"tool_execution_start","toolCallId":"call_1","toolName":"edit","args":{"path":"calc.py"}}
+{"type":"tool_execution_end","toolCallId":"call_1","toolName":"edit","result":{"content":[{"type":"text","text":"Edited calc.py"}],"details":{}},"isError":false,"durationMs":3}
+{"type":"turn_end","message":{"role":"assistant","content":[]},"toolResults":[]}
+{"type":"turn_start"}
+{"type":"message_end","message":{"role":"user","content":[{"type":"text","text":"tool output"}]}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"Fixed add(); it returns a + b."}],"api":"openai-completions","provider":"stepswitch","model":"ssw-auto","usage":{"input":900,"output":12,"cacheRead":700,"cacheWrite":0,"totalTokens":912,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop","timestamp":1760868001000}}
+{"type":"turn_end","message":{"role":"assistant","content":[]},"toolResults":[]}
+{"type":"agent_end","messages":[],"willRetry":false}
+{"type":"agent_settled","aborted":false}

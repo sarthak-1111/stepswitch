@@ -1,0 +1,13 @@
+{"dir":"send","msg":{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":true,"writeTextFile":true},"terminal":false},"clientInfo":{"name":"stepswitch","title":"Stepswitch","version":"{any}"}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","id":0,"result":{"protocolVersion":1,"agentCapabilities":{"loadSession":true,"promptCapabilities":{"image":true,"audio":false,"embeddedContext":false}},"agentInfo":{"name":"Kimi Code","version":"2.2.0"},"authMethods":[]}}}
+{"dir":"send","msg":{"jsonrpc":"2.0","id":1,"method":"session/load","params":{"sessionId":"kimi-sess-1","cwd":"{cwd}","mcpServers":[]}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"kimi-sess-1","update":{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"Fix the bug in add()."}}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"kimi-sess-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"An earlier answer that is history."}}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","id":1,"result":{}}}
+{"dir":"send","msg":{"jsonrpc":"2.0","id":2,"method":"session/prompt","params":{"sessionId":"kimi-sess-1","prompt":[{"type":"text","text":"{any}"}]}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"kimi-sess-1","update":{"sessionUpdate":"tool_call","toolCallId":"t1","title":"Shell: python -m pytest -q","kind":"execute","status":"pending","rawInput":{"command":"python -m pytest -q"}}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","id":0,"method":"session/request_permission","params":{"sessionId":"kimi-sess-1","toolCall":{"toolCallId":"t1","title":"Shell: python -m pytest -q","kind":"execute","rawInput":{"command":"python -m pytest -q"}},"options":[{"optionId":"approve","name":"Approve","kind":"allow_once"},{"optionId":"approve_for_session","name":"Approve for this session","kind":"allow_always"},{"optionId":"reject","name":"Reject","kind":"reject_once"}]}}}
+{"dir":"send","msg":{"jsonrpc":"2.0","id":0,"result":{"outcome":{"outcome":"selected","optionId":"approve"}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"kimi-sess-1","update":{"sessionUpdate":"tool_call_update","toolCallId":"t1","status":"completed","content":[{"type":"content","content":{"type":"text","text":"3 passed"}}]}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"kimi-sess-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"The tests pass now."}}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","id":2,"result":{"stopReason":"end_turn"}}}

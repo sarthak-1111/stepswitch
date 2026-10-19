@@ -1,0 +1,10 @@
+{"dir":"send","msg":{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":true,"writeTextFile":true},"terminal":false},"clientInfo":{"name":"stepswitch","title":"Stepswitch","version":"{any}"}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","id":0,"result":{"protocolVersion":1,"agentCapabilities":{},"agentInfo":{"name":"mock-agent","version":"1.0.0"},"authMethods":[]}}}
+{"dir":"send","msg":{"jsonrpc":"2.0","id":1,"method":"session/new","params":{"cwd":"{cwd}","mcpServers":[]}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","id":1,"result":{"sessionId":"sess_c"}}}
+{"dir":"send","msg":{"jsonrpc":"2.0","id":2,"method":"session/prompt","params":{"sessionId":"sess_c","prompt":[{"type":"text","text":"{any}"}]}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess_c","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Working on it."}}}}}
+{"dir":"send","msg":{"jsonrpc":"2.0","method":"session/cancel","params":{"sessionId":"sess_c"}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","id":0,"method":"session/request_permission","params":{"sessionId":"sess_c","toolCall":{"toolCallId":"call_9","title":"Edit calc.py","kind":"edit"},"options":[{"optionId":"allow-once","name":"Allow once","kind":"allow_once"}]}}}
+{"dir":"send","msg":{"jsonrpc":"2.0","id":0,"result":{"outcome":{"outcome":"cancelled"}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","id":2,"result":{"stopReason":"cancelled"}}}

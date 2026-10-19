@@ -1,0 +1,40 @@
+{
+  "harness": "claude-code",
+  "source": "documented",
+  "checked": "2026-10-19",
+  "version": "2.1.296",
+  "note": "Documented transcripts follow the headless docs and the stream-json shapes in docs/RESEARCH.md; a recorded live run through ssw proxy is added by the Phase 8 live check.",
+  "sources": [
+    "https://code.claude.com/docs/en/headless",
+    "https://code.claude.com/docs/en/cli-reference"
+  ],
+  "cases": {
+    "documented-success": {
+      "source": "documented",
+      "expect": {
+        "status": "done",
+        "stop_reason": null,
+        "summary": "Fixed add(): it now returns a + b.",
+        "session_id": "9c1f0b7e-0000-4000-8000-000000000001",
+        "turns": 3,
+        "tool_calls": 1,
+        "version": "2.1.296",
+        "usage": {"input_tokens": 4000, "output_tokens": 65, "cached_input_tokens": 1500, "cache_write_tokens": 0},
+        "events": {"start": 1, "text": 3, "tool_call": 1, "tool_result": 1, "compaction": 1, "result": 1},
+        "detail_contains": "1 tool call(s) denied: Bash"
+      }
+    },
+    "documented-max-turns": {
+      "source": "documented",
+      "expect": {
+        "status": "stopped",
+        "stop_reason": "max_steps",
+        "session_id": "9c1f0b7e-0000-4000-8000-000000000002",
+        "turns": 1,
+        "tool_calls": 1,
+        "detail_contains": "Reached maximum number of turns (1)",
+        "events": {"start": 1, "tool_call": 1, "tool_result": 1, "result": 1}
+      }
+    }
+  }
+}

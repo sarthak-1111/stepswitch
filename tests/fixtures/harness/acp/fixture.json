@@ -1,0 +1,50 @@
+{
+  "harness": "acp",
+  "source": "documented",
+  "checked": "2026-10-19",
+  "version": "ACP v1 (protocolVersion 1, schema 1.26.0)",
+  "note": "Transcripts written from the stable v1 schema and protocol docs (docs/RESEARCH.md, Agent Client Protocol); the mock agent (tests/conformance/acp/mock_agent.py) replays them and checks every client message.",
+  "sources": [
+    "https://raw.githubusercontent.com/agentclientprotocol/agent-client-protocol/main/schema/v1/schema.json",
+    "https://agentclientprotocol.com/protocol/initialization"
+  ],
+  "cases": {
+    "basic": {
+      "source": "documented",
+      "setup": {"calc.py": "def add(a, b):\n    return a - b\n", "../secret.txt": "not for the agent\n"},
+      "test_command": ["python", "-m", "pytest", "-q"],
+      "expect": {
+        "status": "done",
+        "stop_reason": null,
+        "summary": "Fixed add(); the tests pass.",
+        "session_id": "sess_1",
+        "tool_calls": 2,
+        "version": "1.0.0",
+        "events": {"start": 1, "text": 3, "tool_call": 2, "tool_result": 2, "permission": 3, "plan": 1, "usage": 1, "result": 1},
+        "permissions": [true, false, true],
+        "files": {"calc.py": "def add(a, b):\n    return a + b\n"}
+      }
+    },
+    "cancel": {
+      "source": "documented",
+      "cancel_on": "text",
+      "expect": {
+        "status": "stopped",
+        "stop_reason": "cancelled",
+        "summary": "Working on it.",
+        "session_id": "sess_c",
+        "events": {"start": 1, "text": 1, "permission": 1},
+        "permissions": [false]
+      }
+    },
+    "version": {
+      "source": "documented",
+      "expect": {
+        "status": "failed",
+        "stop_reason": "error",
+        "detail_contains": "protocol version 2",
+        "events": {"error": 1}
+      }
+    }
+  }
+}

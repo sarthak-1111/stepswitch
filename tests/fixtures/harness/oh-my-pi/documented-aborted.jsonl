@@ -1,0 +1,4 @@
+{"type":"session","version":3,"id":"0199f0a2-1d00-7000-8000-0000000omp02","timestamp":"2026-10-19T10:15:00.000Z","cwd":"/work"}
+{"type":"agent_start"}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"Partial answer"}],"model":"ssw-auto","usage":{"input":400,"output":3,"cacheRead":0,"cacheWrite":0,"totalTokens":403},"stopReason":"aborted"}}
+{"type":"agent_end","messages":[],"isTerminal":true}

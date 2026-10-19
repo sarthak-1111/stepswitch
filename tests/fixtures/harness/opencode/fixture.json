@@ -1,0 +1,26 @@
+{
+  "harness": "opencode",
+  "source": "documented",
+  "checked": "2026-10-19",
+  "version": "1.19.3",
+  "note": "OpenCode is not installed on the development machine; the transcript follows the documented ACP shapes and OpenCode's ACP config options (model, effort, mode) from its source at v1.19.3 (docs/RESEARCH.md).",
+  "sources": [
+    "https://raw.githubusercontent.com/anomalyco/opencode/dev/packages/web/src/content/docs/acp.mdx",
+    "https://github.com/anomalyco/opencode/blob/v1.19.3/packages/opencode/src/acp/config-option.ts"
+  ],
+  "cases": {
+    "session": {
+      "source": "documented",
+      "setup": {"calc.py": "def add(a, b):\n    return a - b\n"},
+      "expect": {
+        "status": "done",
+        "stop_reason": null,
+        "summary": "add() now returns the sum.",
+        "session_id": "ses_1",
+        "tool_calls": 1,
+        "version": "1.19.3",
+        "events": {"start": 1, "thinking": 1, "tool_call": 1, "tool_result": 1, "usage": 1, "text": 1, "result": 1}
+      }
+    }
+  }
+}

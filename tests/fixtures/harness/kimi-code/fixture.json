@@ -1,0 +1,37 @@
+{
+  "harness": "kimi-code",
+  "source": "documented",
+  "checked": "2026-10-19",
+  "version": "2.2.0",
+  "note": "Kimi Code is not installed on the development machine; the transcripts follow the documented ACP shapes and Kimi Code's ACP notes (loadSession, configOptions, fs and terminal use when advertised) in docs/RESEARCH.md.",
+  "sources": [
+    "https://raw.githubusercontent.com/MoonshotAI/kimi-code/main/docs/en/reference/kimi-acp.md",
+    "https://raw.githubusercontent.com/MoonshotAI/kimi-code/main/docs/en/configuration/env-vars.md"
+  ],
+  "cases": {
+    "resume": {
+      "source": "documented",
+      "resume": "kimi-sess-1",
+      "test_command": ["python", "-m", "pytest", "-q"],
+      "expect": {
+        "status": "done",
+        "stop_reason": null,
+        "summary": "The tests pass now.",
+        "session_id": "kimi-sess-1",
+        "tool_calls": 1,
+        "events": {"start": 1, "tool_call": 1, "permission": 1, "tool_result": 1, "text": 1, "result": 1},
+        "permissions": [true]
+      }
+    },
+    "turn-limit": {
+      "source": "documented",
+      "expect": {
+        "status": "stopped",
+        "stop_reason": "max_steps",
+        "summary": "Still reading the code.",
+        "session_id": "kimi-sess-2",
+        "events": {"start": 1, "text": 1, "result": 1}
+      }
+    }
+  }
+}

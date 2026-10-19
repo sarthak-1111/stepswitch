@@ -1,0 +1,2 @@
+{"dir":"send","msg":{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":true,"writeTextFile":true},"terminal":false},"clientInfo":{"name":"stepswitch","title":"Stepswitch","version":"{any}"}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","id":0,"result":{"protocolVersion":2,"agentCapabilities":{},"agentInfo":{"name":"future-agent","version":"9.0.0"},"authMethods":[]}}}

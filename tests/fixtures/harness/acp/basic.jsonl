@@ -1,0 +1,29 @@
+{"dir":"send","msg":{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":true,"writeTextFile":true},"terminal":false},"clientInfo":{"name":"stepswitch","title":"Stepswitch","version":"{any}"}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","id":0,"result":{"protocolVersion":1,"agentCapabilities":{"loadSession":false,"promptCapabilities":{"image":false,"audio":false,"embeddedContext":true},"mcpCapabilities":{"http":false,"sse":false}},"agentInfo":{"name":"mock-agent","title":"Mock Agent","version":"1.0.0"},"authMethods":[]}}}
+{"dir":"send","msg":{"jsonrpc":"2.0","id":1,"method":"session/new","params":{"cwd":"{cwd}","mcpServers":[]}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","id":1,"result":{"sessionId":"sess_1"}}}
+{"dir":"send","msg":{"jsonrpc":"2.0","id":2,"method":"session/prompt","params":{"sessionId":"sess_1","prompt":[{"type":"text","text":"{any}"}]}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess_1","update":{"sessionUpdate":"agent_message_chunk","messageId":"msg_1","content":{"type":"text","text":"I will fix add()."}}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess_1","update":{"sessionUpdate":"tool_call","toolCallId":"call_1","title":"Read calc.py","kind":"read","status":"pending","locations":[{"path":"{cwd}/calc.py","line":1}]}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","id":0,"method":"fs/read_text_file","params":{"sessionId":"sess_1","path":"{cwd}/calc.py","line":1,"limit":2}}}
+{"dir":"send","msg":{"jsonrpc":"2.0","id":0,"result":{"content":"def add(a, b):\n    return a - b\n"}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess_1","update":{"sessionUpdate":"tool_call_update","toolCallId":"call_1","status":"completed","content":[{"type":"content","content":{"type":"text","text":"def add(a, b):"}}]}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","id":1,"method":"session/request_permission","params":{"sessionId":"sess_1","toolCall":{"toolCallId":"call_2","title":"Edit calc.py","kind":"edit","locations":[{"path":"{cwd}/calc.py"}]},"options":[{"optionId":"allow-once","name":"Allow once","kind":"allow_once"},{"optionId":"reject-once","name":"Reject","kind":"reject_once"}]}}}
+{"dir":"send","msg":{"jsonrpc":"2.0","id":1,"result":{"outcome":{"outcome":"selected","optionId":"allow-once"}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","id":2,"method":"fs/write_text_file","params":{"sessionId":"sess_1","path":"{cwd}/calc.py","content":"def add(a, b):\n    return a + b\n"}}}
+{"dir":"send","msg":{"jsonrpc":"2.0","id":2,"result":{}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess_1","update":{"sessionUpdate":"tool_call","toolCallId":"call_3","title":"rm -rf build","kind":"execute","status":"pending","rawInput":{"command":"rm -rf build"}}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","id":3,"method":"session/request_permission","params":{"sessionId":"sess_1","toolCall":{"toolCallId":"call_3","title":"rm -rf build","kind":"execute","rawInput":{"command":"rm -rf build"}},"options":[{"optionId":"allow-once","name":"Allow once","kind":"allow_once"},{"optionId":"allow-always","name":"Always allow","kind":"allow_always"},{"optionId":"reject-once","name":"Reject","kind":"reject_once"}]}}}
+{"dir":"send","msg":{"jsonrpc":"2.0","id":3,"result":{"outcome":{"outcome":"selected","optionId":"reject-once"}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess_1","update":{"sessionUpdate":"tool_call_update","toolCallId":"call_3","status":"failed","content":[{"type":"content","content":{"type":"text","text":"The user rejected the command."}}]}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","id":4,"method":"session/request_permission","params":{"sessionId":"sess_1","toolCall":{"toolCallId":"call_4","title":"python -m pytest -q","kind":"execute","rawInput":{"command":"python -m pytest -q"}},"options":[{"optionId":"allow-once","name":"Allow once","kind":"allow_once"},{"optionId":"reject-once","name":"Reject","kind":"reject_once"}]}}}
+{"dir":"send","msg":{"jsonrpc":"2.0","id":4,"result":{"outcome":{"outcome":"selected","optionId":"allow-once"}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","id":5,"method":"fs/read_text_file","params":{"sessionId":"sess_1","path":"{cwd}/../secret.txt"}}}
+{"dir":"send","msg":{"jsonrpc":"2.0","id":5,"error":{"code":-32602,"message":"{any}"}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","id":6,"method":"terminal/create","params":{"sessionId":"sess_1","command":"ls"}}}
+{"dir":"send","msg":{"jsonrpc":"2.0","id":6,"error":{"code":-32601,"message":"{any}"}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess_1","update":{"sessionUpdate":"plan","entries":[{"content":"Fix add()","priority":"high","status":"completed"}]}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess_1","update":{"sessionUpdate":"usage_update","used":1200,"size":32768}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess_1","update":{"sessionUpdate":"agent_message_chunk","messageId":"msg_2","content":{"type":"text","text":"Fixed add(); "}}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess_1","update":{"sessionUpdate":"agent_message_chunk","messageId":"msg_2","content":{"type":"text","text":"the tests pass."}}}}}
+{"dir":"recv","msg":{"jsonrpc":"2.0","id":2,"result":{"stopReason":"end_turn"}}}

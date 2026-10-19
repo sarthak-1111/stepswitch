@@ -1,0 +1,7 @@
+{"type":"session","version":3,"id":"0199f0a1-7c00-7000-8000-00000000pi02","timestamp":"2026-10-19T10:05:00.000Z","cwd":"/work"}
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"auto_retry_start","reason":"upstream 503"}
+{"type":"message_end","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"stepswitch","model":"ssw-auto","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0},"stopReason":"error","errorMessage":"503 no worker can take this request","timestamp":1760868300000}}
+{"type":"agent_end","messages":[],"willRetry":false}
+{"type":"agent_settled","aborted":false}
