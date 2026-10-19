@@ -3957,3 +3957,60 @@ documentation, package metadata or source on 2026-10-19.
 - Sources: https://github.com/ggml-org/llama.cpp/blob/b11669/common/common.cpp,
   https://github.com/ggml-org/llama.cpp/releases/tag/b11669,
   https://docs.kernel.org/admin-guide/cgroup-v2.html
+
+## Verified during Phase 11
+
+### Claude Code on its own login, for native bench runs (2.1.296, checked 2026-10-19)
+
+Sources: `claude --help` (2.1.296 on Windows) and https://code.claude.com/docs/en/authentication
+and https://code.claude.com/docs/en/memory.
+
+- **`--bare` cannot use a subscription login.** The help text says it skips hooks, LSP, plugin
+  sync, attribution, auto-memory, background prefetches, keychain reads and CLAUDE.md
+  auto-discovery, and that "auth is strictly ANTHROPIC_API_KEY or apiKeyHelper via --settings
+  (OAuth and keychain are never read)". The authentication page adds that bare mode does not
+  read `CLAUDE_CODE_OAUTH_TOKEN` either.
+- **`--safe-mode`** starts "with all customizations (CLAUDE.md, skills, installed plugins,
+  hooks, MCP servers, custom commands and agents, output styles, workflows, custom themes,
+  keybindings, and more) disabled". Admin-managed policy settings still apply, and "Auth,
+  model selection, built-in tools and plugins, and permissions work normally". It sets
+  `CLAUDE_CODE_SAFE_MODE=1`.
+- **Other isolation flags.**
+  - `--setting-sources <sources>` takes a comma-separated list of `user`, `project`, `local`.
+  - `--no-session-persistence` keeps sessions off the disk, so they cannot be resumed. It
+    works only with `--print`.
+  - `--model` takes an alias or a full model name.
+- **Authentication precedence.**
+  1. Cloud provider credentials, when `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX` or
+     `CLAUDE_CODE_USE_FOUNDRY` is set.
+  2. `ANTHROPIC_AUTH_TOKEN`.
+  3. `ANTHROPIC_API_KEY`. In `-p` mode, "the key is always used when present".
+  4. `apiKeyHelper`.
+  5. `CLAUDE_CODE_OAUTH_TOKEN`.
+  6. Profile and federation credentials (`ANTHROPIC_PROFILE`, or both
+     `ANTHROPIC_FEDERATION_RULE_ID` and `ANTHROPIC_ORGANIZATION_ID`).
+  7. The subscription login from `/login`.
+
+  A native run therefore has to come without any of the variables above, so the subscription
+  login is the credential used. `minimal_env` passes none of them: it is an allowlist.
+- **Where the login lives.** On Windows it is `%USERPROFILE%\.claude\.credentials.json`; on
+  Linux, `~/.claude/.credentials.json`; on macOS, the Keychain. With `CLAUDE_CONFIG_DIR` set,
+  Claude Code reads the file under that directory instead. A native run therefore leaves
+  `CLAUDE_CONFIG_DIR` unset and keeps `USERPROFILE`/`HOME`, which `minimal_env` passes.
+- **CLAUDE.md files above the working directory load at launch.** "Claude Code loads
+  `CLAUDE.md` and `CLAUDE.local.md` from your current working directory and every directory
+  above it." Bench and task worktrees live in the project's state directory, so a harness run
+  there reads the enclosing repository's CLAUDE.md. That includes the Phase 8 live runs in this
+  repository. `--safe-mode` turns it off.
+- **Auto memory.** `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, or the setting `autoMemoryEnabled:
+  false`. It is stored in `~/.claude/projects/<project>/memory/`, per git repository.
+- **The `result` line's usage**, as recorded in `tests/fixtures/harness/claude-code/recorded-live.jsonl`:
+  - `usage` has `input_tokens` (uncached), `cache_creation_input_tokens`,
+    `cache_read_input_tokens`, `output_tokens` and `output_tokens_details.thinking_tokens`.
+  - `modelUsage` maps each model name to `inputTokens`, `outputTokens`, `cacheReadInputTokens`,
+    `cacheCreationInputTokens`, `webSearchRequests`, `costUSD`, `contextWindow`,
+    `maxOutputTokens`, `thinkingTokens`, `canonicalModel`, `provider` and `costBasis`.
+  - `total_cost_usd`, `num_turns`, `duration_ms`, `duration_api_ms` and `subagent_stats` are
+    also reported.
+  - Input as the ledger counts it (cached tokens included) is `inputTokens +
+    cacheCreationInputTokens + cacheReadInputTokens`.

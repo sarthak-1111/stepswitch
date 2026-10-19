@@ -36,7 +36,7 @@ from typing import Any
 from ruamel.yaml import YAML
 
 ROOT = Path(__file__).resolve().parents[1]
-MAX_PHASE = 10
+MAX_PHASE = 11
 PHASE_TITLES = {
     0: "Research and design",
     1: "Foundation and compatibility core",
@@ -49,6 +49,7 @@ PHASE_TITLES = {
     8: "Proxy and external harness adapters",
     9: "Slow lane and zero-egress",
     10: "Launch polish",
+    11: "Frontier comparison",
 }
 SY = Path(sys.executable).with_name("ssw.exe" if os.name == "nt" else "ssw")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -1857,6 +1858,54 @@ def _p10_installers() -> tuple[bool, str]:
 # --------------------------------------------------------------------------------------------
 # Runner
 # --------------------------------------------------------------------------------------------
+
+
+# --------------------------------------------------------------------------------------------
+# Phase 11: frontier comparison (ADR 0034)
+# --------------------------------------------------------------------------------------------
+
+
+@check(11, "decision and research: ADR 0034 registers the comparison claims before the runs")
+def _p11_decision() -> tuple[bool, str]:
+    adr = read("docs/decisions/0034-frontier-comparison.md")
+    research = section(read("docs/RESEARCH.md"), "Verified during Phase 11")
+    missing = [cid for cid in ("C-021", "C-022", "C-023") if cid not in adr]
+    return combine(
+        (bool(adr), "docs/decisions/0034-frontier-comparison.md missing"),
+        (not missing, "ADR 0034 does not register: " + ", ".join(missing)),
+        ("--safe-mode" in research, "RESEARCH.md has no Phase 11 notes on native runs"),
+    )
+
+
+@check(11, "contestants: `harness:<name>` through the proxy, `native:<harness>:<model>` alone")
+def _p11_contestants() -> tuple[bool, str]:
+    return combine(
+        help_check(["bench", "run"], ["harness:<name>", "native:<harness>:<model>"]),
+        untested_or_run(("bench_frontier",), "tests/unit/test_bench_frontier.py"),
+    )
+
+
+@check(11, "native runs: safe mode, project settings only, no session files, no credentials")
+def _p11_native_isolation() -> tuple[bool, str]:
+    return untested_or_run(("claude_code_native",), "tests/unit/test_claude_code_native.py")
+
+
+@check(11, "accounting: tokens per model and hosted tokens in every row, both in the leaderboard")
+def _p11_accounting() -> tuple[bool, str]:
+    return untested_or_run(
+        ("bench_frontier", "bench_report"),
+        "tests/unit/test_bench_frontier.py",
+        "tests/unit/test_bench_report.py",
+    )
+
+
+@check(11, "progress: PROGRESS.md records the comparison runs and their usage")
+def _p11_progress() -> tuple[bool, str]:
+    text = section(read("docs/PROGRESS.md"), "Phase 11: Frontier comparison")
+    return combine(
+        (bool(text), "docs/PROGRESS.md has no `Phase 11: Frontier comparison` section"),
+        ("pilot" in text.lower(), "PROGRESS.md Phase 11 does not record the pilot's usage"),
+    )
 
 
 def run_phases(phases: list[int]) -> list[Result]:

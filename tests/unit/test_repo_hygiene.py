@@ -154,6 +154,9 @@ ALLOWED_IDENTIFIERS = (
     "anthropic_small_fast_model",
     "anthropic_model",
     "anthropic_default_",
+    "anthropic_profile",
+    "anthropic_federation_rule_id",
+    "anthropic_organization_id",
     # engine parser names and flags
     "openai_gptoss",
     "cohere_command3",

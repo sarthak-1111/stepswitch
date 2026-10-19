@@ -94,6 +94,10 @@ def spec_claim_texts(spec_path: Path = SPEC_PATH) -> dict[str, str]:
     return texts
 
 
+# The phases of scripts/phase_check.py: SPEC §23's ten, then the frontier comparison (ADR 0034).
+MAX_PHASE = 11
+
+
 # --------------------------------------------------------------------------------------------
 # Static scan of claim markers in tests/claims (no imports, no collection side effects)
 # --------------------------------------------------------------------------------------------
@@ -315,7 +319,7 @@ def test_registry_schema(registry: Registry) -> None:
         assert ("tests" in claim) != ("parts" in claim), f"{cid}: use exactly one of tests/parts"
         assert claim["kind"] in KINDS, f"{cid}: kind {claim['kind']!r}"
         assert claim["status"] in STATUSES, f"{cid}: status {claim['status']!r}"
-        assert isinstance(claim["phase"], int) and 0 <= claim["phase"] <= 10, f"{cid}: phase"
+        assert isinstance(claim["phase"], int) and 0 <= claim["phase"] <= MAX_PHASE, f"{cid}: phase"
         assert claim["text"].strip() and claim["scope"].strip() and claim["proof"].strip()
         assert isinstance(claim["thresholds"], dict) and claim["thresholds"], f"{cid}: thresholds"
         assert claim["evidence"] == [f"claims/evidence/{cid}.json"], f"{cid}: evidence path"
