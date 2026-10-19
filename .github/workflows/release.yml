@@ -1,0 +1,91 @@
+# Releases (SPEC §24). A version tag (vX.Y.Z) runs three jobs:
+#
+# 1. build: checks the tag against the package and installer versions, builds the dashboard,
+#    then the sdist and the wheel (`uv build --no-sources`; the wheel is built from the sdist),
+#    and writes release notes from the conventional commits since the last tag (git-cliff).
+# 2. publish: uploads to the package index with trusted publishing (no stored credentials;
+#    attestations are on by default), from the `pypi` environment.
+# 3. release: creates the release with the packages, the installers and the notes.
+#
+# Actions are pinned to commit SHAs (tags verified 2026-10-19). gh sends telemetry by default,
+# so every step that calls it sets GH_TELEMETRY to "false".
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build the packages
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # git-cliff reads the history and the tags
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - name: Build the dashboard
+        working-directory: dashboard
+        run: |
+          npm ci
+          npm run build
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - name: Check the tag, the package version and the installers
+        run: uv run --no-project python scripts/release_check.py "$GITHUB_REF_NAME"
+      - name: Build the sdist and the wheel
+        run: uv build --no-sources
+      - name: Check that the wheel carries the dashboard
+        run: unzip -l dist/*.whl | grep -q "stepswitch/_dashboard/index.html"
+      - name: Write the release notes
+        run: uvx git-cliff@2.14.2 --latest --strip header --output RELEASE_NOTES.md
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release
+          path: |
+            dist/
+            RELEASE_NOTES.md
+          if-no-files-found: error
+
+  publish:
+    name: publish to the package index
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: pypi
+      url: https://pypi.org/p/stepswitch
+    permissions:
+      id-token: write # trusted publishing
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: dist/
+
+  release:
+    name: create the release
+    needs: publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_TELEMETRY: "false"
+        run: >-
+          gh release create "$GITHUB_REF_NAME" dist/* install.sh install.ps1
+          --verify-tag --title "$GITHUB_REF_NAME" --notes-file RELEASE_NOTES.md
