@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from stepswitch.compat import forwarding
 from stepswitch.workers.base import StepModel, ToolProtocol, Worker, WorkerSpec
 
 if TYPE_CHECKING:
@@ -331,9 +332,18 @@ class Catalog:
             fmt = endpoint.primary_format()
             for model in endpoint.models:
                 table = config.models.get(model) or {}
+                # A local endpoint can still forward a model to a hosted service (SPEC §15).
+                forwards = endpoint.is_local() and forwarding.static_reason(
+                    model=model,
+                    engine=endpoint.engine,
+                    fmt=fmt,
+                    engine_config=endpoint.engine_config,
+                    root=root,
+                )
+                local = endpoint.is_local() and not forwards
                 facts = model_facts(
                     model,
-                    local=endpoint.is_local(),
+                    local=local,
                     table=table,
                     entry=by_name.get(model.lower()),
                     profile=_latest_profile(db, endpoint.name, model),
@@ -347,21 +357,23 @@ class Catalog:
                     format=fmt,
                     tier=facts.tier,
                     family=facts.family,
-                    local=endpoint.is_local(),
+                    local=local,
                     roles=facts.roles,
                     tool_protocol=facts.tool_protocol,
                     tool_parser=parser or endpoint.tool_parser,
                     context=facts.context,
                     prefill_tps=facts.prefill_tps,
                     decode_tps=facts.decode_tps,
-                    gpu=gpu_host and endpoint.is_local() and facts.tier != "cpu",
+                    gpu=gpu_host and local and facts.tier != "cpu",
                     registry_id=facts.registry_id,
-                    notes=facts.notes + parser_notes,
+                    notes=facts.notes
+                    + parser_notes
+                    + ((f"counts as remote: {forwards}",) if forwards else ()),
                     reasoning=facts.reasoning,
                     tokenizer=facts.tokenizer,
                     cache_ratio=facts.cache_ratio,
                 )
-                factory = _endpoint_factory(endpoint, spec, egress, task_id, timeout)
+                factory = _endpoint_factory(endpoint, spec, egress, task_id, timeout, root)
                 workers.append(Worker(spec, factory=factory))
         if include_managed:
             models_dir = config.models_dir()
@@ -475,12 +487,17 @@ def _endpoint_factory(
     egress: Egress | None,
     task_id: str | None,
     timeout: float,
+    root: Path | None = None,
 ) -> Callable[[], StepModel]:
     def make() -> StepModel:
         from stepswitch.compat.client import Endpoint, ModelClient
 
         target = Endpoint.from_config(endpoint, model=spec.model, fmt=spec.format)
         target.options.tool_parser = spec.tool_parser
+        # A worker that forwards to a hosted service is remote, for the redactor too.
+        target.local = spec.local
+        if endpoint.engine_config and root is not None:
+            target.engine_config = str(root / Path(endpoint.engine_config).expanduser())
         client = ModelClient(
             target, egress=egress, purpose="model", task_id=task_id, timeout=timeout
         )

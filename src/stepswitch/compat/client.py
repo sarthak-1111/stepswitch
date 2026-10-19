@@ -16,6 +16,7 @@ from typing import Any
 import httpx
 
 from stepswitch import net, redact
+from stepswitch.compat import forwarding
 from stepswitch.compat.codecs import get_codec
 from stepswitch.compat.codecs.base import Codec, CodecOptions, HttpCall
 from stepswitch.compat.errors import ModelError, backoff_delay
@@ -45,6 +46,8 @@ class Endpoint:
     # The engine behind the endpoint when known ("llamacpp", "ollama", ...): it says which
     # side routes exist, such as the llama.cpp server's /tokenize (`context.tokens`).
     engine: str | None = None
+    # The engine's config file, absolute (llama-swap; `compat.forwarding`).
+    engine_config: str | None = None
 
     @classmethod
     def from_config(
@@ -66,6 +69,7 @@ class Endpoint:
             local=config.is_local(),
             options=CodecOptions(tool_parser=getattr(config, "tool_parser", None)),
             engine=getattr(config, "engine", None),
+            engine_config=getattr(config, "engine_config", None),
         )
 
 
@@ -110,6 +114,8 @@ class ModelClient:
         self._purpose = purpose
         self._task_id = task_id
         self._sleep = sleep
+        # Models checked for forwarding to a hosted service while offline (SPEC §15).
+        self._not_forwarded: set[str] = set()
 
     # ------------------------------------------------------------------------------------
 
@@ -145,6 +151,22 @@ class ModelClient:
                 kinds = ", ".join(f"{kind} x{n}" for kind, n in sorted(counts.items()))
                 report.add("secrets", f"redacted before sending: {kinds}", "approximated")
         return call, report
+
+    def _check_forwarding(self, http: httpx.Client, model: str | None) -> None:
+        """Offline, refuse a model that a local endpoint would forward to a hosted service."""
+        if not self._egress.policy.offline or not model or model in self._not_forwarded:
+            return
+        reason = forwarding.offline_refusal(
+            http,
+            base_url=self.endpoint.base_url,
+            model=model,
+            engine=self.endpoint.engine,
+            fmt=self.endpoint.format,
+            engine_config=self.endpoint.engine_config,
+        )
+        if reason is not None:
+            raise ModelError("blocked", f"offline mode blocks {self.endpoint.name}: {reason}")
+        self._not_forwarded.add(model)
 
     def _send(self, http: httpx.Client, call: HttpCall) -> httpx.Response:
         url = join_url(self.endpoint.base_url, call.path)
@@ -193,6 +215,7 @@ class ModelClient:
         attempt = 0
         started = time.perf_counter()
         with self._http() as http:
+            self._check_forwarding(http, request.model or self.endpoint.model)
             while True:
                 try:
                     response = self._send(http, call)
@@ -218,6 +241,7 @@ class ModelClient:
         call.stream = True
         attempt = 0
         with self._http() as http:
+            self._check_forwarding(http, request.model or self.endpoint.model)
             while True:
                 produced = False
                 try:

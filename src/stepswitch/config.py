@@ -40,6 +40,10 @@ class EndpointConfig(BaseModel):
     # A tool-call syntax from the parser catalog, for a server that does not parse its models'
     # tool calls: Stepswitch then parses them from the reply text (SPEC §4.4, ADR 0022).
     tool_parser: str | None = None
+    # The engine's own config file, where it decides what leaves the machine: for
+    # `engine = "llama-swap"`, its YAML config (peers and proxy URLs, `compat.forwarding`).
+    # A relative path is relative to the project root.
+    engine_config: str | None = None
 
     @field_validator("tool_parser")
     @classmethod
