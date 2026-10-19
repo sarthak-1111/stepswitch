@@ -75,6 +75,20 @@ export interface TaskCreated {
   status: TaskStatus;
 }
 
+/** POST /api/runs/{id}/replay: no field replays the run; `from_step` and `worker` fork it. */
+export interface ReplayRequest {
+  from_step?: number;
+  worker?: string;
+}
+
+export interface ReplayCreated {
+  id: string;
+  status: TaskStatus;
+  replay_of: string;
+  from_step: number | null;
+  worker: string | null;
+}
+
 export interface CancelAnswer {
   id: string;
   status: TaskStatus;
@@ -656,6 +670,11 @@ export const api = {
   /** GET /api/tasks/{id}/events?after=<seq>: the trajectory, in order. */
   taskEvents: (id: string, after?: number, signal?: AbortSignal) =>
     get<{ events: TrajectoryEvent[] }>(`/api/tasks/${segment(id)}/events`, { after }, signal),
+
+  /** POST /api/runs/{id}/replay: 201, a replay of the run (or a fork of it) as a new task;
+   * 404 unknown run, 422 a run that cannot be replayed as asked. */
+  replayRun: (id: string, body: ReplayRequest = {}) =>
+    post<ReplayCreated>(`/api/runs/${segment(id)}/replay`, body),
 
   /** GET /api/trajectories?limit=50 */
   trajectories: (limit?: number, signal?: AbortSignal) =>

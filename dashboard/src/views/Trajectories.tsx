@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { api, FINAL_STATUSES, type TrajectoryEvent, type TrajectorySummary } from "../api";
+import {
+  api,
+  FINAL_STATUSES,
+  type ReplayRequest,
+  type TrajectoryEvent,
+  type TrajectorySummary,
+} from "../api";
 import {
   Badge,
   Empty,
@@ -30,7 +36,7 @@ import {
   truncate,
 } from "../format";
 import { useDebounced, useResource } from "../hooks";
-import { Link } from "../router";
+import { Link, navigate } from "../router";
 import { taskPath, trajectoryPath } from "../routes";
 
 // ------------------------------------------------------------------------------------------
@@ -188,6 +194,91 @@ function useTrajectory(id: string) {
   return { events, error, loaded, retry: fetchMore };
 }
 
+/** Replay the run (no model is asked) or fork it at a step, as a new task (SPEC §11). */
+function ForkReplay({ id, ended }: { id: string; ended: boolean }) {
+  const [step, setStep] = useState("");
+  const [worker, setWorker] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function start(body: ReplayRequest) {
+    setBusy(true);
+    setError(null);
+    try {
+      const answer = await api.replayRun(id, body);
+      navigate(trajectoryPath(answer.id));
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function fork() {
+    const body: ReplayRequest = {};
+    if (step.trim()) {
+      const at = Number(step);
+      if (!Number.isInteger(at) || at < 1) {
+        setError("The step to fork at is a whole number from 1.");
+        return;
+      }
+      body.from_step = at;
+    }
+    if (worker.trim()) body.worker = worker.trim();
+    if (body.from_step === undefined && body.worker === undefined) {
+      setError("Give the step to fork at, a worker, or both.");
+      return;
+    }
+    void start(body);
+  }
+
+  const off = busy || !ended;
+  return (
+    <div className="fork-replay">
+      <button type="button" onClick={() => void start({})} disabled={off} aria-describedby="fork-replay-note">
+        Replay
+      </button>
+      <label className="visually-hidden" htmlFor="fork-step">
+        Fork at model call
+      </label>
+      <input
+        id="fork-step"
+        type="number"
+        min={1}
+        inputMode="numeric"
+        placeholder="step"
+        value={step}
+        onChange={(event) => setStep(event.target.value)}
+        disabled={off}
+      />
+      <label className="visually-hidden" htmlFor="fork-worker">
+        Worker for the forked steps
+      </label>
+      <input
+        id="fork-worker"
+        type="text"
+        placeholder="worker (optional)"
+        value={worker}
+        onChange={(event) => setWorker(event.target.value)}
+        disabled={off}
+      />
+      <button type="button" onClick={fork} disabled={off} aria-describedby="fork-replay-note">
+        Fork
+      </button>
+      <p id="fork-replay-note" className="muted small">
+        {ended
+          ? "Replay asks no model: the answers and tool results come from the recording. A fork continues live from a model call, on the worker you name."
+          : "Replay and fork are available once the run has ended."}
+      </p>
+      {error ? (
+        <p className="field-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function TrajectoryView({ id }: { id: string }) {
   const task = useResource((signal) => api.task(id, signal), [id]);
   const trajectory = useTrajectory(id);
@@ -214,19 +305,7 @@ export function TrajectoryView({ id }: { id: string }) {
       <PageHeader
         title="Trajectory"
         lead={task.data?.instruction}
-        actions={
-          <div className="fork-replay">
-            <button type="button" disabled aria-describedby="fork-replay-note">
-              Fork
-            </button>
-            <button type="button" disabled aria-describedby="fork-replay-note">
-              Replay
-            </button>
-            <p id="fork-replay-note" className="muted small">
-              Fork and replay arrive in Phase 7
-            </p>
-          </div>
-        }
+        actions={<ForkReplay id={id} ended={task.data ? FINAL_STATUSES.has(task.data.status) : false} />}
       />
       <div className="detail-head">
         <div className="chips">

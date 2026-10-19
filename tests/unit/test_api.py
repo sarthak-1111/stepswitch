@@ -394,6 +394,37 @@ def test_submitted_tasks_run_in_the_background(project: Path, static: Path, tmp_
     services.close()
 
 
+def test_a_recorded_run_replays_through_the_api(tmp_path: Path) -> None:
+    from tests.claims import replay_fixture
+
+    recorded = replay_fixture.record("calc-fix", tmp_path)
+    task_id = recorded.result.task_id
+    application = create_app(recorded.root, token=TOKEN, port=PORT)
+    created = api(application, "POST", f"/api/runs/{task_id}/replay", json={})
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["status"] == "queued" and body["replay_of"] == task_id
+    services = application.state.services
+    assert services.wait(120)
+    detail = api(application, "GET", f"/api/tasks/{body['id']}").json()
+    assert detail["status"] == "done", detail
+    report = api(application, "GET", f"/api/runs/{body['id']}/files/replay.json").json()
+    assert report["identical_diffs"] and report["identical_gate_results"], report
+    assert report["model_calls"]["live"] == 0 and report["departures"] == []
+    missing = api(application, "POST", "/api/runs/t1999-000000-abcdef/replay", json={})
+    assert missing.status_code == 404
+    assert api(application, "POST", "/api/runs/a.b/replay", json={}).status_code == 404
+    assert api(application, "POST", "/api/runs/..%2F..%2Fx/replay", json={}).status_code >= 400
+    late = api(application, "POST", f"/api/runs/{task_id}/replay", json={"from_step": 99})
+    assert late.status_code == 422 and "between 1 and" in late.text
+    nobody = api(application, "POST", f"/api/runs/{task_id}/replay", json={"worker": "nobody"})
+    assert nobody.status_code == 422 and "unknown worker" in nobody.text
+    zero = api(application, "POST", f"/api/runs/{task_id}/replay", json={"from_step": 0})
+    assert zero.status_code == 422
+    services.shutdown()
+    services.close()
+
+
 def test_task_bodies_are_validated(app: Any, tmp_path: Path) -> None:
     missing = api(app, "POST", "/api/tasks", json={})
     assert missing.status_code == 422 and "instruction" in missing.json()["error"]

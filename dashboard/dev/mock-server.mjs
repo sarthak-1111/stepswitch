@@ -209,7 +209,10 @@ function listTasks({ query }) {
 }
 
 async function createTask({ req }) {
-  const body = await readBody(req);
+  return addTask(await readBody(req));
+}
+
+function addTask(body) {
   if (typeof body.instruction !== "string" || !body.instruction.trim()) {
     throw new HttpError(422, "instruction: a non-empty string is required");
   }
@@ -254,6 +257,30 @@ async function createTask({ req }) {
   state.events[id] = [];
   broadcast("task", summary);
   return [201, { id, status: "queued" }];
+}
+
+async function replayRun({ req, params }) {
+  const original = taskOf(params[0]);
+  if (!original) throw new HttpError(404, "run not found");
+  const body = await readBody(req);
+  if (body.from_step !== undefined && (!Number.isInteger(body.from_step) || body.from_step < 1)) {
+    throw new HttpError(422, "from_step: a whole number from 1");
+  }
+  const fork = body.from_step !== undefined || Boolean(body.worker);
+  const [status, created] = addTask({
+    instruction: original.instruction,
+    track: original.track,
+    worker: body.worker ?? null,
+  });
+  return [
+    status,
+    {
+      ...created,
+      replay_of: original.id,
+      from_step: fork ? (body.from_step ?? 1) : null,
+      worker: body.worker ?? null,
+    },
+  ];
 }
 
 function getTask({ params }) {
@@ -517,6 +544,7 @@ const ROUTES = [
   ["POST", /^\/api\/tasks\/([^/]+)\/cancel$/, cancelTask],
   ["GET", /^\/api\/tasks\/([^/]+)\/events$/, taskEvents],
   ["GET", /^\/api\/trajectories$/, trajectories],
+  ["POST", /^\/api\/runs\/([^/]+)\/replay$/, replayRun],
   ["GET", /^\/api\/workers$/, () => [200, state.workers]],
   ["GET", /^\/api\/agents$/, () => [200, state.agents]],
   ["GET", /^\/api\/router$/, router],

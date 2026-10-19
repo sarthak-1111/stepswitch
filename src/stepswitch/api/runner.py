@@ -68,14 +68,15 @@ class TaskRunner:
         self._lock = threading.Lock()
         self._closed = False
 
-    def submit(self, spec: TaskSpec) -> str:
-        """Queue a task and return its id."""
+    def submit(self, spec: TaskSpec, *, run: RunTask | None = None) -> str:
+        """Queue a task and return its id. `run` runs it instead of the runner's callable (a
+        replay, say)."""
         with self._lock:
             if self._closed:
                 raise RuntimeError("the task runner is shutting down")
             task_id = new_task_id()
             queue_task(self.db, task_id, spec)
-            self._futures[task_id] = self._pool.submit(self._work, task_id, spec)
+            self._futures[task_id] = self._pool.submit(self._work, task_id, spec, run or self._run)
         return task_id
 
     def pending(self) -> list[str]:
@@ -110,12 +111,12 @@ class TaskRunner:
             )
         return ids
 
-    def _work(self, task_id: str, spec: TaskSpec) -> None:
+    def _work(self, task_id: str, spec: TaskSpec, run: RunTask) -> None:
         try:
             if self.db.cancel_requested(task_id):
                 stop_queued(self.db, task_id)
                 return
-            self._run(spec, task_id)
+            run(spec, task_id)
         except Exception as exc:  # noqa: BLE001 - the task must still end with a status
             mark_failed(self.db, task_id, exc)
         finally:

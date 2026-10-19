@@ -135,17 +135,20 @@ The task's trajectory, in order:
 {"events": [{"seq": 1, "ts": 1760600000.1, "type": "task_start", "step": null, "data": {}}]}
 ```
 
-Types: `task_start`, `worktree`, `status`, `pool`, `classify` (`data.features`), `ladder`,
-`decision`, `switch`, `escalation`, `step` (one model call), `tool` (one tool call and its
-result), `model_error`, `error`, `gates` (`data.verdict`), `review`, `budget`, `cancelled`,
-`applied` and `task_end`. `after` returns only events with a larger `seq`. The `data` of the
-most useful ones:
+Types: `task_start`, `worktree`, `status`, `pool`, `catalog` (the workers, the summarizer
+and the context settings), `classify` (`data.features`), `learning`, `ladder`, `decision`,
+`switch`, `escalation`, `step` (one model call), `aux` (a brief or summary written by the
+summarizer), `tool` (one tool call and its result), `compress`, `context`, `handoff`,
+`model_error`, `error`, `gates` (`data.verdict`), `review`, `budget`, `cancelled`, `applied`
+and `task_end`. `after` returns only events with a larger `seq`. The `data` of the most useful
+ones:
 
 - `step`: `step_type`, `worker`, `endpoint`, `model`, `tool_calls` (names), `text` (the first
   400 characters of the reply), `finish_reason`, `usage` (token counts), `wall_seconds`,
-  `gpu_seconds`;
+  `gpu_seconds`, `response_blob` (the whole answer, kept for replay);
 - `tool`: `name`, `call_id`, `arguments` (JSON text), `is_error`, `output` (at most 2,000
-  characters), `changed_files`, `repeated`;
+  characters; `output_blob` and `raw_blob` keep longer ones whole), `changed_files`,
+  `repeated`;
 - `decision`: as in `Decision` below; `switch`: `from`, `to`, `reason`, `cost`
   (`seconds`, `tokens`), `expected_gain`;
 - `gates`: `run`, `verdict` (`passed`, `failed_gate`, `report`, and `results`: per gate
@@ -159,7 +162,30 @@ most useful ones:
 {"trajectories": [{"id": "...", "status": "done", "instruction": "...", "created": 1760600000.0, "events": 57}]}
 ```
 
-Fork and replay arrive with Phase 7; the dashboard shows them as not yet available.
+### `POST /api/runs/{id}/replay`
+
+Replays a recorded run as a new background task, or forks it (SPEC §11, ADR 0027):
+
+```json
+{"from_step": 4, "worker": "ws-local/qwen2.5:32b"}
+```
+
+Both fields are optional. Without them the run is replayed: every model answer and tool result
+comes from the recording (no model is asked), edits, commands and tests run again for their
+effect on the files, and the gates run for real. `from_step` forks at that model call (counted
+per run, failed attempts included): from there on models answer live and tools run, on
+`worker` when one is given (`worker` alone forks at the first call). The result is never
+applied to the working tree.
+
+`201 {"id": "...", "status": "queued", "replay_of": "...", "from_step": null, "worker": null}`;
+`404` for an unknown run; `422` for a run that cannot be replayed as asked (recorded before
+Phase 7, a `from_step` past the run's model calls, a fork of a best-of-N run, an unknown
+worker). The new task is followed like any other; when it ends, its run directory holds
+`replay.json` (`GET /api/runs/{id}/files/replay.json`): `identical_diffs`,
+`identical_gate_results`, the `diffs` and `gate_results` side by side, `model_calls`
+(`recorded`, `from_recording`, `live`), `tools_run_again` and `departures` (every point where
+the replay left the recording). `ssw replay <run> [--from-step K] [--worker X] [--json]` does
+the same from the command line.
 
 ## Workers and agents
 

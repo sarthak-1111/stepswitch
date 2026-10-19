@@ -297,6 +297,15 @@ class BudgetsIn(BaseModel):
     escalations: int | None = Field(default=None, ge=0)
 
 
+class ReplayIn(BaseModel):
+    """`POST /api/runs/{id}/replay`: replay the run, or fork it at `from_step` (on `worker`)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    from_step: int | None = Field(default=None, ge=1)
+    worker: str | None = None
+
+
 class TaskIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -540,6 +549,53 @@ def _task_routes(app: FastAPI, services: Services) -> None:
         if queries.task_row(db, task_id) is None:
             raise _not_found("task")
         return {"events": queries.task_events(db, task_id, after=after)}
+
+    @app.post("/api/runs/{task_id}/replay", status_code=201)
+    def replay_task(task_id: str, body: ReplayIn) -> JSONResponse:
+        """Replay a recorded run, or fork it at a step (SPEC §11): a new background task."""
+        from stepswitch.trajectory import replay as replay_module
+
+        if not queries.TASK_ID_RE.fullmatch(task_id):
+            raise _not_found("run")
+        run_dir = queries.run_dir(services.root, task_id)
+        worker = body.worker or None
+        try:
+            plan = replay_module.prepare(
+                run_dir, services.root, from_step=body.from_step, worker=worker
+            )
+            if worker is not None:
+                plan.catalog(services.catalog())  # resolves the fork's worker
+        except replay_module.RunNotFound as exc:
+            raise _not_found("run") from exc
+        except replay_module.ReplayError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        spec = plan.recording.task_spec().model_copy(update={"apply": False})
+
+        def run(_spec: TaskSpec, new_id: str) -> Any:
+            return replay_module.replay_run(
+                run_dir,
+                services.root,
+                from_step=body.from_step,
+                worker=worker,
+                config=services.config(),
+                egress=services.egress,
+                task_id=new_id,
+            )
+
+        try:
+            new_id = services.runner().submit(spec, run=run)
+        except RuntimeError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        return JSONResponse(
+            {
+                "id": new_id,
+                "status": "queued",
+                "replay_of": plan.recording.task_id,
+                "from_step": plan.from_step,
+                "worker": plan.worker,
+            },
+            status_code=201,
+        )
 
     @app.get("/api/trajectories")
     def trajectories(limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:

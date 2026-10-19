@@ -1353,6 +1353,15 @@ thead .sticky-col {
   flex-basis: 100%;
 }
 
+.fork-replay input[type="number"] {
+  width: 6em;
+}
+
+.fork-replay input[type="text"] {
+  width: 14em;
+  max-width: 100%;
+}
+
 @media (max-width: 719.98px) {
   .timeline-item {
     grid-template-columns: minmax(0, 1fr);
