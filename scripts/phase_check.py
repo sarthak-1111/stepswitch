@@ -35,7 +35,7 @@ from typing import Any
 from ruamel.yaml import YAML
 
 ROOT = Path(__file__).resolve().parents[1]
-MAX_PHASE = 9
+MAX_PHASE = 10
 PHASE_TITLES = {
     0: "Research and design",
     1: "Foundation and compatibility core",
@@ -47,6 +47,7 @@ PHASE_TITLES = {
     7: "Learning router, fork and replay",
     8: "Proxy and external harness adapters",
     9: "Slow lane and zero-egress",
+    10: "Launch polish",
 }
 SY = Path(sys.executable).with_name("ssw.exe" if os.name == "nt" else "ssw")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -1663,6 +1664,149 @@ def _p9_ci_isolation() -> tuple[bool, str]:
         ("C-006" in workflow, "the workflow does not name C-006 next to its isolation step"),
         ("unshare" in egress and "--net" in egress, "tests/claims/egress.py does not isolate"),
     )
+
+
+# --------------------------------------------------------------------------------------------
+# Phase 10: launch polish
+# --------------------------------------------------------------------------------------------
+
+# The quickstart, in order (SPEC §24 packaging; C-017 times it).
+QUICKSTART = ("install.sh", "install.ps1", "ssw init", "ssw models pull --tier cpu", "ssw run")
+COMMUNITY_FILES = (
+    "LICENSE",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "CODE_OF_CONDUCT.md",
+    ".github/pull_request_template.md",
+)
+ISSUE_FORM_KEYS = {"name", "description", "body"}
+PINNED_ACTION_RE = re.compile(r"^\s*-?\s*uses:\s*[\w.-]+/[\w./-]+@([0-9a-f]{40})\b")
+ANY_ACTION_RE = re.compile(r"^\s*-?\s*uses:\s*(\S+)")
+INSTALLERS = ("install.sh", "install.ps1")
+
+
+@check(10, "README: what it is, the quickstart, the demo, links, and the generated claims")
+def _p10_readme() -> tuple[bool, str]:
+    text = read("README.md")
+    missing = [step for step in QUICKSTART if step not in text]
+    links = [
+        name
+        for name in ("CONTRIBUTING.md", "SECURITY.md", "LICENSE", "docs/assets/demo.gif")
+        if name not in text
+    ]
+    return combine(
+        (bool(text), "README.md missing"),
+        (not missing, "the quickstart lacks: " + ", ".join(missing)),
+        (not links, "README.md does not link: " + ", ".join(links)),
+        ("<!-- claims:start -->" in text, "README.md has no generated claims section"),
+        ("tasks cannot run yet" not in text, "README.md still says tasks cannot run"),
+    )
+
+
+@check(10, "docs site: an ADR picks the tool, and the site builds offline with warnings as errors")
+def _p10_docs_site() -> tuple[bool, str]:
+    decisions = ROOT / "docs" / "decisions"
+    adr = any("docs" in p.name for p in decisions.glob("003[2-9]-*.md"))
+    if not adr:
+        return False, "no ADR (0032 or later) chooses the docs tool"
+    if not (ROOT / "docs" / "conf.py").is_file() or not (ROOT / "docs" / "index.md").is_file():
+        return False, "docs/conf.py or docs/index.md missing"
+    if not has_module("sphinx"):
+        return False, "Sphinx is not installed: `uv sync --group docs`"
+    out = ROOT / ".stepswitch" / "docs-check"
+    sphinx = [sys.executable, "-m", "sphinx", "-W", "--keep-going", "-q", "-b", "html"]
+    code, stdout, stderr = run([*sphinx, "docs", str(out)], timeout=900)
+    return code == 0, "built" if code == 0 else (last_line(stderr) or last_line(stdout))
+
+
+@check(10, "demo: a VHS tape and the GIF it records, shown in the README")
+def _p10_demo() -> tuple[bool, str]:
+    tape = read("docs/demo/demo.tape")
+    gif = ROOT / "docs" / "assets" / "demo.gif"
+    header = gif.read_bytes()[:6] if gif.is_file() else b""
+    return combine(
+        (bool(tape), "docs/demo/demo.tape missing"),
+        ("Output docs/assets/demo.gif" in tape, "the tape does not write docs/assets/demo.gif"),
+        (header in (b"GIF87a", b"GIF89a"), "docs/assets/demo.gif is missing or not a GIF"),
+        (gif.is_file() and gif.stat().st_size < 8_000_000, "the GIF is larger than 8 MB"),
+    )
+
+
+@check(10, "examples: configurations for common setups, each validated by a test")
+def _p10_examples() -> tuple[bool, str]:
+    configs = sorted((ROOT / "examples").glob("*/stepswitch.toml"))
+    readme = read("examples/README.md")
+    unlisted = [p.parent.name for p in configs if p.parent.name not in readme]
+    problems = combine(
+        (len(configs) >= 3, f"examples/*/stepswitch.toml: {len(configs)} found, 3 needed"),
+        (bool(readme), "examples/README.md missing"),
+        (not unlisted, "examples/README.md does not list: " + ", ".join(unlisted)),
+    )
+    if not problems[0]:
+        return problems
+    return untested_or_run(("examples",), "tests/unit/test_examples.py")
+
+
+@check(10, "community files: MIT license, contributing guide, security policy, code of conduct")
+def _p10_community() -> tuple[bool, str]:
+    missing = [name for name in COMMUNITY_FILES if not (ROOT / name).is_file()]
+    project = tomllib.loads(read("pyproject.toml")).get("project", {})
+    forms = sorted((ROOT / ".github" / "ISSUE_TEMPLATE").glob("*.yml"))
+    bad_forms = []
+    for form in forms:
+        data = load_yaml(str(form.relative_to(ROOT))) or {}
+        if form.name != "config.yml" and not set(data) >= ISSUE_FORM_KEYS:
+            bad_forms.append(form.name)
+    return combine(
+        (not missing, "missing: " + ", ".join(missing)),
+        (project.get("license") == "MIT", "pyproject.toml does not declare the MIT license"),
+        (read("LICENSE").startswith("MIT License"), "LICENSE is not the MIT license text"),
+        (
+            "Contributor Covenant 3.0" in read("CODE_OF_CONDUCT.md"),
+            "CODE_OF_CONDUCT.md is not the Contributor Covenant 3.0",
+        ),
+        ("[NOTE:" not in read("CODE_OF_CONDUCT.md"), "CODE_OF_CONDUCT.md keeps a placeholder"),
+        (len([f for f in forms if f.name != "config.yml"]) >= 2, "fewer than two issue forms"),
+        (not bad_forms, "issue forms lack name, description or body: " + ", ".join(bad_forms)),
+    )
+
+
+@check(10, "release workflow: tagged builds, trusted publishing, a changelog, pinned actions")
+def _p10_release() -> tuple[bool, str]:
+    workflow = read(".github/workflows/release.yml")
+    if not workflow:
+        return False, ".github/workflows/release.yml missing"
+    unpinned = [
+        match.group(1)
+        for line in workflow.splitlines()
+        if (match := ANY_ACTION_RE.match(line)) and not PINNED_ACTION_RE.match(line)
+    ]
+    return combine(
+        ("tags:" in workflow and "v*" in workflow, "the workflow does not run on version tags"),
+        ("id-token: write" in workflow, "no id-token permission for trusted publishing"),
+        ("--no-sources" in workflow, "the build does not use `uv build --no-sources`"),
+        ("npm run build" in workflow, "the dashboard is not built into the release"),
+        ("git-cliff" in workflow, "no changelog step (git-cliff)"),
+        ('GH_TELEMETRY: "false"' in workflow, "steps that call gh do not set GH_TELEMETRY"),
+        (not unpinned, "actions not pinned to a commit: " + ", ".join(unpinned)),
+        ((ROOT / "cliff.toml").is_file(), "cliff.toml missing"),
+    )
+
+
+@check(10, "installers: install.sh and install.ps1 pin uv, leave shell profiles alone, prefetch")
+def _p10_installers() -> tuple[bool, str]:
+    problems = []
+    for name in INSTALLERS:
+        text = read(name)
+        if not text:
+            problems.append(f"{name} missing")
+            continue
+        for needle in ("UV_VERSION", "UV_NO_MODIFY_PATH", "ssw prefetch", "STEPSWITCH_PACKAGE"):
+            if needle not in text:
+                problems.append(f"{name} lacks {needle}")
+    if problems:
+        return False, "; ".join(problems)
+    return untested_or_run(("installers",), "tests/unit/test_installers.py")
 
 
 # --------------------------------------------------------------------------------------------
