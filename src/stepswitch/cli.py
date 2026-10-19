@@ -10,7 +10,8 @@ from __future__ import annotations
 import json
 import os
 import sys
-from collections.abc import Iterator, Sequence
+import time
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -407,6 +408,14 @@ def models_pull(
         typer.Option("--engine", help="llamacpp (download GGUF files) or ollama (pull there)."),
     ] = "llamacpp",
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Show the plan only.")] = False,
+    engine_install: Annotated[
+        bool,
+        typer.Option(
+            "--engine-install/--no-engine-install",
+            help="With --engine llamacpp: install the pinned llama.cpp build when no"
+            " llama-server is found.",
+        ),
+    ] = True,
     tokenizers: Annotated[
         bool,
         typer.Option(
@@ -417,7 +426,11 @@ def models_pull(
     ] = False,
     json_out: Annotated[bool, typer.Option("--json", help="Print the result as JSON.")] = False,
 ) -> None:
-    """Download models from their original source, verified by size and sha256."""
+    """Download models from their original source, verified by size and sha256.
+
+    For GGUF files (`--engine llamacpp`) the pinned llama.cpp build that serves them is installed
+    too when no llama-server is found, unless `--no-engine-install` is given.
+    """
     state = _state(ctx)
     from stepswitch import modelstore
 
@@ -465,6 +478,12 @@ def models_pull(
             egress=None if dry_run else state.egress(),
             dry_run=dry_run,
         )
+    engine_report: dict[str, Any] | None = None
+    pulled_any = bool(result.installed or result.verified or result.downloaded)
+    if engine == "llamacpp" and engine_install and not dry_run and pulled_any:
+        engine_report = _ensure_llamacpp(
+            state, yes=yes, echo=(lambda _msg: None) if json_out else typer.echo
+        )
     if json_out:
         _print_json(
             {
@@ -473,10 +492,47 @@ def models_pull(
                 "downloaded": result.downloaded,
                 "skipped": result.skipped,
                 "failed": result.failed,
+                "engine": engine_report,
             }
         )
-    if result.failed:
+    engine_error = (engine_report or {}).get("error")
+    engine_failed = engine_report is not None and engine_report["status"] == "failed"
+    if engine_failed and not json_out:
+        typer.echo(f"llama.cpp was not installed: {engine_error}", err=True)
+    if result.failed or engine_failed:
         raise typer.Exit(1)
+
+
+def _ensure_llamacpp(
+    state: AppState, *, yes: bool, echo: Callable[[str], object]
+) -> dict[str, Any]:
+    """Install the pinned llama.cpp build when no llama-server is found, and say how it went:
+    `status` is present, installed, declined or failed, with the seconds the install took."""
+    from stepswitch.serve import install, llamacpp
+    from stepswitch.serve.base import EngineError
+
+    found = llamacpp.LlamaCppEngine().find_binary()
+    if found is not None:
+        return {"name": "llamacpp", "status": "present", "path": str(found), "seconds": 0.0}
+    declined = False
+
+    def confirm(question: str) -> bool:
+        nonlocal declined
+        accepted = yes or typer.confirm(question)
+        declined = not accepted
+        return accepted
+
+    started = time.monotonic()
+    report: dict[str, Any] = {"name": "llamacpp", "tag": install.PINNED_LLAMACPP}
+    try:
+        server = install.install_llamacpp(confirm=confirm, echo=echo, egress=state.egress())
+    except EngineError as exc:
+        report.update(status="declined" if declined else "failed", error=str(exc))
+    else:
+        report.update(status="installed", path=str(server))
+        echo(f"llama.cpp {install.PINNED_LLAMACPP} is installed: {server}")
+    report["seconds"] = round(time.monotonic() - started, 3)
+    return report
 
 
 @models_app.command("serve")
