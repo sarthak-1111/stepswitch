@@ -74,6 +74,9 @@ class PrivacyConfig(BaseModel):
 
     mode: Literal["default", "local"] = "default"
     deny_paths: list[str] = Field(default_factory=list)
+    # The secret redactor (`stepswitch.redact`): requests to non-local endpoints ("remote"),
+    # every request ("all"), or none ("off").
+    redact: Literal["remote", "all", "off"] = "remote"
 
 
 class StorageConfig(BaseModel):
@@ -115,6 +118,10 @@ class Config(BaseModel):
 
     def endpoint(self, name: str) -> EndpointConfig | None:
         return next((e for e in self.endpoints if e.name == name), None)
+
+    def secret_values(self) -> list[str]:
+        """The configured credentials (endpoint API keys), for the secret redactor."""
+        return [key for e in self.endpoints if (key := e.resolved_api_key())]
 
 
 def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:

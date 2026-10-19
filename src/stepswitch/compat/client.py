@@ -5,15 +5,17 @@ This is the only way the rest of Stepswitch talks to a model (working rule 2).
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import time
+from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
 
-from stepswitch import net
+from stepswitch import net, redact
 from stepswitch.compat.codecs import get_codec
 from stepswitch.compat.codecs.base import Codec, CodecOptions, HttpCall
 from stepswitch.compat.errors import ModelError, backoff_delay
@@ -134,6 +136,14 @@ class ModelClient:
             request = request.model_copy(update={"model": self.endpoint.model})
         report = ConversionReport(target=codec.format)
         call = codec.encode_request(request, report)
+        if call.json is not None and redact.applies(self.endpoint.local):
+            # Nothing that looks like a credential leaves in a request body (SPEC §15).
+            counts: Counter[str] = Counter()
+            body = redact.current().value(call.json, counts)
+            if counts:
+                call = dataclasses.replace(call, json=body)
+                kinds = ", ".join(f"{kind} x{n}" for kind, n in sorted(counts.items()))
+                report.add("secrets", f"redacted before sending: {kinds}", "approximated")
         return call, report
 
     def _send(self, http: httpx.Client, call: HttpCall) -> httpx.Response:
