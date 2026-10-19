@@ -31,7 +31,7 @@ should show any status they do not know rather than drop the task.
 
 ### `GET /api/tasks?limit=50&status=<status>`
 
-```json
+```js
 {"tasks": [TaskSummary, ...]}
 ```
 
@@ -99,7 +99,7 @@ task whose run fails unexpectedly ends as `failed` with `stop_reason: "error"`.
 
 A `TaskSummary` plus:
 
-```json
+```js
 {
   "spec": {"instruction": "...", "repo": "...", "track": "general", "...": "..."},
   "result": {"summary": "...", "changed_files": ["src/dates.py"], "diff": "...", "verdict": {}},
@@ -112,7 +112,7 @@ A `TaskSummary` plus:
 `result` is null until the task ends. `events` is the number of trajectory events. `decisions`
 are in step order and `ledger` rows in the order the calls were made.
 
-A best-of-N result also has `best_of` (the candidate count), `candidates` (per candidate: its
+A result with several candidates also has `best_of` (the candidate count), `candidates` (per candidate: its
 `index`, `family`, `workers`, `seed`, `status`, `changed_files`, `changed_lines`, `branch`,
 `review` and `tests_passed`), `winner` (the kept candidate's index), `disagreement` (the
 comparison report: `detected`, `clusters`, `splits`, `tests`, `probe_tests`, `outputs`,
@@ -175,16 +175,16 @@ Replays a recorded run as a new background task, or forks it (SPEC §11, ADR 002
 {"from_step": 4, "worker": "ws-local/qwen2.5:32b"}
 ```
 
-Both fields are optional. Without them the run is replayed: every model answer and tool result
+Both fields are optional. Without them the run is replayed: each model answer and tool result
 comes from the recording (no model is asked), edits, commands and tests run again for their
 effect on the files, and the gates run for real. `from_step` forks at that model call (counted
 per run, failed attempts included): from there on models answer live and tools run, on
-`worker` when one is given (`worker` alone forks at the first call). The result is never
+`worker` when one is given (`worker` alone forks at the first call). The result is not
 applied to the working tree.
 
 `201 {"id": "...", "status": "queued", "replay_of": "...", "from_step": null, "worker": null}`;
 `404` for an unknown run; `422` for a run that cannot be replayed as asked (recorded before
-Phase 7, a `from_step` past the run's model calls, a fork of a best-of-N run, an unknown
+Phase 7, a `from_step` past the run's model calls, a fork of a run with several candidates, an unknown
 worker). The new task is followed like any other; when it ends, its run directory holds
 `replay.json` (`GET /api/runs/{id}/files/replay.json`): `identical_diffs`,
 `identical_gate_results`, the `diffs` and `gate_results` side by side, `model_calls`
@@ -253,7 +253,7 @@ is that worker's context size, if known. `since` is when the task was created.
 
 ### `GET /api/router?task=<id>&limit=200`
 
-```json
+```js
 {"decisions": [Decision, ...], "features": {"<task id>": {"task_type": "bugfix", "difficulty": 2}}}
 ```
 
@@ -335,7 +335,7 @@ what the local model work would have cost at those prices, in the prices' own cu
 }
 ```
 
-`url` is shown for local endpoints only (null for remote ones); keys are never returned.
+`url` is shown for local endpoints only (null for remote ones); keys are not returned.
 `reachable`, `http_status` and `error` are present only with `check=true`: the server sends one
 read-only model-listing request to each endpoint through the egress layer, without credentials,
 and any HTTP answer counts as reachable; `error` names the kind of failure only.
@@ -526,7 +526,7 @@ streamed or not. `ssw run --harness <name>` starts a proxy of its own for each h
   missing token gets `401`.
 - Requests whose `Host` is not the proxy's own address get `403`, and so do posts from a web
   page of another origin.
-- Inbound credential headers are never logged, stored or forwarded. Upstream calls carry the
+- Inbound credential headers are not logged, stored or forwarded. Upstream calls carry the
   configured endpoint's own key and go through `stepswitch.net`. In offline mode remote
   endpoints are refused (`--offline`, `--allow-remote`).
 
@@ -578,7 +578,7 @@ edit steps when the request offers tools and text steps when it doesn't.
 - **Steps.** Every request is a step of its task. Each one gets a decision event and a step
   event in the task's trajectory, and a ledger row, so proxied runs show up in `ssw ledger`,
   the trajectory viewer and the dashboard like built-in runs.
-- **Switching.** The worker changes only at a new user turn, never while a tool-call loop is
+- **Switching.** The worker changes only at a new user turn, not while a tool-call loop is
   open. Inside a turn, a request stays on the conversation's worker unless that worker can't
   take it, for example when the transcript no longer fits its window or it failed.
 

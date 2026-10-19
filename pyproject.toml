@@ -55,6 +55,13 @@ dev = [
 e2e = [
   "playwright>=1.64",
 ]
+# The docs site (ADR 0032): `uv sync --group docs`, then
+# `uv run python -m sphinx -W --keep-going -b html docs docs/_build/html`.
+docs = [
+  "sphinx>=9.0.4,<10",
+  "myst-parser>=5.1,<6",
+  "furo>=2025.12.19",
+]
 
 [build-system]
 requires = ["hatchling>=1.27"]

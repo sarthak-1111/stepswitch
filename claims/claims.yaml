@@ -26,6 +26,11 @@ lint:
   public_docs:
     - README.md
     - docs/site/**/*.md
+    # Files the docs site shows on its pages (docs/site/conf.py, INCLUDED; ADR 0032).
+    - docs/API.md
+    - docs/science-toml.md
+    - docs/COMPATIBILITY.md
+    - examples/README.md
   # Unmarked superlatives and comparatives fail the lint (SPEC §18.3 item 2). Case-insensitive
   # regular expressions, matched outside claim markers, code and URLs.
   banned_unmarked:

@@ -98,7 +98,7 @@ repository root first on `PYTHONPATH`. Before the cases run, cached bytecode old
 source file's last-modified second is deleted. Otherwise a same-size edit made within the same
 second could run stale code.
 
-A case fails when its command exits non-zero or times out. It is an error when the command
+A case fails when its command exits with a nonzero status or times out. It is an error when the command
 cannot start. Either way the output tail goes into the report.
 
 ### `[[golden.quantities]]`
@@ -145,14 +145,14 @@ absolute deviation `max |a - e|` and the maximum relative deviation `max |a - e|
   over the sample index without `x_key`. Flagged if `|I(a) - I(e)| > atol + rtol * |I(e)|`.
   The data must be one-dimensional.
 - **peaks**: a peak is a sample with `y[i] > y[i-1]`, `y[i] >= y[i+1]` and
-  `y[i] >= min_peak_height * max(y)`; the first and last samples never qualify. Each peak is
+  `y[i] >= min_peak_height * max(y)`; the first and last samples do not qualify. Each peak is
   refined by the vertex of the parabola through its three samples (left `l`, middle `m`, right
   `r`): the offset `0.5 * (l - r) / (l - 2m + r)` (0 when the denominator is 0) is multiplied by
   the local grid step `x[i+1] - x[i]` (by 1 without `x_key`). The positions on each side are
   sorted and paired in order. Flagged if the peak counts differ or any `|shift| > atol`. The data
   must be one-dimensional and real.
 - **overlap**: cosine similarity `a.e / (|a| |e|)` over all elements. It is 1 when both sides
-  are all zero and 0 when only one is. Flagged if the similarity is below `min_overlap`. The
+  are all 0 and 0 when only one side is. Flagged if the similarity is below `min_overlap`. The
   shapes must match and the data must be real. Use it for spectra whose shape matters more than
   their scale.
 
@@ -235,7 +235,7 @@ When the repository has a `jupytext.toml` (for example `formats = "ipynb,py:perc
 edit the paired script, not the notebook. Before the golden cases run, the gate pushes each
 changed script that has an `.ipynb` beside it into the notebook with
 `jupytext --to ipynb --update <script>.py`. This keeps the notebook's stored outputs. `--sync`
-is never used, because it picks the source by file timestamp. jupytext runs from the project
+is not used, because it picks the source by file timestamp. jupytext runs from the project
 environment, or from `PATH`. If it is missing, the gate notes that and continues. If jupytext
 fails, the golden gate fails.
 
