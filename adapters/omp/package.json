@@ -1,0 +1,14 @@
+{
+  "name": "@stepswitch/omp-adapter",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Stepswitch for Oh My Pi: a slot for every subagent through before_subagent_spawn.",
+  "license": "MIT",
+  "type": "module",
+  "peerDependencies": {
+    "@oh-my-pi/pi-coding-agent": "*"
+  },
+  "engines": {
+    "bun": ">=1.3.14"
+  }
+}

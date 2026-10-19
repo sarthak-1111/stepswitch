@@ -1,0 +1,14 @@
+{
+  "name": "@stepswitch/adapters",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Stepswitch's extensions for TypeScript harnesses, on a shared core.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/extensions.test.js"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  }
+}

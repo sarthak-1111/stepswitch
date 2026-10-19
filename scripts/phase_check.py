@@ -1334,7 +1334,7 @@ PROXY_ROUTES = {
 # SPEC §12 items 3 to 7: one adapter per harness, plus the generic ACP client.
 HARNESS_ADAPTERS = {"claude-code", "pi", "oh-my-pi", "opencode", "kimi-code", "acp"}
 # Adapters of TypeScript harnesses that ship an extension package (CLAUDE.md, Stack).
-TS_ADAPTERS = ("pi", "oh-my-pi")
+TS_ADAPTERS = ("pi", "omp")  # adapters/<dir> (SPEC §21)
 FIXTURES = ROOT / "tests" / "fixtures" / "harness"
 
 
