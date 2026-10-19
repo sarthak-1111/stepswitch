@@ -1,0 +1,140 @@
+{
+  "claim": "C-012",
+  "text": "Best-of-N across model families passes at least as many tasks as the best single worker.",
+  "scope": "The mini bench suites, with bootstrap confidence intervals.",
+  "thresholds": {
+    "confidence_level": 0.95
+  },
+  "command": "uv run ssw bench run --suite <suite> --workers <pool>,best-of-n --router-pool <pool> --best-of 2 ... (each run's run.json); uv run ssw prove --claim C-012",
+  "mode": "quick",
+  "source_digest": "4a9c0ac68351b3695deb9a5a842c39429f6d2beb37edb3fd9c7b9ca5d584f539",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-19T08:29:10+00:00",
+  "sections": {
+    "comparison": {
+      "recorded": "2026-10-19T08:29:10+00:00",
+      "confidence": 0.95,
+      "suites": {
+        "mini-general": {
+          "run": "2026-10-19-mini-general-best-of-n",
+          "commit": "a27cce9d9d8c",
+          "best_of": 2,
+          "pool": [
+            "ws-ollama-local/gpt-oss:120b",
+            "ws-ollama-local/qwen2.5:32b"
+          ],
+          "best_single": "ws-ollama-local/gpt-oss:120b",
+          "contestants": {
+            "best-of-n": {
+              "passed": 29,
+              "runs": 30,
+              "pass_rate": 0.9667,
+              "interval": {
+                "low": 0.9,
+                "high": 1.0,
+                "method": "cluster bootstrap over tasks (percentile)"
+              }
+            },
+            "ws-ollama-local/gpt-oss:120b": {
+              "passed": 29,
+              "runs": 30,
+              "pass_rate": 0.9667,
+              "interval": {
+                "low": 0.9,
+                "high": 1.0,
+                "method": "cluster bootstrap over tasks (percentile)"
+              }
+            },
+            "ws-ollama-local/qwen2.5:32b": {
+              "passed": 16,
+              "runs": 30,
+              "pass_rate": 0.5333,
+              "interval": {
+                "low": 0.2667,
+                "high": 0.8,
+                "method": "cluster bootstrap over tasks (percentile)"
+              }
+            }
+          },
+          "difference": {
+            "mean": 0.0,
+            "interval": {
+              "low": -0.1,
+              "high": 0.1,
+              "method": "cluster bootstrap over tasks (percentile)"
+            },
+            "won": [
+              "todo-priority s1"
+            ],
+            "lost": [
+              "entry-from-line s0"
+            ]
+          }
+        },
+        "mini-science": {
+          "run": "2026-10-19-mini-science-best-of-n",
+          "commit": "a27cce9d9d8c",
+          "best_of": 2,
+          "pool": [
+            "ws-ollama-local/gpt-oss:120b",
+            "ws-ollama-local/qwen2.5:32b"
+          ],
+          "best_single": "ws-ollama-local/gpt-oss:120b",
+          "contestants": {
+            "best-of-n": {
+              "passed": 12,
+              "runs": 12,
+              "pass_rate": 1.0,
+              "interval": {
+                "low": 1.0,
+                "high": 1.0,
+                "method": "cluster bootstrap over tasks (percentile)"
+              }
+            },
+            "ws-ollama-local/gpt-oss:120b": {
+              "passed": 12,
+              "runs": 12,
+              "pass_rate": 1.0,
+              "interval": {
+                "low": 1.0,
+                "high": 1.0,
+                "method": "cluster bootstrap over tasks (percentile)"
+              }
+            },
+            "ws-ollama-local/qwen2.5:32b": {
+              "passed": 7,
+              "runs": 12,
+              "pass_rate": 0.5833,
+              "interval": {
+                "low": 0.25,
+                "high": 0.9167,
+                "method": "cluster bootstrap over tasks (percentile)"
+              }
+            }
+          },
+          "difference": {
+            "mean": 0.0,
+            "interval": {
+              "low": 0.0,
+              "high": 0.0,
+              "method": "cluster bootstrap over tasks (percentile)"
+            },
+            "won": [],
+            "lost": []
+          }
+        }
+      },
+      "problems": []
+    }
+  }
+}

@@ -8,7 +8,7 @@
   },
   "command": "uv run ssw prove --claim C-009",
   "mode": "quick",
-  "source_digest": "ffe799970a9cc87f1bdbc5510df9d9cc8b914824b0ba83835668806d6e677698",
+  "source_digest": "4a9c0ac68351b3695deb9a5a842c39429f6d2beb37edb3fd9c7b9ca5d584f539",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -20,10 +20,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-19T01:49:55+00:00",
+  "updated": "2026-10-19T08:29:07+00:00",
   "sections": {
     "without_allow": {
-      "recorded": "2026-10-19T01:49:53+00:00",
+      "recorded": "2026-10-19T08:29:06+00:00",
       "unchanged_values_pass": true,
       "python_constant_change": {
         "passed": false,
@@ -65,7 +65,7 @@
       }
     },
     "with_allow": {
-      "recorded": "2026-10-19T01:49:55+00:00",
+      "recorded": "2026-10-19T08:29:07+00:00",
       "allow_protected": [
         "SPEED_OF_LIGHT"
       ],

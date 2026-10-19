@@ -1,8 +1,8 @@
 # Prove report
 
 - Mode: quick
-- Created: 2026-10-19T01:53:47+00:00
-- Source digest: `ffe799970a9cc87f1bdbc5510df9d9cc8b914824b0ba83835668806d6e677698`
+- Created: 2026-10-19T08:34:22+00:00
+- Source digest: `4a9c0ac68351b3695deb9a5a842c39429f6d2beb37edb3fd9c7b9ca5d584f539`
 - Platform: windows amd64, Python 3.12.15
 
 | Claim | Status | Tests |
@@ -17,6 +17,8 @@
 | C-009 | passing | test_protected_change_fails_without_allow_flag: passed, test_protected_change_passes_with_allow_flag: passed |
 | C-010 | passing | test_bench_handoffs_validate_and_fit_token_budget: passed |
 | C-011 | passing | test_optimized_uses_fewer_tokens_at_same_pass_rate: passed |
+| C-012 | passing | test_best_of_n_matches_or_beats_best_single_worker: passed |
+| C-013 | passing | test_ambiguous_tasks_flagged_unambiguous_not: passed |
 | C-016 | pending | test_prove_quick_passed_on_linux_macos_windows: skipped |
 | C-018 | passing | test_every_readme_number_has_evidence_and_command: passed |
 | C-019 | passing | test_ledger_matches_server_usage_within_one_percent: passed |

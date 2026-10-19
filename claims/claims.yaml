@@ -267,7 +267,7 @@ claims:
       - tests/claims/test_c012_best_of_n.py::test_best_of_n_matches_or_beats_best_single_worker
     thresholds: {confidence_level: 0.95}
     evidence: [claims/evidence/C-012.json]
-    status: pending
+    status: passing
 
   - id: C-013
     text: "Flags tasks where passing candidates disagree."
@@ -281,7 +281,7 @@ claims:
       - tests/claims/test_c013_disagreement.py::test_ambiguous_tasks_flagged_unambiguous_not
     thresholds: {ambiguous_flagged: 1.0, unambiguous_flagged: 0.0}
     evidence: [claims/evidence/C-013.json]
-    status: pending
+    status: passing
 
   - id: C-014
     text: "Replays recorded runs deterministically."

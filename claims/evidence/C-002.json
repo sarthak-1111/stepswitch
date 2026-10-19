@@ -8,7 +8,7 @@
   },
   "command": "uv run ssw prove --claim C-002",
   "mode": "quick",
-  "source_digest": "ffe799970a9cc87f1bdbc5510df9d9cc8b914824b0ba83835668806d6e677698",
+  "source_digest": "4a9c0ac68351b3695deb9a5a842c39429f6d2beb37edb3fd9c7b9ca5d584f539",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -20,11 +20,11 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-19T01:46:53+00:00",
+  "updated": "2026-10-19T08:26:08+00:00",
   "sections": {
     "trajectory": {
-      "recorded": "2026-10-19T01:46:53+00:00",
-      "task_id": "t20261019-104648-59eeb4",
+      "recorded": "2026-10-19T08:26:08+00:00",
+      "task_id": "t20261019-172604-095a54",
       "status": "done",
       "endpoints": [
         "alpha",
@@ -101,7 +101,7 @@
       "switches": [
         {
           "seq": 10,
-          "ts": 1792374409.006,
+          "ts": 1792398364.509,
           "type": "switch",
           "step": 2,
           "step_type": "navigate",
@@ -119,7 +119,7 @@
         },
         {
           "seq": 26,
-          "ts": 1792374411.42,
+          "ts": 1792398366.958,
           "type": "switch",
           "step": 7,
           "step_type": "review",
@@ -127,12 +127,12 @@
           "to": "alpha/alpha-model",
           "from_endpoint": "beta",
           "to_endpoint": "alpha",
-          "reason": "switch beta/beta-model -> alpha/alpha-model for review: rule plan-and-review-on-alpha routes review steps elsewhere (rule plan-and-review-on-alpha); re-reading ~171 uncached tokens costs ~0.1 s",
+          "reason": "switch beta/beta-model -> alpha/alpha-model for review: rule plan-and-review-on-alpha routes review steps elsewhere (rule plan-and-review-on-alpha); re-reading ~232 uncached tokens costs ~0.2 s",
           "cost": {
-            "seconds": 0.114,
-            "tokens": 171.0
+            "seconds": 0.155,
+            "tokens": 232.0
           },
-          "expected_gain": 0.114,
+          "expected_gain": 0.155,
           "handoff": false
         }
       ],

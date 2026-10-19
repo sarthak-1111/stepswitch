@@ -7,7 +7,7 @@
   },
   "command": "uv run ssw prove --claim C-018",
   "mode": "quick",
-  "source_digest": "ffe799970a9cc87f1bdbc5510df9d9cc8b914824b0ba83835668806d6e677698",
+  "source_digest": "4a9c0ac68351b3695deb9a5a842c39429f6d2beb37edb3fd9c7b9ca5d584f539",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -19,50 +19,58 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-19T01:49:57+00:00",
+  "updated": "2026-10-19T08:30:35+00:00",
   "sections": {
     "readme": {
-      "recorded": "2026-10-19T01:49:57+00:00",
+      "recorded": "2026-10-19T08:30:35+00:00",
       "numbers": [
         {
           "marker": "C-001:sections.container.peak_memory_gb",
-          "shown": "7.89",
+          "shown": "7.90",
           "evidence": "claims/evidence/C-001.json",
           "command": "uv run ssw prove --claim C-001",
-          "source_digest": "ffe799970a9cc87f1bdbc5510df9d9cc8b914824b0ba83835668806d6e677698",
-          "updated": "2026-10-19T01:46:46+00:00"
+          "source_digest": "4a9c0ac68351b3695deb9a5a842c39429f6d2beb37edb3fd9c7b9ca5d584f539",
+          "updated": "2026-10-19T08:26:01+00:00"
         },
         {
           "marker": "C-001:sections.container.steps",
           "shown": "9",
           "evidence": "claims/evidence/C-001.json",
           "command": "uv run ssw prove --claim C-001",
-          "source_digest": "ffe799970a9cc87f1bdbc5510df9d9cc8b914824b0ba83835668806d6e677698",
-          "updated": "2026-10-19T01:46:46+00:00"
+          "source_digest": "4a9c0ac68351b3695deb9a5a842c39429f6d2beb37edb3fd9c7b9ca5d584f539",
+          "updated": "2026-10-19T08:26:01+00:00"
         },
         {
           "marker": "C-001:sections.container.budget.wall_seconds",
-          "shown": "76",
+          "shown": "80",
           "evidence": "claims/evidence/C-001.json",
           "command": "uv run ssw prove --claim C-001",
-          "source_digest": "ffe799970a9cc87f1bdbc5510df9d9cc8b914824b0ba83835668806d6e677698",
-          "updated": "2026-10-19T01:46:46+00:00"
+          "source_digest": "4a9c0ac68351b3695deb9a5a842c39429f6d2beb37edb3fd9c7b9ca5d584f539",
+          "updated": "2026-10-19T08:26:01+00:00"
+        },
+        {
+          "marker": "C-005:sections.matrix.families_passing_count",
+          "shown": "4",
+          "evidence": "claims/evidence/C-005.json",
+          "command": "uv run ssw prove --full --claim C-005",
+          "source_digest": "4a9c0ac68351b3695deb9a5a842c39429f6d2beb37edb3fd9c7b9ca5d584f539",
+          "updated": "2026-10-19T08:28:33+00:00"
         },
         {
           "marker": "C-011:sections.comparison.claimed.percent",
           "shown": "18.7",
           "evidence": "claims/evidence/C-011.json",
           "command": "uv run ssw prove --claim C-011",
-          "source_digest": "ffe799970a9cc87f1bdbc5510df9d9cc8b914824b0ba83835668806d6e677698",
-          "updated": "2026-10-19T01:49:57+00:00"
+          "source_digest": "4a9c0ac68351b3695deb9a5a842c39429f6d2beb37edb3fd9c7b9ca5d584f539",
+          "updated": "2026-10-19T08:29:10+00:00"
         },
         {
           "marker": "C-019:sections.accounting.max_relative_error_percent",
           "shown": "0.00",
           "evidence": "claims/evidence/C-019.json",
           "command": "uv run ssw prove --claim C-019",
-          "source_digest": "3c67572471f747a27111dec809f603be068c3d0a2c60d2e5b006ffc66a6f936d",
-          "updated": "2026-10-19T01:18:07+00:00"
+          "source_digest": "ffe799970a9cc87f1bdbc5510df9d9cc8b914824b0ba83835668806d6e677698",
+          "updated": "2026-10-19T01:53:37+00:00"
         }
       ],
       "unsourced_numbers": 0,

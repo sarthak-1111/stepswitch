@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "mode": "quick",
-  "source_digest": "ffe799970a9cc87f1bdbc5510df9d9cc8b914824b0ba83835668806d6e677698",
-  "created": "2026-10-19T01:53:47+00:00",
-  "duration_s": 594.87,
+  "source_digest": "4a9c0ac68351b3695deb9a5a842c39429f6d2beb37edb3fd9c7b9ca5d584f539",
+  "created": "2026-10-19T08:34:22+00:00",
+  "duration_s": 614.51,
   "platform": {
     "os": "windows",
     "machine": "amd64",
@@ -15,7 +15,7 @@
     "image_version": null
   },
   "selection": {
-    "phase": 5,
+    "phase": 6,
     "claims": [],
     "skip": []
   },
@@ -107,6 +107,22 @@
       "parts": [],
       "notes": {}
     },
+    "C-012": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c012_best_of_n.py::test_best_of_n_matches_or_beats_best_single_worker": "passed"
+      },
+      "parts": [],
+      "notes": {}
+    },
+    "C-013": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c013_disagreement.py::test_ambiguous_tasks_flagged_unambiguous_not": "passed"
+      },
+      "parts": [],
+      "notes": {}
+    },
     "C-016": {
       "status": "pending",
       "tests": {
@@ -144,7 +160,7 @@
   },
   "summary": {
     "pending": 1,
-    "passing": 13,
+    "passing": 15,
     "failing": 0
   }
 }

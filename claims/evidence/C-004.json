@@ -24,7 +24,7 @@
   },
   "command": "uv run ssw prove --claim C-004",
   "mode": "quick",
-  "source_digest": "ffe799970a9cc87f1bdbc5510df9d9cc8b914824b0ba83835668806d6e677698",
+  "source_digest": "4a9c0ac68351b3695deb9a5a842c39429f6d2beb37edb3fd9c7b9ca5d584f539",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -36,10 +36,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-19T01:46:54+00:00",
+  "updated": "2026-10-19T08:26:10+00:00",
   "sections": {
     "conformance": {
-      "recorded": "2026-10-19T01:46:54+00:00",
+      "recorded": "2026-10-19T08:26:10+00:00",
       "formats": {
         "chat-completions": {
           "non-streaming": "passed",
@@ -132,7 +132,7 @@
       "cases_run": 63
     },
     "round_trip": {
-      "recorded": "2026-10-19T01:46:54+00:00",
+      "recorded": "2026-10-19T08:26:10+00:00",
       "chat_formats": [
         "chat-completions",
         "responses",

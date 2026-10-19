@@ -1,0 +1,270 @@
+{
+  "claim": "C-013",
+  "text": "Flags tasks where passing candidates disagree.",
+  "scope": "Seeded ambiguous and unambiguous tasks with at least two passing candidates.",
+  "thresholds": {
+    "ambiguous_flagged": 1.0,
+    "unambiguous_flagged": 0.0
+  },
+  "command": "uv run ssw prove --claim C-013",
+  "mode": "quick",
+  "source_digest": "4a9c0ac68351b3695deb9a5a842c39429f6d2beb37edb3fd9c7b9ca5d584f539",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-19T08:30:34+00:00",
+  "sections": {
+    "seeded": {
+      "recorded": "2026-10-19T08:30:34+00:00",
+      "tasks": [
+        {
+          "task": "round-price",
+          "track": "general",
+          "ambiguous": true,
+          "status": "done",
+          "candidates": [
+            {
+              "family": "alpha",
+              "status": "done"
+            },
+            {
+              "family": "beta",
+              "status": "done"
+            }
+          ],
+          "passing": 2,
+          "flagged": true,
+          "uncertain": true,
+          "splits": [
+            {
+              "kind": "test",
+              "name": ".ssw-probe.c0.tests.test_pricing_alpha::test_halves_round_up",
+              "outcomes": {
+                "0": "passed",
+                "1": "failed"
+              },
+              "detail": ""
+            },
+            {
+              "kind": "test",
+              "name": ".ssw-probe.c1.tests.test_pricing_beta::test_halves_round_to_even",
+              "outcomes": {
+                "0": "failed",
+                "1": "passed"
+              },
+              "detail": ""
+            }
+          ],
+          "winner": 0
+        },
+        {
+          "task": "title-slug",
+          "track": "general",
+          "ambiguous": true,
+          "status": "done",
+          "candidates": [
+            {
+              "family": "alpha",
+              "status": "done"
+            },
+            {
+              "family": "beta",
+              "status": "done"
+            }
+          ],
+          "passing": 2,
+          "flagged": true,
+          "uncertain": true,
+          "splits": [
+            {
+              "kind": "test",
+              "name": ".ssw-probe.c0.tests.test_text_alpha::test_hyphens",
+              "outcomes": {
+                "0": "passed",
+                "1": "failed"
+              },
+              "detail": ""
+            },
+            {
+              "kind": "test",
+              "name": ".ssw-probe.c1.tests.test_text_beta::test_underscores",
+              "outcomes": {
+                "0": "failed",
+                "1": "passed"
+              },
+              "detail": ""
+            }
+          ],
+          "winner": 0
+        },
+        {
+          "task": "split-name",
+          "track": "general",
+          "ambiguous": true,
+          "status": "done",
+          "candidates": [
+            {
+              "family": "alpha",
+              "status": "done"
+            },
+            {
+              "family": "beta",
+              "status": "done"
+            }
+          ],
+          "passing": 2,
+          "flagged": true,
+          "uncertain": true,
+          "splits": [
+            {
+              "kind": "test",
+              "name": ".ssw-probe.c0.tests.test_names_alpha::test_first_word_is_first_name",
+              "outcomes": {
+                "0": "passed",
+                "1": "failed"
+              },
+              "detail": ""
+            },
+            {
+              "kind": "test",
+              "name": ".ssw-probe.c1.tests.test_names_beta::test_last_word_is_last_name",
+              "outcomes": {
+                "0": "failed",
+                "1": "passed"
+              },
+              "detail": ""
+            }
+          ],
+          "winner": 0
+        },
+        {
+          "task": "add-numbers",
+          "track": "general",
+          "ambiguous": false,
+          "status": "done",
+          "candidates": [
+            {
+              "family": "alpha",
+              "status": "done"
+            },
+            {
+              "family": "beta",
+              "status": "done"
+            }
+          ],
+          "passing": 2,
+          "flagged": false,
+          "uncertain": false,
+          "splits": [],
+          "winner": 0
+        },
+        {
+          "task": "clamp-range",
+          "track": "general",
+          "ambiguous": false,
+          "status": "done",
+          "candidates": [
+            {
+              "family": "alpha",
+              "status": "done"
+            },
+            {
+              "family": "beta",
+              "status": "done"
+            }
+          ],
+          "passing": 2,
+          "flagged": false,
+          "uncertain": false,
+          "splits": [],
+          "winner": 0
+        },
+        {
+          "task": "even-numbers",
+          "track": "general",
+          "ambiguous": false,
+          "status": "done",
+          "candidates": [
+            {
+              "family": "alpha",
+              "status": "done"
+            },
+            {
+              "family": "beta",
+              "status": "done"
+            }
+          ],
+          "passing": 2,
+          "flagged": false,
+          "uncertain": false,
+          "splits": [],
+          "winner": 0
+        },
+        {
+          "task": "spectrum-scale",
+          "track": "science",
+          "ambiguous": true,
+          "status": "done",
+          "candidates": [
+            {
+              "family": "alpha",
+              "status": "done"
+            },
+            {
+              "family": "beta",
+              "status": "done"
+            }
+          ],
+          "passing": 2,
+          "flagged": true,
+          "uncertain": true,
+          "splits": [
+            {
+              "kind": "output",
+              "name": "peaks/spectrum",
+              "outcomes": {
+                "0": "reference",
+                "1": "differs"
+              },
+              "detail": "1.54 x tol"
+            }
+          ],
+          "winner": 0
+        },
+        {
+          "task": "spectrum-trim",
+          "track": "science",
+          "ambiguous": false,
+          "status": "done",
+          "candidates": [
+            {
+              "family": "alpha",
+              "status": "done"
+            },
+            {
+              "family": "beta",
+              "status": "done"
+            }
+          ],
+          "passing": 2,
+          "flagged": false,
+          "uncertain": false,
+          "splits": [],
+          "winner": 0
+        }
+      ],
+      "ambiguous": 4,
+      "unambiguous": 4,
+      "ambiguous_flagged": 1.0,
+      "unambiguous_flagged": 0.0
+    }
+  }
+}
