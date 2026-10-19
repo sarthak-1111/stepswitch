@@ -33,6 +33,7 @@ from stepswitch.compat.ir import (
     RefusalPart,
     Request,
     Response,
+    StartDelta,
     TextDelta,
     TextPart,
     ToolCallArgsDelta,
@@ -841,3 +842,19 @@ def test_truncated_streams_and_server_errors() -> None:
     assert codec.encode_error(ModelError("rate_limit", "slow down"))[0] == 429
     events = list(codec.encode_stream([TextDelta(text="partial")]))
     assert json.loads(events[-1].data)["error"]["type"] == "api_error"
+
+
+def test_an_eager_stream_opens_the_message_at_the_start_delta() -> None:
+    # The proxy opens streams at once so that `ping` keep-alives can follow (ADR 0029).
+    lazy = list(MessagesCodec().encode_stream(iter([StartDelta(id="msg_1", model="m")])))
+    assert [e.event for e in lazy] == ["error"]  # nothing opened, and the stream ended early
+    eager = MessagesCodec(CodecOptions(extra={"eager_start": True}))
+    deltas = [StartDelta(id="msg_1", model="m"), TextDelta(text="Hi"), FinishDelta(reason="stop")]
+    events = list(eager.encode_stream(iter(deltas)))
+    names = [e.event for e in events]
+    assert names[0] == "message_start" and names[-1] == "message_stop"
+    assert json.loads(events[0].data)["message"]["id"] == "msg_1"
+    failed = list(
+        eager.encode_stream(iter([StartDelta(id="m2"), ErrorDelta(kind="server", message="x")]))
+    )
+    assert [e.event for e in failed] == ["message_start", "error"]

@@ -1150,11 +1150,54 @@ def cmd_agent(
 
 @app.command("proxy")
 def cmd_proxy(
-    port: Annotated[int, typer.Option("--port", help="Port to listen on.")] = 7778,
-    host: Annotated[str, typer.Option("--host", help="Address to bind.")] = "127.0.0.1",
+    ctx: typer.Context,
+    port: Annotated[
+        int, typer.Option("--port", min=1, max=65535, help="Port to listen on (127.0.0.1).")
+    ] = 7778,
+    offline: Annotated[
+        bool | None,
+        typer.Option("--offline/--online", help="Local endpoints only (default: privacy.mode)."),
+    ] = None,
+    allow_remote: Annotated[
+        bool, typer.Option("--allow-remote", help="Let the router use remote endpoints.")
+    ] = False,
+    show_token: Annotated[
+        bool, typer.Option("--show-token", help="Print the proxy's local token.")
+    ] = False,
 ) -> None:
-    """All-format proxy for external harnesses."""
-    _not_yet("proxy", 8)
+    """All-format proxy for external harnesses: one local endpoint, routed per request."""
+    from stepswitch.proxy.app import HOST, INBOUND_ROUTES, token_path
+    from stepswitch.proxy.runtime import ProxyServer, build_service
+
+    state = _state(ctx)
+    if not _port_free(HOST, port):
+        _fail(f"port {port} is in use; choose another with --port")
+    with _user_errors():
+        service = build_service(
+            state.root,
+            state.config,
+            egress=state.egress(),
+            offline=offline,
+            allow_remote=allow_remote,
+        )
+        server = ProxyServer(service, port=port)
+    if not len(service.catalog):
+        typer.echo("warning: no workers are configured (ssw models add / ssw init)", err=True)
+    typer.echo(f"Stepswitch proxy for {state.root}")
+    typer.echo(f"  base URL  {server.base_url}  (formats: {len(INBOUND_ROUTES)} routes)")
+    typer.echo("  models    ssw:auto, ssw:plan, ssw:edit, ssw:fast, ssw:review, or a worker ID")
+    typer.echo(f"  token     {server.token if show_token else token_path(state.root)}")
+    typer.echo(f"  workers   {len(service.catalog)}; offline: {service.settings.offline}")
+    typer.echo("Press Ctrl+C to stop.")
+    try:
+        with _terminate_on_signal(), suppress(KeyboardInterrupt):
+            server.run()
+    except _Terminated:
+        raise typer.Exit(143) from None
+    finally:
+        ended = service.end_tasks(reason="proxy stopped")
+        if ended:
+            typer.echo(f"Recorded {len(ended)} proxy task(s) as stopped.")
 
 
 @bench_app.command("run")

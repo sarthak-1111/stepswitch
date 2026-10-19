@@ -22,6 +22,9 @@ format's references for creating messages, streaming, errors, effort and thinkin
   adds them back for this format only (fields produced from the IR win).
 * `decode_request`, `decode_response` and `encode_response` accept an optional `report` that
   receives whatever the IR cannot carry (block-level cache hints, server-tool blocks, ...).
+* `encode_stream` opens the message (`message_start`) at the first content delta, or at once
+  on the start delta when `CodecOptions.extra["eager_start"]` is true: the proxy does that so
+  that `ping` keep-alives and early errors can follow the start while the upstream is quiet.
 """
 
 from __future__ import annotations
@@ -443,7 +446,7 @@ class MessagesCodec(Codec):
         return body
 
     def encode_stream(self, deltas: Iterable[Delta]) -> Iterator[StreamEvent]:
-        writer = _StreamWriter()
+        writer = _StreamWriter(eager=bool(self.options.extra.get("eager_start")))
         for delta in deltas:
             writer.feed(delta)
             yield from writer.drain()
@@ -1207,7 +1210,8 @@ class _StreamWriter:
     """IR deltas -> the format's event sequence. One content block is open at a time; while a
     tool block is open, deltas for anything else wait until that tool call ends."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, eager: bool = False) -> None:
+        self.eager = eager
         self.events: list[StreamEvent] = []
         self.id: str | None = None
         self.model: str | None = None
@@ -1233,6 +1237,8 @@ class _StreamWriter:
         if isinstance(delta, StartDelta):
             self.id = delta.id or self.id
             self.model = delta.model or self.model
+            if self.eager:
+                self.start()
             return
         if isinstance(delta, UsageDelta):
             self.usage = merge_usage(self.usage, delta.usage)
