@@ -34,6 +34,7 @@ from typing import Any
 from stepswitch import paths, registry
 from stepswitch.config import Config
 from stepswitch.registry import EngineRecipe, ModelEntry
+from stepswitch.serve.airllm import AirLLMEngine
 from stepswitch.serve.base import (
     Engine,
     EngineError,
@@ -42,6 +43,7 @@ from stepswitch.serve.base import (
     pid_alive,
     process_start_time,
 )
+from stepswitch.serve.ktransformers import KTransformersEngine
 from stepswitch.serve.llamacpp import LlamaCppEngine
 from stepswitch.serve.mlx import MlxEngine
 from stepswitch.serve.ollama import OllamaEngine, keep_alive_for, model_name
@@ -54,12 +56,21 @@ DEFAULT_TTL_S = 1800.0
 RAM_FRACTION = 0.75
 POLL_S = 0.25
 STATE_LOCK_TIMEOUT_S = 30.0
-PYTHON_ENGINES = (VllmEngine, SglangEngine, MlxEngine, TransformersEngine)
+PYTHON_ENGINES = (
+    VllmEngine,
+    SglangEngine,
+    MlxEngine,
+    TransformersEngine,
+    # The slow lane (ADR 0030).
+    AirLLMEngine,
+    KTransformersEngine,
+)
 
 
 def default_engines(config: Config) -> dict[str, Engine]:
     """llama.cpp first (preferred for GGUF models), then Ollama, then the Python servers in
-    the order vLLM, SGLang, MLX-LM, transformers, each set up from `[engines.<name>]`."""
+    the order vLLM, SGLang, MLX-LM, transformers, then the slow-lane engines AirLLM and
+    KTransformers, each set up from `[engines.<name>]`."""
     models_dir = config.models_dir()
     settings = _section(config, "engines")
     engines: dict[str, Engine] = {

@@ -95,9 +95,9 @@ class SglangEngine(PythonServerEngine):
     name = ENGINE
     label = "SGLang"
     dist = "sglang"
-    dist_aliases = ("sglang-cpu",)
-    script = "sglang"
-    script_args = ("serve", "--model-type", "llm")
+    dist_aliases: tuple[str, ...] = ("sglang-cpu",)
+    script: str | None = "sglang"
+    script_args: tuple[str, ...] = ("serve", "--model-type", "llm")
     module_args = ("-m", "sglang.launch_server")
     install_hint = (
         "install SGLang in its own environment and set [engines.sglang] python in "
@@ -133,9 +133,9 @@ class SglangEngine(PythonServerEngine):
         extra_args: Sequence[str] = (),
     ) -> list[str]:
         """Launcher + `--model-path <model>` + recipe args (+ extra args) + the owned flags."""
-        recipe = entry.engines.get(ENGINE)
+        recipe = entry.engines.get(self.name)  # profiles (KTransformers) have their own recipe
         recipe_args = list(recipe.args) if recipe else []
-        check_args(recipe_args, FORBIDDEN_FLAGS, f"the SGLang recipe of {entry.id}")
+        check_args(recipe_args, FORBIDDEN_FLAGS, f"the {self.label} recipe of {entry.id}")
         check_args(extra_args, FORBIDDEN_FLAGS, "extra server arguments")
         args = [*recipe_args, *extra_args]
         if ctx_size is not None:

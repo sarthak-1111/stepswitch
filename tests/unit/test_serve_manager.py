@@ -528,7 +528,16 @@ def test_default_engines_include_the_python_servers(tmp_path: Path) -> None:
         }
     )
     engines = manager_module.default_engines(config)
-    assert list(engines) == ["llamacpp", "ollama", "vllm", "sglang", "mlx", "transformers"]
+    assert list(engines) == [
+        "llamacpp",
+        "ollama",
+        "vllm",
+        "sglang",
+        "mlx",
+        "transformers",
+        "airllm",
+        "ktransformers",
+    ]
     vllm = engines["vllm"]
     assert isinstance(vllm, VllmEngine) and vllm.python == "/opt/vllm/bin/python"
     assert vllm.env == {"OMP_NUM_THREADS": "4"} and vllm.models_dir == tmp_path / "models"
