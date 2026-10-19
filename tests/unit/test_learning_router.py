@@ -167,6 +167,33 @@ def test_learning_router_samples_set_the_task_level_prior() -> None:
     assert light.candidates[0].prior == pytest.approx(0.3 + shift)
 
 
+def test_estimates_of_success_use_the_posterior_mean_not_the_sample() -> None:
+    from stepswitch.router.router import RouterState, route
+    from stepswitch.workers.base import WorkerSpec
+
+    one = WorkerSpec(id="gpu/one", endpoint="gpu", model="one", tier="t2")
+    two = WorkerSpec(id="gpu/two", endpoint="gpu", model="two", tier="t2")
+    # the samples rank the workers against their means, as exploring sometimes does
+    learned, means = {one.id: 0.9, two.id: 0.3}, {one.id: 0.4, two.id: 0.7}
+    state = RouterState(step=1, level=1, learned=learned, means=means)
+    edit = route(TaskFeatures(), "edit", state, [one, two])
+    assert edit.chosen == one.id  # the score explores with the sample
+    by_worker = {c.worker: c for c in edit.candidates}
+    assert [by_worker[w].prior for w in (one.id, two.id)] == [0.9, 0.3]
+    assert [by_worker[w].expected_success for w in (one.id, two.id)] == [0.4, 0.7]
+    # without the learning router, the estimate is the prior
+    static = route(TaskFeatures(), "edit", RouterState(step=1, level=1), [one, two])
+    assert all(c.expected is None and c.expected_success == c.prior for c in static.candidates)
+    # a light step shifts the mean as it shifts the sample
+    static_light = route(TaskFeatures(), "navigate", RouterState(step=1, level=1), [one, two])
+    light = route(TaskFeatures(), "navigate", state, [one, two])
+    for cand, light_prior, edit_prior in zip(
+        light.candidates, static_light.candidates, static.candidates, strict=True
+    ):
+        shift = light_prior.prior - edit_prior.prior  # type: ignore[operator]
+        assert cand.expected == pytest.approx(means[cand.worker] + shift)
+
+
 def _run(tmp_path: Path, name: str, **spec: object) -> tuple[Any, Path]:
     from stepswitch.core.orchestrator import run_task
     from stepswitch.core.task import TaskSpec

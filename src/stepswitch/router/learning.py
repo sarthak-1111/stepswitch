@@ -25,6 +25,8 @@ success per context key, and running means of its normalized time and tokens per
   task-level policy of the simulation picks the worker whose sample, minus its expected costs,
   is highest. The production router uses the sample instead of the static task-level prior in
   its own cost-aware score (`RouterState.learned`), which already weighs time per step.
+  Estimates of success, such as those that calibrate the handoff recovery, use the posterior
+  mean instead (`RouterState.means`).
 * **Update.** A finished task adds its outcome (success means the task ended `done`) and its
   normalized costs at every level, for each worker in proportion to the work steps it took.
 

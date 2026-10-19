@@ -309,6 +309,30 @@ def test_an_escalation_switch_above_the_threshold_sends_a_brief(tmp_path: Path) 
     assert events(loop, "switch")[0]["handoff"] is True
 
 
+def test_a_handoff_records_estimates_of_success_not_the_learning_samples(
+    tmp_path: Path,
+) -> None:
+    script = sequence([read("calc.py"), FINISH, FINISH, read("calc.py"), FINISH])
+    workers = [scripted("s/m", "cpu", script), scripted("g/m", "t2", script)]
+    loop = build(
+        tmp_path,
+        workers,
+        FileToolbox(SMALL),
+        StubGates([False, False, True]),
+        settings=ContextSettings(handoff_threshold=10),
+        # the samples rank the weaker worker first; calibration must not learn that
+        learned={"s/m": 0.9, "g/m": 0.2},
+        means={"s/m": 0.3, "g/m": 0.8},
+    )
+    assert loop.run().status == "done"
+    [record] = loop.handoffs
+    assert (record["from_worker"], record["to_worker"]) == ("s/m", "g/m")
+    switch = next(d for d in events(loop, "decision") if d["chosen"] == "g/m")
+    expected = {c["worker"]: c["expected"] for c in switch["candidates"]}
+    assert (record["p_current"], record["p_new"]) == (expected["s/m"], expected["g/m"])
+    assert record["p_new"] > record["p_current"]
+
+
 def test_a_failover_above_the_threshold_starts_from_a_brief(tmp_path: Path) -> None:
     script = sequence([read("calc.py"), read("calc.py", start=1, end=1), FINISH])
     calls = {"n": 0}

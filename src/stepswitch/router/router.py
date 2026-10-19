@@ -97,8 +97,10 @@ class RouterState:
     families: frozenset[str] | None = None
     avoid_families: frozenset[str] = frozenset()
     # The learning router (SPEC §10, ADR 0026): one sampled task-level success per worker id,
-    # drawn at the start of the task, which replaces the static task-level prior.
+    # drawn at the start of the task, which replaces the static task-level prior, and the
+    # posterior means the samples were drawn from.
     learned: dict[str, float] = field(default_factory=dict)
+    means: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -115,10 +117,19 @@ class Candidate:
     excluded: str | None = None
     # True when the escalation rung would exclude this worker but nothing else was eligible.
     relaxed: bool = False
-    # The learning router's sampled task-level success, when it set the prior.
+    # The learning router's sampled task-level success, when it set the prior, and the
+    # posterior mean with the same step adjustment. The score uses the sample, which explores;
+    # estimates of success (`expected_success`) use the mean.
     learned: float | None = None
+    expected: float | None = None
     # SPEC §7.2 terms for switching from the current worker to this one (`SwitchTerms`).
     switch: dict[str, Any] | None = None
+
+    @property
+    def expected_success(self) -> float | None:
+        """The best estimate of this worker's success: the posterior mean when the learning
+        router sampled the prior, otherwise the prior."""
+        return self.expected if self.expected is not None else self.prior
 
 
 @dataclass
@@ -318,6 +329,9 @@ def route(
             shift = cand.prior - prior(spec, "edit", features, base=base)
             cand.learned = sampled
             cand.prior = round(min(0.98, max(0.02, sampled + shift)), 4)
+            mean = state.means.get(spec.id)
+            if mean is not None:
+                cand.expected = round(min(0.98, max(0.02, mean + shift)), 4)
         cand.estimate = est.as_dict()
         cand.score = round((cand.prior + cand.bonus) * value_of_success - est.seconds, 3)
 

@@ -329,8 +329,10 @@ class AgentLoop:
     # only to workers of those families; its review goes to another family (SPEC §8.5).
     candidate: int | None = None
     families: frozenset[str] | None = None
-    # The learning router's sampled task-level success per worker (SPEC §10, ADR 0026).
+    # The learning router's sampled task-level success per worker, and the posterior means
+    # the samples were drawn from (SPEC §10, ADR 0026).
     learned: dict[str, float] = field(default_factory=dict)
+    means: dict[str, float] = field(default_factory=dict)
     # A replay of a recorded run (SPEC §11, ADR 0027): its `trajectory.replay.CandidateReplay`,
     # which answers model and tool calls from the recording until the fork step.
     replay: Any = None
@@ -519,6 +521,7 @@ class AgentLoop:
                 frozenset(self._author_families()) if step_type == "review" else frozenset()
             ),
             learned=dict(self.learned),
+            means=dict(self.means),
         )
         decision = recorded or route(
             self.features,
@@ -959,7 +962,13 @@ class AgentLoop:
         transcript_tokens: int,
         decision: Decision | None = None,
     ) -> None:
-        priors = {c.worker: c.prior for c in decision.candidates} if decision is not None else {}
+        # Calibration learns from these, so they are the router's estimates of success, not the
+        # learning router's samples: a sample can rank a weaker worker above a stronger one.
+        priors = (
+            {c.worker: c.expected_success for c in decision.candidates}
+            if decision is not None
+            else {}
+        )
         record: dict[str, Any] = {
             "task_id": self.task_id,
             "step": self.step,

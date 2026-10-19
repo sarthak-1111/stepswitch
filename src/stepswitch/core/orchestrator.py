@@ -246,8 +246,10 @@ class _Shared:
     opt: dict[str, Any]
     # Best-of-N: `planner(n)` plans n candidates (the first ones never change).
     planner: Callable[[int], list[Any]] | None = None
-    # The learning router's samples for this task (SPEC §10, ADR 0026).
+    # The learning router's samples for this task, and the posterior means they were drawn
+    # from (SPEC §10, ADR 0026).
     learned: dict[str, float] = field(default_factory=dict)
+    means: dict[str, float] = field(default_factory=dict)
     # A replay of a recorded run (SPEC §11, ADR 0027): `trajectory.replay.Replay`.
     replay: Any = None
 
@@ -454,11 +456,11 @@ def run_task(
         )
         if replay is not None:
             # A replay samples nothing and teaches the learning router nothing.
-            shared.learned = replay.learned()
+            shared.learned, shared.means = replay.learned(), replay.means()
             if replay.recording.learning is not None:
                 trajectory.emit("learning", **replay.recording.learning)
         else:
-            learning_settings, shared.learned = _learning_samples(shared)
+            learning_settings, shared.learned, shared.means = _learning_samples(shared)
         count = (
             1 if relay is not None else best_of_n.resolve_count(spec.best_of, features.difficulty)
         )
@@ -672,6 +674,7 @@ def _run_candidate(shared: _Shared, run: _Run) -> None:
             candidate=run.index,
             families=frozenset({plan.family}) if plan is not None else None,
             learned=dict(shared.learned),
+            means=dict(shared.means),
             replay=replay,
             **{**shared.opt, "scrub_paths": scrub},
         )
@@ -1070,8 +1073,9 @@ def _optimization(
     return out
 
 
-def _learning_samples(shared: _Shared) -> tuple[Any, dict[str, float]]:
-    """The learning router's settings and its samples for this task (empty unless it samples).
+def _learning_samples(shared: _Shared) -> tuple[Any, dict[str, float], dict[str, float]]:
+    """The learning router's settings, its samples for this task and the posterior means they
+    were drawn from (both empty unless it samples).
 
     Each worker's cold start is the static edit prior, with the measured base rates when the
     task is optimized; one Beta sample per worker comes from the task's seed (ADR 0026).
@@ -1083,7 +1087,7 @@ def _learning_samples(shared: _Shared) -> tuple[Any, dict[str, float]]:
     if shared.spec.learning is not None:
         settings = dataclasses.replace(settings, mode=shared.spec.learning)
     if not settings.samples:
-        return settings, {}
+        return settings, {}, {}
     bandit = learning.Bandit.from_dict(calibration.load_param(shared.db, learning.BANDIT_KEY))
     base_rates = shared.opt.get("base_rates") or {}
     priors = {
@@ -1093,18 +1097,19 @@ def _learning_samples(shared: _Shared) -> tuple[Any, dict[str, float]]:
     keys = learning.context_keys(shared.features)
     rng = learning.task_rng(shared.spec.seed, shared.task_id)
     samples = bandit.sample(priors, keys, settings, rng)
+    means = {
+        worker: round(bandit.belief(worker, keys, p, settings).success, 4)
+        for worker, p in sorted(priors.items())
+    }
     shared.trajectory.emit(
         "learning",
         mode=settings.mode,
         context=list(keys),
         tasks=bandit.tasks,
         samples=samples,
-        means={
-            worker: round(bandit.belief(worker, keys, p, settings).success, 4)
-            for worker, p in sorted(priors.items())
-        },
+        means=means,
     )
-    return settings, samples
+    return settings, samples, means
 
 
 def _learn_from_outcomes(

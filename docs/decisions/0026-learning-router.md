@@ -47,6 +47,13 @@ Constraints from earlier phases:
      shift, so its cost-aware per-step score is unchanged otherwise (`RouterState.learned`).
    - Sampling per step would make a task switch workers on noise, and every switch costs cache
      and possibly a brief.
+   - The sample is for choosing. Estimates of success, such as the `p_current` and `p_new` of a
+     handoff record that calibrates the handoff recovery (ADR 0024), use the posterior mean
+     with the same shift (`RouterState.means`, `Candidate.expected_success`). The chance of
+     success after a handoff, `p_current + r * (p_new - p_current)`, is linear in the two
+     success rates, so averaging it over their posteriors is the same as using the means. A
+     sample can also rank a weaker worker above a stronger one, which drops the handoff from
+     calibration at random.
 4. **Credit by work share.**
    - A finished task adds its outcome (success means `done`) and its measured time and tokens
      to every level.

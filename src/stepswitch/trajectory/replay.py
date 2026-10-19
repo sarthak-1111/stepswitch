@@ -664,6 +664,10 @@ class Replay:
         learning = self.recording.learning or {}
         return {str(k): float(v) for k, v in (learning.get("samples") or {}).items()}
 
+    def means(self) -> dict[str, float]:
+        learning = self.recording.learning or {}
+        return {str(k): float(v) for k, v in (learning.get("means") or {}).items()}
+
     def plans(self, count: int, fallback: Callable[[int], list[Any]]) -> list[Any]:
         """The recorded plans of the first `count` best-of-N candidates."""
         from stepswitch.verify.best_of_n import Plan
