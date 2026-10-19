@@ -410,3 +410,61 @@ def test_live_embedding_server(tmp_path: Path) -> None:
     finally:
         engine.stop(info, timeout=10.0)
     assert not pid_alive(info.pid)
+
+
+# -- threads in CPU-limited processes ------------------------------------------------------------
+
+
+def fake_sysfs(root: Path, cpus: int, smt: int = 2) -> Path:
+    """`cpus` logical CPUs, `smt` per physical core (siblings numbered next to each other)."""
+    for cpu in range(cpus):
+        topology = root / f"cpu{cpu}" / "topology"
+        topology.mkdir(parents=True)
+        first = cpu - cpu % smt
+        mask = sum(1 << c for c in range(first, first + smt))
+        topology.joinpath("thread_siblings").write_text(f"{mask:08x}\n", encoding="ascii")
+    return root
+
+
+def cpu_max(root: Path, text: str) -> Path:
+    path = root / "cpu.max"
+    path.write_text(text + "\n", encoding="ascii")
+    return path
+
+
+def test_usable_cores_count_physical_cores_inside_an_affinity_mask(tmp_path: Path) -> None:
+    from stepswitch.serve.llamacpp import usable_cores
+
+    sysfs = fake_sysfs(tmp_path / "cpu", 32)
+    unlimited = cpu_max(tmp_path, "max 100000")
+    # A container on CPUs 0-7 of a 32-CPU machine: 8 logical CPUs, 4 physical cores.
+    assert usable_cores(affinity=range(8), online=32, sysfs=sysfs, cpu_max=unlimited) == 4
+    # Nothing limits the process: llama.cpp's own count stands.
+    assert usable_cores(affinity=range(32), online=32, sysfs=sysfs, cpu_max=unlimited) is None
+    # Without topology, one thread per allowed CPU.
+    assert (
+        usable_cores(affinity=[0, 1, 2], online=32, sysfs=tmp_path / "none", cpu_max=unlimited) == 3
+    )
+
+
+def test_usable_cores_follow_a_cgroup_quota(tmp_path: Path) -> None:
+    from stepswitch.serve.llamacpp import cgroup_cpus, usable_cores
+
+    sysfs = fake_sysfs(tmp_path / "cpu", 16)
+    assert cgroup_cpus(cpu_max(tmp_path, "250000 100000")) == 3  # 2.5 CPUs round up
+    assert cgroup_cpus(cpu_max(tmp_path, "max 100000")) is None
+    assert cgroup_cpus(tmp_path / "missing") is None
+    quota = cpu_max(tmp_path, "400000 100000")
+    assert usable_cores(affinity=range(16), online=16, sysfs=sysfs, cpu_max=quota) == 4
+    roomy = cpu_max(tmp_path, "1600000 100000")
+    assert usable_cores(affinity=range(16), online=16, sysfs=sysfs, cpu_max=roomy) is None
+
+
+def test_threads_are_passed_unless_the_recipe_or_extra_args_set_them() -> None:
+    entry = real_entries()["qwen3-4b-instruct-2507"]
+    engine = LlamaCppEngine(command_prefix=PREFIX)
+    cmd = engine.command(entry, Path("m.gguf"), port=1, threads=4)
+    assert cmd[cmd.index("--threads") + 1] == "4" and cmd.index("--threads") < cmd.index("-m")
+    assert "--threads" not in engine.command(entry, Path("m.gguf"), port=1)
+    own = engine.command(entry, Path("m.gguf"), port=1, threads=4, extra_args=["-t", "2"])
+    assert "--threads" not in own and own[own.index("-t") + 1] == "2"

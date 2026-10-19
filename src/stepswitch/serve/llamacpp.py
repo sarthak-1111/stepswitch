@@ -9,10 +9,18 @@ models, or turn on server-side tools (ADR 0008, RESEARCH.md "llama.cpp").
 
 Flags and endpoints were checked against `llama-server --help` and the tag-pinned server README
 of build b11669 (v0.7.0): `/health` is public and answers 503 while the model loads.
+
+Threads: llama.cpp counts the physical cores of the whole machine (the thread-sibling sets of
+every CPU in sysfs) and ignores the CPU affinity mask and the cgroup CPU quota. In a container
+limited to 8 of 32 CPUs it would run 16 threads on 8 CPUs, and its spinning thread barriers
+make that several times slower. When something limits the process, `start` passes `--threads`
+for the physical cores it may use (`usable_cores`), unless the recipe or the extra arguments
+set the thread count.
 """
 
 from __future__ import annotations
 
+import math
 import os
 import re
 import shutil
@@ -148,6 +156,59 @@ def meets_minimum(version: str | None, minimum: str | None) -> bool:
     """True unless both build numbers are known and `version` is older than `minimum`."""
     have, need = build_number(version), build_number(minimum)
     return have is None or need is None or have >= need
+
+
+THREAD_FLAGS = frozenset({"-t", "--threads"})
+SYSFS_CPU = Path("/sys/devices/system/cpu")
+CGROUP_CPU_MAX = Path("/sys/fs/cgroup/cpu.max")
+
+
+def cgroup_cpus(cpu_max: Path = CGROUP_CPU_MAX) -> int | None:
+    """The CPUs a cgroup v2 quota allows (`cpu.max` holds "<quota> <period>"), rounded up;
+    None without a quota."""
+    try:
+        quota, _, period = cpu_max.read_text(encoding="ascii").strip().partition(" ")
+    except OSError:
+        return None
+    if not (quota.isdigit() and period.isdigit()) or int(period) == 0:
+        return None  # "max": no quota
+    return max(1, math.ceil(int(quota) / int(period)))
+
+
+def usable_cores(
+    *,
+    affinity: Sequence[int] | None = None,
+    online: int | None = None,
+    sysfs: Path = SYSFS_CPU,
+    cpu_max: Path = CGROUP_CPU_MAX,
+) -> int | None:
+    """The physical cores this process may use, when something limits it to fewer CPUs than
+    the machine has: a CPU affinity mask, or a cgroup CPU quota below its cores. None when
+    nothing does, or where affinity is unknown (not Linux): llama.cpp's own count is right."""
+    if affinity is None:
+        if not hasattr(os, "sched_getaffinity"):
+            return None
+        affinity = sorted(os.sched_getaffinity(0))
+    if not affinity:
+        return None
+    total = online if online is not None else (os.cpu_count() or len(affinity))
+    siblings: set[str] = set()
+    for cpu in affinity:
+        try:
+            topology = sysfs / f"cpu{cpu}" / "topology" / "thread_siblings"
+            siblings.add(topology.read_text(encoding="ascii").strip())
+        except OSError:
+            siblings = set()  # topology unknown: one thread per allowed CPU
+            break
+    cores = len(siblings) or len(affinity)
+    quota = cgroup_cpus(cpu_max)
+    if len(affinity) >= total and (quota is None or quota >= cores):
+        return None
+    return max(1, min(cores, quota) if quota is not None else cores)
+
+
+def sets_threads(args: Sequence[str]) -> bool:
+    return any(arg.split("=", 1)[0] in THREAD_FLAGS for arg in args)
 
 
 def check_args(args: Sequence[str], source: str) -> None:
@@ -361,10 +422,12 @@ class LlamaCppEngine(Engine):
         api_key: str | None = None,
         slot_save_path: Path | None = None,
         extra_args: Sequence[str] = (),
+        threads: int | None = None,
     ) -> list[str]:
         """Launcher + recipe args (+ extra args) + the flags the adapter owns.
 
         `start` passes no `api_key` here: it hands the key over in the environment instead.
+        `threads` becomes `--threads` unless the recipe or the extra arguments set it.
         """
         recipe = entry.engines.get(ENGINE)
         recipe_args = list(recipe.args) if recipe else []
@@ -373,6 +436,8 @@ class LlamaCppEngine(Engine):
         args = [*recipe_args, *extra_args]
         if ctx_size is not None:
             args = with_ctx_size(args, ctx_size)
+        if threads is not None and not sets_threads(args):
+            args += ["--threads", str(threads)]
         cmd = [*self.launcher(), *args, "-m", str(model_path)]
         cmd += ["--host", LOOPBACK, "--port", str(port)]
         if api_key:
@@ -409,6 +474,7 @@ class LlamaCppEngine(Engine):
         log = log_path or Path(tempfile.gettempdir()) / "stepswitch" / f"{entry.id}.log"
         if slot_save_path is not None:
             slot_save_path.mkdir(parents=True, exist_ok=True)
+        recipe_args = list(recipe.args) if recipe else []
         cmd = self.command(
             entry,
             path,
@@ -416,6 +482,7 @@ class LlamaCppEngine(Engine):
             ctx_size=ctx_size,
             slot_save_path=slot_save_path,
             extra_args=extra_args,
+            threads=None if sets_threads([*recipe_args, *extra_args]) else usable_cores(),
         )
         proc = spawn(cmd, log_path=log, env=server_env(api_key))
         now = time.time()
