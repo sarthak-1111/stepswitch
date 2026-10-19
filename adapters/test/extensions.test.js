@@ -2,7 +2,10 @@
 // (`node --test test/extensions.test.js`, run by tests/unit/test_adapter_extensions.py).
 
 import assert from "node:assert/strict";
+import * as fs from "node:fs";
 import { createServer } from "node:http";
+import * as os from "node:os";
+import * as path from "node:path";
 import { afterEach, test } from "node:test";
 
 import omp from "../omp/index.js";
@@ -14,6 +17,7 @@ const VARIABLES = [
   "STEPSWITCH_SESSION",
   "STEPSWITCH_CONTEXT_TOKENS",
   "STEPSWITCH_ROLE_MODELS",
+  "STEPSWITCH_DENY_RULES",
 ];
 const servers = [];
 
@@ -176,4 +180,48 @@ test("oh-my-pi: a malformed role map still routes every subagent", async () => {
   omp(api);
   const spawn = registered.handlers.before_subagent_spawn;
   assert.equal(spawn({ modelRole: "plan" }).model, "stepswitch/ssw-auto");
+});
+
+// The rules Stepswitch compiles for `deny_paths = ["data/**", "*.pem"]` (`DenyList`).
+const DENY = [
+  { regex: "^data/.*$", dirOnly: false },
+  { regex: "^(?:.*/)?[^/]*\\.pem$", dirOnly: false },
+  { regex: "^data$", dirOnly: true },
+];
+
+for (const [name, load] of [
+  ["pi", pi],
+  ["oh-my-pi", omp],
+]) {
+  test(`${name}: tool calls that name a path of the privacy deny list are blocked`, async () => {
+    await fakeProxy({ worker: "a/small", step: 1, step_type: "edit", reason: "r" });
+    process.env.STEPSWITCH_DENY_RULES = JSON.stringify(DENY);
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "ssw-deny-"));
+    fs.mkdirSync(path.join(cwd, "data"));
+    const { api, registered } = host();
+    load(api);
+    const hook = registered.handlers.tool_call;
+    assert.equal(typeof hook, "function");
+    const call = (toolName, input) => hook({ type: "tool_call", toolName, input }, { cwd });
+    assert.deepEqual(call("read", { path: "data/train.csv" }), {
+      block: true,
+      reason: "data/train.csv is excluded by the privacy deny list",
+    });
+    assert.ok(call("ls", { path: "data" })?.block); // the directory itself
+    assert.ok(call("write", { path: path.join(cwd, "keys", "server.pem") })?.block);
+    assert.ok(call("bash", { command: "head -n 3 'data/train.csv' | wc -l" })?.block);
+    assert.equal(call("edit", { path: "src/app.py" }), undefined);
+    assert.equal(call("read", { path: "metadata/notes.md" }), undefined);
+    assert.equal(call("bash", { command: "pytest -q tests" }), undefined);
+    assert.equal(call("read", { path: path.join(cwd, "..", "data", "x") }), undefined); // outside
+    fs.rmSync(cwd, { recursive: true, force: true });
+  });
+}
+
+test("pi: without a deny list no tool_call hook is registered", async () => {
+  await fakeProxy({ worker: "a/small", step: 1, step_type: "edit", reason: "r" });
+  process.env.STEPSWITCH_DENY_RULES = "not json";
+  const { api, registered } = host();
+  pi(api);
+  assert.equal(registered.handlers.tool_call, undefined);
 });

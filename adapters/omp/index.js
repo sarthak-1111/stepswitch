@@ -6,16 +6,24 @@
 // what configuration cannot: the `before_subagent_spawn` hook, which gives every subagent the
 // slot of its role (from `STEPSWITCH_ROLE_MODELS`), including subagents whose definition names
 // a model of their own, so that the proxy routes each one as that step type. Oh My Pi has no
-// virtual models, so the proxy routes every request.
+// virtual models, so the proxy routes every request. Its `tool_call` hook blocks tool calls that
+// name a path of the privacy deny list.
 //
 // Loaded by the Python adapter with `--trusted-extension <this file>` (an exact allowlist: no
 // other extension loads).
 
-import { MAIN_SLOT, PROVIDER, connect, roleModels } from "../core/stepswitch.js";
+import {
+  MAIN_SLOT,
+  PROVIDER,
+  connect,
+  guardDeniedPaths,
+  roleModels,
+} from "../core/stepswitch.js";
 
 /** @param {import("@oh-my-pi/pi-coding-agent").ExtensionAPI} pi */
 export default function stepswitch(pi) {
   if (connect(process.env) === undefined) return;
+  guardDeniedPaths(pi, process.env);
   const roles = roleModels(process.env);
   const fallback = roles.default ?? `${PROVIDER}/${MAIN_SLOT}`;
   pi.on(

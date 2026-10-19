@@ -15,8 +15,9 @@ requires Python < 3.15) with the stable methods only:
 4. `session/prompt` with the task text. `session/update` notifications become events until the
    prompt answers with a stop reason.
 5. Requests from the agent: `session/request_permission` is answered by the run's permission
-   policy (`decide`); `fs/read_text_file` and `fs/write_text_file` work inside the worktree only;
-   any other method is "method not found".
+   policy (`decide`); `fs/read_text_file` and `fs/write_text_file` work inside the worktree only
+   and never on a path of the privacy deny list (`privacy.deny_paths`), which also refuses
+   permission requests that name such a path; any other method is "method not found".
 6. `cancel()` sends `session/cancel`, answers permission requests that arrive afterwards with
    `cancelled`, waits for the prompt's `cancelled` stop reason, then closes stdin and ends the
    agent's process tree.
@@ -40,6 +41,7 @@ from pathlib import Path
 from typing import IO, Any
 
 from stepswitch import __version__
+from stepswitch.context.deny import DenyList
 from stepswitch.context.proc import kill_tree, popen_kwargs
 from stepswitch.workers.harness import (
     CANCEL_GRACE_SECONDS,
@@ -256,15 +258,20 @@ def choose_option(options: Sequence[Any], allow: bool) -> str | None:
 def decide(
     tool_call: Mapping[str, Any], workdir: Path, settings: HarnessSettings
 ) -> tuple[bool, str]:
-    """The run's permission policy: (allow, why)."""
+    """The run's permission policy: (allow, why). The privacy deny list applies first,
+    whatever the permission."""
     kind = str(tool_call.get("kind") or "other")
-    if settings.permission == "all":
-        return True, "the run allows every tool"
     locations = [
         Path(str(loc.get("path")))
         for loc in tool_call.get("locations") or []
         if isinstance(loc, dict) and loc.get("path")
     ]
+    deny = DenyList(settings.deny_paths)
+    denied = [str(p) for p in locations if deny.denied_path(p, workdir)]
+    if denied:
+        return False, f"excluded by the privacy deny list: {', '.join(denied[:3])}"
+    if settings.permission == "all":
+        return True, "the run allows every tool"
     outside = [str(p) for p in locations if not (p.is_absolute() and path_inside(p, workdir))]
     if kind in READ_KINDS | EDIT_KINDS:
         if outside:
@@ -579,6 +586,8 @@ class AcpRun(RunHandle):
         path = Path(str(raw)) if raw else None
         if path is None or not path.is_absolute() or not path_inside(path, self.workdir):
             raise AcpError(INVALID_PARAMS, f"{raw!r} is not an absolute path inside the worktree")
+        if DenyList(self.settings.deny_paths).denied_path(path, self.workdir):
+            raise AcpError(INVALID_PARAMS, f"{raw!r} is excluded by the privacy deny list")
         return path
 
     def _read_file(self, params: dict[str, Any]) -> dict[str, Any]:

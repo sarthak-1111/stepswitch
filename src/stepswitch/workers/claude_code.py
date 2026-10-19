@@ -12,7 +12,9 @@ other models through a gateway is not supported (docs/RESEARCH.md, Claude Code).
   Bash command prefix (`Bash(<command> *)`, which also matches the bare command); "all" is
   `bypassPermissions`, for sandboxed runs only. The Bash tool is a POSIX shell on every
   platform, so the rule spells the command as the prompt shows it, with Windows paths in
-  forward slashes (`shell_command`); a rule with backslashes never matched on Windows.
+  forward slashes (`shell_command`); a rule with backslashes never matched on Windows. Each
+  `privacy.deny_paths` pattern becomes `Read(<pattern>)` and `Edit(<pattern>)` deny rules in
+  either mode (`deny_rules`).
 * **Isolation.** `CLAUDE_CONFIG_DIR` is the run's own directory, so the user's settings,
   credentials, history and `~/.claude.json` are never read or written. The environment is
   `minimal_env`, so the user's own keys never reach the harness; `ANTHROPIC_AUTH_TOKEN` carries
@@ -31,6 +33,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -55,6 +58,20 @@ RESULT_STOPS: dict[str, tuple[RunStatus, str]] = {
     "error_max_turns": ("stopped", "max_steps"),
     "error_max_budget_usd": ("stopped", "budget_tokens"),
 }
+
+
+def deny_rules(patterns: Sequence[str]) -> list[str]:
+    """`privacy.deny_paths` as the harness's deny rules. Its Read and Edit rules use gitignore
+    syntax: a bare pattern is relative to the working directory (the worktree) and a leading
+    "/" anchors a command-line rule there too, so the patterns pass through unchanged; a
+    single-directory pattern such as `data/**` then denies that directory at any depth, more
+    than the gitignore pattern, never less (docs/RESEARCH.md, Claude Code)."""
+    rules: list[str] = []
+    for pattern in patterns:
+        text = pattern.strip()
+        if text:
+            rules += [f"Read({text})", f"Edit({text})"]
+    return rules
 
 
 class ClaudeCodeAdapter(HarnessAdapter):
@@ -96,7 +113,7 @@ class ClaudeCodeAdapter(HarnessAdapter):
             if prefixes:
                 args += ["--allowedTools", *(f"Bash({prefix} *)" for prefix in prefixes)]
         args += ["--permission-prompts", "none", "--strict-mcp-config"]
-        args += ["--disallowedTools", *WEB_TOOLS]
+        args += ["--disallowedTools", *WEB_TOOLS, *deny_rules(settings.deny_paths)]
         if task.resume:
             args += ["--resume", task.resume]
         else:

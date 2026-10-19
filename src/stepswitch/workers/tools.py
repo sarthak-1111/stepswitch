@@ -32,11 +32,10 @@ from typing import Any
 from stepswitch.compat.ir import ToolSpec
 from stepswitch.context import edits as edit_format
 from stepswitch.context import proc
+from stepswitch.context.deny import DenyList
 from stepswitch.context.walk import (
     SKIP_DIRS,
-    GlobRule,
     IgnoreMatcher,
-    compile_glob,
     iter_files,
     looks_binary,
 )
@@ -396,7 +395,7 @@ class Toolbox:
         self.max_output_chars = max_output_chars
         self.cache_dir = cache_dir
         self.env = dict(env or {})
-        self._deny: list[GlobRule] = self._deny_rules(config)
+        self._deny = DenyList.from_config(config)
         self._seen: dict[str, edit_format.Seen] = {}
         self._repo_map: Any = None
         self._search: Any = None
@@ -542,32 +541,10 @@ class Toolbox:
 
     # -- paths -------------------------------------------------------------------------------
 
-    @staticmethod
-    def _deny_rules(config: Any) -> list[GlobRule]:
-        privacy = getattr(config, "privacy", None)
-        patterns = [str(p) for p in getattr(privacy, "deny_paths", None) or []]
-        # `dir/**` denies everything under `dir`; deny the directory itself as well, so a
-        # listing does not show it. A trailing "/" makes the rule directories-only, and the
-        # leading "/" keeps it anchored like the original pattern.
-        for pattern in list(patterns):
-            base = pattern.strip()[:-3] if pattern.strip().endswith("/**") else ""
-            if base.strip("/"):
-                patterns.append((base if "/" in base else "/" + base) + "/")
-        rules = [compile_glob(p, allow_negation=False) for p in patterns]
-        return [rule for rule in rules if rule is not None]
-
     def denied(self, rel: str, *, is_dir: bool = False) -> bool:
         """Whether a root-relative path (a directory when `is_dir`) is excluded by
         `privacy.deny_paths`."""
-        if not self._deny:
-            return False
-        parts = rel.split("/")
-        for depth in range(1, len(parts) + 1):
-            prefix = "/".join(parts[:depth])
-            prefix_is_dir = depth < len(parts) or is_dir
-            if any(rule.matches(prefix, prefix_is_dir) for rule in self._deny):
-                return True
-        return False
+        return self._deny.denied(rel, is_dir=is_dir)
 
     def resolve(self, raw: str, *, must_exist: bool = True) -> tuple[Path, str]:
         """(absolute path, POSIX path relative to root) for a path the model gave."""

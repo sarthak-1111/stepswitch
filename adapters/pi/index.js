@@ -9,6 +9,8 @@
 // compaction follow the model that answers. The proxy keeps the decision for the request that
 // names the worker.
 //
+// Its `tool_call` hook also blocks tool calls that name a path of the privacy deny list.
+//
 // Loaded by the Python adapter with `--no-extensions -e <this file>`.
 
 import {
@@ -17,6 +19,7 @@ import {
   connect,
   contextTokens,
   estimateTokens,
+  guardDeniedPaths,
   outputTokens,
 } from "../core/stepswitch.js";
 
@@ -26,6 +29,7 @@ export const VIRTUAL_MODEL = "routed";
 export default function stepswitch(pi) {
   const proxy = connect(process.env);
   if (proxy === undefined) return;
+  guardDeniedPaths(pi, process.env);
   const contextWindow = contextTokens(process.env);
   pi.registerVirtualModel({
     provider: PROVIDER,

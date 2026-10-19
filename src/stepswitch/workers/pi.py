@@ -26,6 +26,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from stepswitch.context.deny import DenyList
 from stepswitch.workers.harness import (
     HarnessAdapter,
     HarnessEndpoint,
@@ -171,6 +172,9 @@ class PiAdapter(HarnessAdapter):
             env["STEPSWITCH_CONTEXT_TOKENS"] = str(endpoint.context)
         if settings.offline:
             env["PI_OFFLINE"] = "1"
+        deny = DenyList(settings.deny_paths)
+        if deny:  # the extension's tool_call hook blocks these paths
+            env["STEPSWITCH_DENY_RULES"] = json.dumps(deny.extension_rules())
         directory = self.agent_dir(settings)
         if directory is not None:
             self.write_config(directory, endpoint)

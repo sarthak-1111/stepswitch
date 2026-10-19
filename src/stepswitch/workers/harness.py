@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PureWindowsPath
 from typing import IO, Any, Literal
 
+from stepswitch.context.deny import DenyList
 from stepswitch.context.proc import SECRET_NAME_RE, kill_tree, minimal_env, popen_kwargs, which
 
 Permission = Literal["edits", "all"]
@@ -93,6 +94,9 @@ class HarnessSettings:
     env: Mapping[str, str] = field(default_factory=dict)
     # The project's test command, which the harness may run under the "edits" permission.
     test_command: Sequence[str] | None = None
+    # `privacy.deny_paths`: paths no harness may read or change, whatever the permission
+    # (`context.deny`).
+    deny_paths: Sequence[str] = ()
     # Where the adapter keeps generated config and isolated harness state for this task.
     state_dir: Path | None = None
     # Files for the raw stdout lines and for stderr (None: not kept).
@@ -391,6 +395,7 @@ def harness_settings(config: Any, name: str) -> tuple[HarnessSettings, dict[str,
         timeout_seconds=float(timeout) if timeout is not None else None,
         extra_args=list(args),
         env={str(k): v for k, v in env.items()},
+        deny_paths=tuple(DenyList.from_config(config).patterns),
     )
     settings.merged_env()  # refuses credentials now rather than at the first run
     return settings, {str(k): v for k, v in slots.items()}, bool(table.get("keep_state"))

@@ -5,8 +5,9 @@
   chat-completions format (its key from `STEPSWITCH_PROXY_TOKEN`), one model per slot with the
   endpoint's context window, `model` and `small_model`, the `plan` agent's model, the permission
   policy (edits allowed; shell commands asked, so the ACP client decides, except the test command;
-  web access and paths outside the worktree denied), sharing off and update checks off. Unknown
-  keys are ignored by OpenCode, not rejected.
+  web access and paths outside the worktree denied; reads and edits of the privacy deny list
+  denied, `deny_rules`), sharing off and update checks off. Unknown keys are ignored by OpenCode,
+  not rejected.
 * **Model.** The session's `model` config option is set to the main slot's model when offered.
 * **Egress.** Auto-update, the model-list fetch, default plugins and LSP downloads are off, and
   OpenCode does not read another harness's config directory.
@@ -15,6 +16,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +34,29 @@ PROVIDER = "stepswitch"
 CHAT_PACKAGE = "@ai-sdk/openai-compatible"
 DEFAULT_OUTPUT = 16384
 SLOT_ROLES = ("main", "plan", "fast", "subagent", "review")
+# OpenCode's own read defaults (its permissions page), kept when a `read` map replaces them.
+READ_DEFAULTS = {"*.env": "deny", "*.env.*": "deny", "*.env.example": "allow"}
+
+
+def deny_rules(patterns: Sequence[str]) -> dict[str, str]:
+    """`privacy.deny_paths` as OpenCode permission patterns, each "deny".
+
+    OpenCode's patterns know only `*` (any characters, "/" included) and `?`, and its docs do
+    not say whether a file path is matched relative to the project or absolute, so each
+    gitignore-style pattern becomes a relative form and a `*/` form that also matches absolute
+    paths. Both can deny more than the gitignore pattern does, never less.
+    """
+    rules: dict[str, str] = {}
+    for pattern in patterns:
+        text = pattern.strip().lstrip("/")
+        if text.endswith("/"):
+            text += "*"
+        while "**" in text:
+            text = text.replace("**", "*")
+        if text:
+            rules[text] = "deny"
+            rules[f"*/{text}"] = "deny"
+    return rules
 
 
 class OpenCodeAdapter(AcpAdapter):
@@ -62,6 +87,8 @@ class OpenCodeAdapter(AcpAdapter):
             models.setdefault(
                 slot, {"name": f"Stepswitch {slot.removeprefix('ssw-')}", "limit": limit}
             )
+        # In a pattern map the last matching rule wins: the catch-all first, then the denials.
+        denied = deny_rules(tuple(settings.deny_paths))
         bash: str | dict[str, str] = "allow"
         if settings.permission != "all":
             # In a pattern map the last matching rule wins: ask for everything, run the tests.
@@ -84,7 +111,8 @@ class OpenCodeAdapter(AcpAdapter):
             "small_model": f"{PROVIDER}/{model_id(endpoint.slot('fast'))}",
             "agent": {"plan": {"model": f"{PROVIDER}/{model_id(endpoint.slot('plan'))}"}},
             "permission": {
-                "edit": "allow",
+                "edit": {"*": "allow", **denied} if denied else "allow",
+                **({"read": {"*": "allow", **READ_DEFAULTS, **denied}} if denied else {}),
                 "bash": bash,
                 "webfetch": "deny",
                 "websearch": "deny",
