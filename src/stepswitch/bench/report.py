@@ -165,8 +165,9 @@ def render_markdown(board: Mapping[str, Any]) -> str:
     lines += [
         "",
         f"| Rank | Contestant | Pass rate | {level} interval | Runs | Median wall (s) "
-        "| Median tokens | GPU-s | Escalations | Cache hits | Changed tests | Reference cost |",
-        "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| Median tokens | Median uncached | Median hosted | GPU-s | Escalations | Cache hits "
+        "| Changed tests | Reference cost |",
+        "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for entry in board["contestants"]:
         ci = entry["ci"]
@@ -175,6 +176,8 @@ def render_markdown(board: Mapping[str, Any]) -> str:
             f"| {entry['rank']} | {entry['contestant']} | {_percent(entry['pass_rate'])} "
             f"| {_percent(ci['low'])} to {_percent(ci['high'])} | {entry['runs']} "
             f"| {_number(entry['median_wall_seconds'])} | {_number(entry['median_tokens'], 0)} "
+            f"| {_number(entry.get('median_uncached_tokens'), 0)} "
+            f"| {_number(entry.get('median_hosted_tokens'), 0)} "
             f"| {_number(entry['gpu_seconds'])} | {_percent(entry['escalation_rate'])} "
             f"| {_percent(entry['cache_hit_rate'])} | {entry.get('tests_modified', 0)} "
             f"| {_number(cost, 4) if cost is not None else '-'} |"

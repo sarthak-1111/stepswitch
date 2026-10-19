@@ -170,6 +170,10 @@ class Summary:
     statuses: dict[str, int] = field(default_factory=dict)
     # Runs that changed a protected path (restored before the acceptance commands ran).
     tests_modified: int = 0
+    # Uncached tokens per run: input not served from a prompt cache, plus output (ADR 0028).
+    median_uncached_tokens: float | None = None
+    # Tokens per run that went to hosted models (ADR 0034); None when no run reports them.
+    median_hosted_tokens: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -220,6 +224,10 @@ def _summary(
     walls = sorted(_number(row.get("wall_seconds")) for row in runs)
     tokens = [_tokens(row) for row in runs]
     totals = sorted(t["input"] + t["output"] for t in tokens)
+    uncached = sorted(max(0.0, t["input"] - t["cached_input"]) + t["output"] for t in tokens)
+    hosted = sorted(
+        _number(row.get("hosted_tokens")) for row in runs if row.get("hosted_tokens") is not None
+    )
     input_tokens = sum(t["input"] for t in tokens)
     output_tokens = sum(t["output"] for t in tokens)
     cached = sum(t["cached_input"] for t in tokens)
@@ -246,4 +254,6 @@ def _summary(
         reference_cost=round(cost, 6) if cost is not None else None,
         statuses=dict(Counter(str(row.get("status")) for row in runs)),
         tests_modified=sum(1 for row in runs if row.get("tests_modified")),
+        median_uncached_tokens=quantile(uncached, 0.5) if uncached else None,
+        median_hosted_tokens=quantile(hosted, 0.5) if hosted else None,
     )

@@ -9,6 +9,15 @@ which measures briefs and what a handoff costs in success (SPEC §7.2, §9; ADR 
 best one kept (SPEC §8.3; ADR 0025). Its pool is `--router-pool`, as for `router`; running the
 pool's workers as contestants too gives the comparison of claim C-012.
 
+Two kinds compare Stepswitch with a frontier harness (ADR 0034). `harness:<name>` runs every
+task in that external harness through `ssw proxy`, routed among the `--router-pool` workers
+(`ssw run --harness`). `native:<harness>:<model>` runs the harness alone on its own login and
+the named model, one session per task run, with the prompt a harness run's first attempt gets
+and no routing, gates, retries or review (`stepswitch.bench.native`). Harness runs in the bench
+are isolated from the user's and the enclosing project's customizations. Every row reports its
+tokens per model (`models`), the tokens that went to hosted models (`hosted_tokens`) and whether
+the run ended on an infrastructure error (`infra_error`).
+
 `--baseline` runs the Phase 2 configuration, every token optimization off (`optimize` false in
 `run.json`), for the comparison of SPEC §13 (claim C-011). Optimized runs also write
 `handoffs.jsonl`: one record per HANDOFF brief, with the suite, task, seed and contestant.
@@ -41,7 +50,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from stepswitch import __version__, paths
-from stepswitch.bench import fakes, workspace
+from stepswitch.bench import fakes, native, workspace
 from stepswitch.bench.report import MANIFEST_FILE, RESULTS_FILE, write_report
 from stepswitch.bench.suites import BenchTask, Suite
 from stepswitch.core.task import Budgets, TaskResult, TaskSpec
@@ -49,6 +58,7 @@ from stepswitch.verify import commands
 
 ROUTER = "router"
 RELAY = "relay"
+HARNESS_PREFIX = "harness:"
 BEST_OF_N = "best-of-n"
 POOLED = frozenset({ROUTER, BEST_OF_N})
 HANDOFFS_FILE = "handoffs.jsonl"
@@ -66,6 +76,13 @@ class Contestant:
     name: str
     worker: str | None = None  # every step pinned to this worker; None routes freely
     fake: str | None = None  # a fake contestant kind (`fakes.KINDS`)
+    harness: str | None = None  # runs in this external harness (`harness:` and `native:`)
+    native: str | None = None  # the model of a native run: the harness alone, on its login
+
+    @property
+    def pooled(self) -> bool:
+        """Routes among the `--router-pool` workers."""
+        return self.name in POOLED or (self.harness is not None and self.native is None)
 
 
 def parse_contestants(text: str | None) -> list[Contestant]:
@@ -81,6 +98,17 @@ def parse_contestants(text: str | None) -> list[Contestant]:
                 known = ", ".join(fakes.PREFIX + k for k in fakes.KINDS)
                 raise ValueError(f"unknown fake contestant {name} (known: {known})")
             contestants.append(Contestant(name, worker=fakes.worker_id(kind), fake=kind))
+        elif name.startswith(HARNESS_PREFIX):
+            from stepswitch.workers.harness import adapters
+
+            harness = name.removeprefix(HARNESS_PREFIX)
+            if harness not in adapters():
+                known = ", ".join(HARNESS_PREFIX + n for n in sorted(adapters()))
+                raise ValueError(f"unknown harness contestant {name} (known: {known})")
+            contestants.append(Contestant(name, harness=harness))
+        elif name.startswith(native.PREFIX):
+            harness, model = native.parse(name)
+            contestants.append(Contestant(name, harness=harness, native=model))
         else:
             contestants.append(Contestant(name, worker=name))
     if not contestants:
@@ -158,7 +186,7 @@ def _router_pool(
 ) -> list[str] | None:
     """The worker ids the `router` and `best-of-n` contestants route among, recorded in the
     manifest: the given pool, or every configured worker when none is given."""
-    if all(c.name not in POOLED for c in contestants) or config is None:
+    if all(not c.pooled for c in contestants) or config is None:
         return list(options.router_pool) if options.router_pool else None
     from stepswitch.workers.catalog import Catalog
 
@@ -291,8 +319,20 @@ def run_one(
     workspace.init_repo(repo)
     budgets = Budgets(**{**options.budgets.model_dump(exclude_none=True), **task.budgets})
     relay = list(options.relay or []) if contestant.name == RELAY else []
-    pool = list(options.router_pool or []) if contestant.name in POOLED else relay
+    pool = list(options.router_pool or []) if contestant.pooled else relay
     best_of = options.best_of if contestant.name == BEST_OF_N else 1
+    if contestant.native is not None:
+        return _run_native(
+            task,
+            contestant,
+            seed,
+            suite=suite,
+            repo=repo,
+            place=place,
+            budgets=budgets,
+            options=options,
+            config=config,
+        )
     spec = TaskSpec(
         instruction=task.instruction,
         repo=repo,
@@ -309,6 +349,8 @@ def run_one(
         relay_step=options.relay_step,
         best_of=best_of,
         learning=options.learning,
+        harness=contestant.harness,
+        isolated=contestant.harness is not None,
     )
     catalog = fakes.catalog_for(contestant.fake, task) if contestant.fake else None
     row: dict[str, Any] = {
@@ -372,6 +414,16 @@ def run_one(
             "finished": _now(),
         }
     )
+    usage = result.usage_by_worker if result is not None else {}
+    row["models"] = {
+        worker: {
+            **{k: int(counts.get(k) or 0) for k in ("calls", "input", "cached_input", "output")},
+            "hosted": not counts.get("local"),
+        }
+        for worker, counts in sorted(usage.items())
+    }
+    row["hosted_tokens"] = hosted_tokens(row["models"])
+    row["infra_error"] = "error" in row
     if not options.keep:
         workspace.remove_tree(place)
     if briefs:
@@ -385,6 +437,116 @@ def run_one(
             }
             for record in briefs
         ]
+    return row
+
+
+def hosted_tokens(models: Mapping[str, Mapping[str, Any]]) -> int:
+    """Input plus output tokens of a row's hosted models."""
+    return sum(
+        int(counts.get("input") or 0) + int(counts.get("output") or 0)
+        for counts in models.values()
+        if counts.get("hosted")
+    )
+
+
+def _run_native(
+    task: BenchTask,
+    contestant: Contestant,
+    seed: int,
+    *,
+    suite: Suite,
+    repo: Path,
+    place: Path,
+    budgets: Budgets,
+    options: BenchOptions,
+    config: Any,
+) -> dict[str, Any]:
+    """One task run of a native contestant (`stepswitch.bench.native`): its results row."""
+    assert contestant.harness is not None and contestant.native is not None
+    row: dict[str, Any] = {
+        "suite": suite.name,
+        "task": task.id,
+        "track": task.track,
+        "tags": list(task.tags),
+        "contestant": contestant.name,
+        "seed": seed,
+        "started": _now(),
+    }
+    outcome: native.NativeResult | None = None
+    try:
+        outcome = native.run_native(
+            task,
+            repo,
+            harness=contestant.harness,
+            model=contestant.native,
+            acceptance=acceptance_commands(task),
+            place=place,
+            config=config,
+            budgets=budgets,
+            keep=options.keep,
+        )
+    except Exception as exc:  # noqa: BLE001 - a crashed run is a failed row, not a crashed bench
+        row["error"] = f"{type(exc).__name__}: {exc}"[:500]
+    check = check_acceptance(
+        task,
+        outcome.diff if outcome is not None else "",
+        place / "check",
+        protected=suite.protected,
+        timeout=options.acceptance_timeout,
+        config=config,
+    )
+    models = {
+        name: {**counts, "hosted": True}
+        for name, counts in sorted((outcome.models if outcome is not None else {}).items())
+    }
+    totals = {
+        key: sum(int(counts.get(key) or 0) for counts in models.values())
+        for key in ("input", "output", "cached_input", "cache_write")
+    }
+    row.update(
+        {
+            "status": outcome.status if outcome is not None else "error",
+            "stop_reason": outcome.stop_reason if outcome is not None else "error",
+            "passed": check.passed,
+            "acceptance": check.commands,
+            "tests_modified": check.tests_modified,
+            "apply_error": check.apply_error,
+            "steps": outcome.turns if outcome is not None else 0,
+            "switches": 0,
+            "escalations": 0,
+            "failovers": 0,
+            "handoffs": 0,
+            "compactions": 0,
+            "context": {},
+            "best_of": 1,
+            "candidates": [],
+            "winner": None,
+            "uncertain": False,
+            "endpoints": [],
+            "changed_files": outcome.changed_files if outcome is not None else [],
+            "tokens": {**totals, "reasoning": 0},
+            "models": models,
+            "hosted_tokens": hosted_tokens(models),
+            "harness": {
+                "name": contestant.harness,
+                "model": contestant.native,
+                "reported_model": outcome.model if outcome is not None else None,
+                "version": outcome.version if outcome is not None else None,
+                "auth": outcome.auth if outcome is not None else None,
+                "turns": outcome.turns if outcome is not None else 0,
+                "tool_calls": outcome.tool_calls if outcome is not None else 0,
+                "reported_cost": outcome.reported_cost if outcome is not None else None,
+                "detail": outcome.detail if outcome is not None else "",
+            },
+            "infra_error": "error" in row or bool(outcome is not None and outcome.infra_error),
+            "wall_seconds": outcome.wall_seconds if outcome is not None else 0.0,
+            "gpu_seconds": 0.0,
+            "task_id": None,
+            "finished": _now(),
+        }
+    )
+    if not options.keep:
+        workspace.remove_tree(place)
     return row
 
 
@@ -440,6 +602,16 @@ def run_bench(
         manifest["best_of"] = options.best_of
     if options.learning != "off":
         manifest["learning"] = options.learning
+    harnesses = sorted({c.harness for c in contestants if c.harness is not None})
+    if harnesses:
+        manifest["harnesses"] = _harness_versions(harnesses, config)
+        manifest["isolated_harnesses"] = True
+    natives = [c for c in contestants if c.native is not None]
+    for harness in sorted({c.harness for c in natives if c.harness is not None}):
+        from stepswitch.workers.harness import get_adapter
+
+        names = ", ".join(c.name for c in natives if c.harness == harness)
+        echo(native.NOTICE.format(title=get_adapter(harness).title, names=names))
     manifest_path = out_dir / MANIFEST_FILE
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
     results = out_dir / RESULTS_FILE
@@ -480,6 +652,20 @@ def run_bench(
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
     write_report(out_dir)
     return out_dir
+
+
+def _harness_versions(names: Sequence[str], config: Any) -> dict[str, str | None]:
+    """The installed version of each harness a bench runs (recorded in the manifest)."""
+    from stepswitch.workers.harness import get_adapter, harness_settings
+
+    versions: dict[str, str | None] = {}
+    for name in names:
+        try:
+            settings = harness_settings(config, name)[0]
+        except ValueError:
+            settings = None
+        versions[name] = get_adapter(name).version(settings)
+    return versions
 
 
 def passed_from(row: Mapping[str, Any]) -> bool:

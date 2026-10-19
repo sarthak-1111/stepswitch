@@ -1576,7 +1576,10 @@ def bench_run(
         str | None,
         typer.Option(
             "--workers",
-            help="Comma-separated contestants: `router`, `best-of-n`, worker ids, or"
+            help="Comma-separated contestants: `router`, `best-of-n`, worker ids,"
+            " `harness:<name>` (an external harness through ssw proxy, routed among the"
+            " router pool), `native:<harness>:<model>` (the harness alone on its own login and"
+            " model: a frontier baseline; its usage counts against that account), or"
             " `fake:oracle`/`fake:noop`.",
         ),
     ] = None,
@@ -1737,7 +1740,14 @@ def bench_run(
 def _check_contestants(
     state: AppState, contestants: Sequence[Any], pool: Sequence[str] | None = None
 ) -> None:
-    """Fail before the first run when a named worker is not configured."""
+    """Fail before the first run when a named worker is not configured or a harness is not
+    installed."""
+    from stepswitch.workers.harness import HarnessMissing, get_adapter, harness_settings
+
+    for name in sorted({c.harness for c in contestants if c.harness is not None}):
+        adapter = get_adapter(name)
+        if adapter.executable(harness_settings(state.config, name)[0]) is None:
+            raise ValueError(str(HarnessMissing(adapter)))
     named = [c.name for c in contestants if c.worker is not None and c.fake is None]
     named += list(pool or [])
     if not named:

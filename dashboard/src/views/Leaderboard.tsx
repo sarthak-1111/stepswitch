@@ -183,6 +183,16 @@ function ContestantsTable({ board }: { board: Leaderboard }) {
             <th scope="col" className="num">
               Median tokens
             </th>
+            <th
+              scope="col"
+              className="num"
+              title="Input not served from a prompt cache, plus output"
+            >
+              Median uncached tokens
+            </th>
+            <th scope="col" className="num" title="Tokens sent to hosted models">
+              Median hosted tokens
+            </th>
             <th scope="col" className="num">
               Cache hit rate
             </th>
@@ -220,6 +230,8 @@ function ContestantsTable({ board }: { board: Leaderboard }) {
               <td className="num">{formatInt(entry.runs)}</td>
               <td className="num">{formatDuration(entry.median_wall_seconds)}</td>
               <td className="num">{formatInt(entry.median_tokens)}</td>
+              <td className="num">{formatInt(entry.median_uncached_tokens)}</td>
+              <td className="num">{formatInt(entry.median_hosted_tokens)}</td>
               <td className="num">{formatPercent(entry.cache_hit_rate)}</td>
               <td className="num">{formatNumber(entry.gpu_seconds, 1)}</td>
               <td className="num">{formatPercent(entry.escalation_rate)}</td>

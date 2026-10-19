@@ -366,6 +366,8 @@ export interface Contestant {
   ci?: Interval | null;
   median_wall_seconds?: number | null;
   median_tokens?: number | null;
+  median_uncached_tokens?: number | null;
+  median_hosted_tokens?: number | null;
   input_tokens?: number;
   output_tokens?: number;
   cached_input_tokens?: number;
