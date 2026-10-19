@@ -1,4 +1,4 @@
-"""C-011: uses fewer tokens than the unoptimized baseline at the same pass rate.
+"""C-011: uses fewer uncached tokens than the unoptimized baseline at the same pass rate.
 
 Proof (SPEC §18.5): bench evidence comparing the Phase 2 baseline with the optimized
 configuration; the public text carries the measured percentage. Scope: the mini bench suites,
@@ -9,18 +9,18 @@ The baseline is the same code with every token optimization of SPEC §13 switche
 agent's behaviour. For each mini suite the test takes the newest optimized run and the newest
 baseline run with the same suite, contestants, router pool, tasks and seeds, and compares:
 
-* tokens: input plus output tokens over all task runs, from the result rows (cached input
-  tokens count as input; the ledger of each run is what the rows add up);
+* the claimed measure (`thresholds.measure`): uncached tokens, the input tokens the server did
+  not serve from its prompt cache plus the output tokens, from the result rows (the ledger of
+  each run is what the rows add up). ADR 0028 narrowed the claim from all tokens to these;
 * pass rate: the share of task runs whose acceptance commands passed.
 
-The claim holds when every suite uses fewer tokens and passes at least as often, and, with the
-`significant` threshold, when the reduction over both suites together is significant: its
-confidence interval (a cluster bootstrap over tasks, each task's runs of both configurations
-kept together; `stepswitch.bench.metrics.bootstrap_ratio_ci`) lies above the minimum
-reduction. Run-to-run variation in the number of steps is large, so a point estimate alone
-would be noise (ADR 0024). The README number is the reduction over both suites together. The
-evidence also reports uncached tokens (input not served from the server's prefix cache, plus
-output), which is what a server has to compute.
+The claim holds when every suite uses less of the measure and passes at least as often, and,
+with the `significant` threshold, when the reduction over both suites together is significant:
+its confidence interval (a cluster bootstrap over tasks, each task's runs of both
+configurations kept together; `stepswitch.bench.metrics.bootstrap_ratio_ci`) lies above the
+minimum reduction. Run-to-run variation in the number of steps is large, so a point estimate
+alone would be noise (ADR 0024). The README number is the claimed reduction over both suites
+together. The evidence also reports all tokens (input plus output) with their interval.
 """
 
 from __future__ import annotations
@@ -59,6 +59,9 @@ def uncached(row: dict[str, Any]) -> int:
     counts = row.get("tokens") or {}
     used = int(counts.get("input") or 0) - int(counts.get("cached_input") or 0)
     return max(0, used) + int(counts.get("output") or 0)
+
+
+MEASURES = {"tokens": tokens, "uncached": uncached}
 
 
 def summary(run: Run) -> dict[str, Any]:
@@ -109,12 +112,17 @@ def reduction(cluster_list: list[tuple[float, float]], confidence: float) -> dic
 def test_optimized_uses_fewer_tokens_at_same_pass_rate() -> None:
     limits = evidence.thresholds("C-011")
     confidence = float(limits.get("confidence_level", metrics.DEFAULT_CONFIDENCE))
+    # What the claim counts (ADR 0028): "uncached" tokens or all "tokens".
+    measure_name = str(limits.get("measure", "tokens"))
+    assert measure_name in MEASURES, measure_name
+    measure = MEASURES[measure_name]
     found = pairs()
     assert set(found) == set(SUITES), f"no baseline/optimized pair for {set(SUITES) - set(found)}"
     suites: dict[str, Any] = {}
     problems = []
     all_tokens: list[tuple[float, float]] = []
     all_uncached: list[tuple[float, float]] = []
+    all_claimed: list[tuple[float, float]] = []
     for suite, (baseline, optimized) in found.items():
         base, opt = summary(baseline), summary(optimized)
         assert base["runs"] == opt["runs"] > 0, (suite, base["runs"], opt["runs"])
@@ -122,27 +130,34 @@ def test_optimized_uses_fewer_tokens_at_same_pass_rate() -> None:
         by_uncached = clusters(baseline, optimized, uncached)
         all_tokens += by_tokens
         all_uncached += by_uncached
-        measured = reduction(by_tokens, confidence)
+        by_claimed = clusters(baseline, optimized, measure)
+        all_claimed += by_claimed
+        total = reduction(by_tokens, confidence)
+        claimed = reduction(by_claimed, confidence)
         suites[suite] = {
             "baseline": base,
             "optimized": opt,
-            "token_reduction_percent": measured["percent"],
-            "token_reduction_interval": measured["interval"],
+            "token_reduction_percent": total["percent"],
+            "token_reduction_interval": total["interval"],
             "uncached_reduction": reduction(by_uncached, confidence),
+            "claimed": {"measure": measure_name, **claimed},
         }
-        if measured["percent"] is None or measured["percent"] <= limits["token_reduction_pct_min"]:
-            problems.append(f"{suite}: {measured['percent']}% fewer tokens")
+        if claimed["percent"] is None or claimed["percent"] <= limits["token_reduction_pct_min"]:
+            problems.append(f"{suite}: {claimed['percent']}% fewer {measure_name} tokens")
         if limits["pass_rate_not_lower"] and opt["pass_rate"] < base["pass_rate"]:
             problems.append(f"{suite}: pass rate {opt['pass_rate']} < {base['pass_rate']}")
     base_total = sum(s["baseline"]["tokens"] for s in suites.values())
     opt_total = sum(s["optimized"]["tokens"] for s in suites.values())
     overall = round(100.0 * (1.0 - opt_total / base_total), 1)
     interval = reduction(all_tokens, confidence)["interval"]
-    if limits.get("significant") and interval["low"] <= limits["token_reduction_pct_min"]:
+    claimed_overall = reduction(all_claimed, confidence)
+    claimed_overall["percent"] = round(claimed_overall["percent"], 1)
+    low = claimed_overall["interval"]["low"]
+    if limits.get("significant") and low <= limits["token_reduction_pct_min"]:
         problems.append(
-            f"overall: {overall}% fewer tokens, but the {confidence:.0%} interval"
-            f" ({interval['low']}% to {interval['high']}%) does not lie above"
-            f" {limits['token_reduction_pct_min']}%"
+            f"overall: {claimed_overall['percent']}% fewer {measure_name} tokens, but the"
+            f" {confidence:.0%} interval ({low}% to {claimed_overall['interval']['high']}%)"
+            f" does not lie above {limits['token_reduction_pct_min']}%"
         )
     evidence.write(
         "C-011",
@@ -154,9 +169,14 @@ def test_optimized_uses_fewer_tokens_at_same_pass_rate() -> None:
             "token_reduction_percent": overall,
             "token_reduction_interval": interval,
             "uncached_reduction": reduction(all_uncached, confidence),
+            "claimed": {"measure": measure_name, **claimed_overall},
             "problems": problems,
+            # `ssw prove --claim C-011` recomputes every number from the committed bench runs;
+            # these commands produce new runs (each run's run.json records its own).
+            "bench_commands": [
+                "uv run ssw bench run --suite <suite> --baseline ...",
+                "uv run ssw bench run --suite <suite> ...",
+            ],
         },
-        command="uv run ssw bench run --suite <suite> --baseline ... ; uv run ssw bench run "
-        "--suite <suite> ... (commands in each run's run.json); uv run ssw prove --claim C-011",
     )
     assert not problems, problems

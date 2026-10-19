@@ -101,7 +101,7 @@ claims:
       - tests/claims/test_c003_switch_cost.py::test_switch_iff_gain_exceeds_cost_plus_margin
     thresholds: {min_examples: 1000, violations: 0}
     evidence: [claims/evidence/C-003.json]
-    status: pending
+    status: passing
 
   - id: C-004
     text: "Speaks the chat-completions, responses, messages and generate-content API formats, plus engine-native formats."
@@ -227,13 +227,16 @@ claims:
       - tests/claims/test_c010_handoff.py::test_bench_handoffs_validate_and_fit_token_budget
     thresholds: {schema_valid: 1.0, max_tokens: 1500, min_handoffs: 20}
     evidence: [claims/evidence/C-010.json]
-    status: pending
+    status: passing
 
   - id: C-011
-    text: "Uses fewer tokens than the unoptimized baseline at the same pass rate."
+    text: "Uses fewer uncached tokens than the unoptimized baseline at the same pass rate."
+    narrowed_by: docs/decisions/0028-c011-counts-uncached-tokens.md
     scope: >-
-      The mini bench suites, optimized configuration vs the Phase 2 baseline. The public text
-      will carry the measured percentage, rendered from evidence.
+      The mini bench suites, optimized configuration vs the Phase 2 baseline. Uncached tokens
+      are the input tokens the server did not serve from its prompt cache, plus the output
+      tokens (ADR 0028). The public text will carry the measured percentage, rendered from
+      evidence.
     proof: >-
       Bench evidence comparing P2 baseline vs optimized; claim text uses the measured
       percentage.
@@ -242,15 +245,15 @@ claims:
     tests:
       - tests/claims/test_c011_token_savings.py::test_optimized_uses_fewer_tokens_at_same_pass_rate
     thresholds:
-      {token_reduction_pct_min: 0, pass_rate_not_lower: true, significant: true,
-       confidence_level: 0.95}
+      {measure: uncached, token_reduction_pct_min: 0, pass_rate_not_lower: true,
+       significant: true, confidence_level: 0.95}
     evidence: [claims/evidence/C-011.json]
     readme_numbers:
-      - key: sections.comparison.token_reduction_percent
-        label: fewer tokens than the unoptimized baseline on the mini suites
+      - key: sections.comparison.claimed.percent
+        label: fewer uncached tokens than the unoptimized baseline on the mini suites
         unit: "%"
         digits: 1
-    status: pending
+    status: passing
 
   - id: C-012
     text: "Best-of-N across model families passes at least as many tasks as the best single worker."
