@@ -9,8 +9,10 @@ and events refer to them by hash.
 Event types written by the built-in agent: task_start, catalog, classify, learning, ladder,
 decision, switch, step, aux, tool, compress, context, handoff, gates, escalation, review,
 model_error, budget, task_end (and best_of_n, candidate_start, candidate_end and selection for
-best-of-N). Model answers (`response_blob`), long tool outputs (`output_blob`, `raw_blob`) and
-compressions (`output_blob`) are kept whole as blobs, so `trajectory.replay` can replay a run.
+best-of-N). A slow-lane review job appends slow_review and review_comment events to a finished
+task (`core.jobs`). Model answers (`response_blob`), long tool outputs (`output_blob`,
+`raw_blob`) and compressions (`output_blob`) are kept whole as blobs, so `trajectory.replay` can
+replay a run.
 """
 
 from __future__ import annotations
@@ -79,6 +81,15 @@ class Trajectory:
         # Fields added to every event of a view (`tagged`); the owner keeps the sequence.
         self.fields: dict[str, Any] = {}
         self._owner: Trajectory | None = None
+
+    @classmethod
+    def resume(cls, root: Path, task_id: str, *, db: StateDB | None = None) -> Trajectory:
+        """The trajectory of an earlier task, to append to (a slow-lane review's comments):
+        its sequence continues from the last recorded event."""
+        trajectory = cls(root, task_id, db=db)
+        for event in iter_events(trajectory.run_dir):
+            trajectory.seq = max(trajectory.seq, int(event.get("seq") or 0))
+        return trajectory
 
     def tagged(self, **fields: Any) -> Trajectory:
         """A view whose events also carry `fields` (a best-of-N candidate's index, say). It

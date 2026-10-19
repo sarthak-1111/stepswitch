@@ -104,6 +104,9 @@ class TaskSpec(BaseModel):
     # The learning router (SPEC §10, ADR 0026): on, frozen or off; None follows
     # `[router.learning]` (on by default). Bench runs set off, so their routing is reproducible.
     learning: Literal["on", "frozen", "off"] | None = None
+    # The task runs as a slow-lane job (`ssw jobs`, ADR 0030), so its pinned worker may be a
+    # slow-lane worker; an interactive task refuses one.
+    slow_lane: bool = False
 
 
 def new_task_id() -> str:

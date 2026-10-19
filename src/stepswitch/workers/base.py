@@ -17,9 +17,12 @@ from stepswitch.compat.ir import Request
 
 ToolProtocol = Literal["native", "fallback"]
 
-# Rungs of the escalation ladder (SPEC §7.3): T0 -> T1/T2 -> T3 -> remote (opt-in).
-LEVEL_BY_TIER: dict[str, int] = {"cpu": 0, "t1": 1, "t2": 1, "t3": 2, "remote": 3}
+# Rungs of the escalation ladder (SPEC §7.3): T0 -> T1/T2 -> T3 -> remote (opt-in). The slow
+# lane ("sl", ADR 0030) runs T3-class models but only for asynchronous jobs: its workers are
+# pin-only, so the ladder never reaches them.
+LEVEL_BY_TIER: dict[str, int] = {"cpu": 0, "t1": 1, "t2": 1, "t3": 2, "remote": 3, "sl": 2}
 TIER_NAMES: tuple[str, ...] = tuple(LEVEL_BY_TIER)
+SLOW_TIER = "sl"
 
 
 @runtime_checkable

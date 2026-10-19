@@ -38,10 +38,15 @@ bench_app = typer.Typer(
 )
 policy_app = typer.Typer(help="Show or edit the project policy.", no_args_is_help=True)
 router_app = typer.Typer(help="What the learning router has learned.", no_args_is_help=True)
+jobs_app = typer.Typer(
+    help="The slow-lane queue: asynchronous reviews and tasks for very large models.",
+    no_args_is_help=True,
+)
 app.add_typer(models_app, name="models")
 app.add_typer(bench_app, name="bench")
 app.add_typer(policy_app, name="policy")
 app.add_typer(router_app, name="router")
+app.add_typer(jobs_app, name="jobs")
 
 DEBUG_ENV = "STEPSWITCH_DEBUG"
 
@@ -923,6 +928,198 @@ def router_stats(
         )
 
 
+# -- the slow-lane job queue (ADR 0030) -------------------------------------------------------
+
+
+def _job_line(job: Any) -> str:
+    target = job.task_id or ((job.payload or {}).get("spec") or {}).get("instruction", "")
+    outcome = job.error or ""
+    result = job.result or {}
+    if not outcome and job.kind == "review" and result.get("review"):
+        verdict = result["review"]
+        outcome = (
+            f"{'approved' if verdict.get('approved') else 'not approved'},"
+            f" {result.get('comments', 0)} comment(s) by {result.get('reviewer')}"
+        )
+    elif not outcome and job.kind == "task" and result.get("task_id"):
+        outcome = f"task {result['task_id']}: {result.get('status')}"
+    return f"{job.id}  {job.kind:6} {job.status:9} {str(target)[:40]:40} {outcome}".rstrip()
+
+
+@jobs_app.command("submit")
+def jobs_submit(
+    ctx: typer.Context,
+    kind: Annotated[str, typer.Argument(help="review (a finished task) or task (a new one).")],
+    instruction: Annotated[
+        str | None, typer.Argument(help="For a task job: what to do, in plain language.")
+    ] = None,
+    task: Annotated[
+        str | None, typer.Option("--task", help="For a review job: the task to review.")
+    ] = None,
+    worker: Annotated[
+        str | None,
+        typer.Option("--worker", help="The worker (default: the first slow-lane worker)."),
+    ] = None,
+    track: Annotated[str, typer.Option("--track", help="general or science.")] = "general",
+    acceptance: Annotated[
+        list[str] | None,
+        typer.Option("--acceptance", help="Extra command that must pass (repeat)."),
+    ] = None,
+    json_out: Annotated[bool, typer.Option("--json", help="Print the job as JSON.")] = False,
+) -> None:
+    """Queue a job for the slow lane; `ssw jobs run` processes the queue."""
+    from stepswitch.core import jobs
+    from stepswitch.state import open_project_state
+
+    state = _state(ctx)
+    payload: dict[str, Any] = {}
+    if kind == "task":
+        if not instruction:
+            _fail('a task job needs the instruction: ssw jobs submit task "<what to do>"')
+        if track not in ("general", "science"):
+            _fail("--track must be general or science")
+        payload["spec"] = {
+            "instruction": instruction,
+            "repo": str(state.root),
+            "track": track,
+            "acceptance": acceptance or [],
+        }
+    elif instruction:
+        _fail("a review job takes --task, not an instruction")
+    with _user_errors():
+        db = open_project_state(state.root)
+        try:
+            job = jobs.submit(db, kind, task_id=task, worker=worker, payload=payload)
+        finally:
+            db.close()
+    if json_out:
+        _print_json(job.as_dict())
+    else:
+        typer.echo(f"Queued job {job.id} ({kind}); run the queue with `ssw jobs run`.")
+
+
+@jobs_app.command("list")
+def jobs_list(
+    ctx: typer.Context,
+    status: Annotated[
+        str | None,
+        typer.Option("--status", help="queued, running, done, failed or cancelled."),
+    ] = None,
+    task: Annotated[str | None, typer.Option("--task", help="Only jobs about this task.")] = None,
+    limit: Annotated[int, typer.Option("--limit", help="At most this many jobs.")] = 50,
+    json_out: Annotated[bool, typer.Option("--json", help="Print the jobs as JSON.")] = False,
+) -> None:
+    """List jobs, newest first."""
+    from stepswitch.core import jobs
+    from stepswitch.state import open_project_state
+
+    state = _state(ctx)
+    if status is not None and status not in jobs.STATUSES:
+        _fail("--status must be one of " + ", ".join(jobs.STATUSES))
+    db = open_project_state(state.root)
+    try:
+        found = jobs.list_jobs(db, status=status, task_id=task, limit=limit)
+    finally:
+        db.close()
+    if json_out:
+        _print_json({"jobs": [job.as_dict() for job in found]})
+        return
+    if not found:
+        typer.echo("No jobs.")
+    for job in found:
+        typer.echo(_job_line(job))
+
+
+@jobs_app.command("show")
+def jobs_show(
+    ctx: typer.Context,
+    job_id: Annotated[str, typer.Argument(help="The job.")],
+    json_out: Annotated[bool, typer.Option("--json", help="Print the job as JSON.")] = False,
+) -> None:
+    """Show a job and, for a review, its comments."""
+    from stepswitch.core import jobs
+    from stepswitch.state import open_project_state
+
+    state = _state(ctx)
+    db = open_project_state(state.root)
+    try:
+        job = jobs.get(db, job_id)
+    finally:
+        db.close()
+    if job is None:
+        _fail(f"no job {job_id}")
+    if json_out:
+        _print_json(job.as_dict())
+        return
+    typer.echo(_job_line(job))
+    review = (job.result or {}).get("review") or {}
+    for issue in review.get("issues") or []:
+        where = issue.get("file") or "-"
+        if issue.get("line"):
+            where = f"{where}:{issue['line']}"
+        typer.echo(f"  [{issue.get('severity')}] {where}: {issue.get('note')}")
+
+
+@jobs_app.command("run")
+def jobs_run(
+    ctx: typer.Context,
+    max_jobs: Annotated[
+        int | None, typer.Option("--max-jobs", help="Stop after this many jobs.")
+    ] = None,
+    json_out: Annotated[bool, typer.Option("--json", help="Print the jobs as JSON.")] = False,
+) -> None:
+    """Run queued jobs, oldest first, until the queue is empty (for example overnight)."""
+    from stepswitch.core import jobs
+    from stepswitch.state import open_project_state
+    from stepswitch.workers.catalog import Catalog
+
+    state = _state(ctx)
+    egress = state.egress()
+    timeout = jobs.timeout_seconds(state.config)
+    echo = (lambda _msg: None) if json_out else typer.echo
+    db = open_project_state(state.root)
+    try:
+        with _user_errors():
+            ran = jobs.run_queue(
+                root=state.root,
+                config=state.config,
+                db=db,
+                catalog_factory=lambda: Catalog.from_config(
+                    state.config, state.root, egress=egress, db=db, timeout=timeout
+                ),
+                egress=egress,
+                echo=echo,
+                max_jobs=max_jobs,
+            )
+    finally:
+        db.close()
+    if json_out:
+        _print_json({"jobs": [job.as_dict() for job in ran]})
+    elif not ran:
+        typer.echo("The queue is empty.")
+    if any(job.status == "failed" for job in ran):
+        raise typer.Exit(1)
+
+
+@jobs_app.command("cancel")
+def jobs_cancel(
+    ctx: typer.Context,
+    job_id: Annotated[str, typer.Argument(help="The job.")],
+) -> None:
+    """Cancel a queued or running job."""
+    from stepswitch.core import jobs
+    from stepswitch.state import open_project_state
+
+    state = _state(ctx)
+    db = open_project_state(state.root)
+    try:
+        with _user_errors():
+            job = jobs.cancel(db, job_id)
+    finally:
+        db.close()
+    typer.echo(f"Job {job.id}: {job.status}")
+
+
 @app.command("audit")
 def cmd_audit(
     ctx: typer.Context,
@@ -1141,6 +1338,13 @@ def cmd_run(
             help="Token and cache optimizations (default: [context] optimize, on).",
         ),
     ] = None,
+    slow_review: Annotated[
+        bool,
+        typer.Option(
+            "--slow-review",
+            help="When the task is done, queue a slow-lane review of its change (`ssw jobs`).",
+        ),
+    ] = False,
     json_out: Annotated[bool, typer.Option("--json", help="Print the result as JSON.")] = False,
 ) -> None:
     """Run a task with step-level model routing."""
@@ -1186,6 +1390,18 @@ def cmd_run(
             _fail(f"unknown harness {harness!r} (harnesses: {', '.join(sorted(adapters()))})")
     result = _run_one(state, spec, json_out=json_out)
     _show_result(result, json_out=json_out)
+    if slow_review and result.status == "done" and result.diff.strip():
+        from stepswitch.core import jobs
+        from stepswitch.state import open_project_state
+
+        db = open_project_state(state.root)
+        try:
+            with _user_errors():
+                job = jobs.submit(db, "review", task_id=result.task_id)
+        finally:
+            db.close()
+        if not json_out:
+            typer.echo(f"Slow-lane review queued: job {job.id} (`ssw jobs run` processes it)")
     code = _exit_code(result.status)
     if code:
         raise typer.Exit(code)
@@ -1234,7 +1450,7 @@ def cmd_agent(
 
 
 # --------------------------------------------------------------------------------------------
-# Later phases (options are fixed now; bodies arrive with their phase)
+# Proxy, bench, dashboard and replay
 # --------------------------------------------------------------------------------------------
 
 

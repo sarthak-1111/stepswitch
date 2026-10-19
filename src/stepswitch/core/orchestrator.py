@@ -36,6 +36,7 @@ from stepswitch.router.features import TaskFeatures
 from stepswitch.router.rules import Rule, RuleError, rules_from_config
 from stepswitch.state import StateDB, open_project_state
 from stepswitch.trajectory.record import Trajectory
+from stepswitch.workers.base import SLOW_TIER
 
 if TYPE_CHECKING:
     from stepswitch.config import Config
@@ -420,6 +421,11 @@ def run_task(
         if spec.worker and pinned is None:
             known = ", ".join(sorted(catalog.workers)) or "none configured"
             raise ValueError(f"unknown worker {spec.worker!r} (workers: {known})")
+        if pinned is not None and pinned.spec.tier == SLOW_TIER and not spec.slow_lane:
+            raise ValueError(
+                f"{pinned.spec.id} is a slow-lane worker, for asynchronous jobs only: queue the"
+                " task with `ssw jobs submit task` (or a review with `ssw run --slow-review`)"
+            )
         if pinned is not None and pinned.spec.id != spec.worker:
             spec = spec.model_copy(update={"worker": pinned.spec.id})
         allow_remote = spec.allow_remote or (pinned is not None and not pinned.spec.local)

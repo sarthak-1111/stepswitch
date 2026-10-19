@@ -669,6 +669,28 @@ def _info_routes(app: FastAPI, services: Services) -> None:
     def science(task: str | None = None) -> dict[str, Any]:
         return {"reports": queries.science(services.db(), services.root, task=task)}
 
+    @app.get("/api/jobs")
+    def list_jobs(
+        status: str | None = None,
+        task: str | None = None,
+        limit: int = Query(50, ge=1, le=1000),
+    ) -> dict[str, Any]:
+        from stepswitch.core import jobs
+
+        if status is not None and status not in jobs.STATUSES:
+            raise HTTPException(422, "status is one of " + ", ".join(jobs.STATUSES))
+        found = jobs.list_jobs(services.db(), status=status, task_id=task, limit=limit)
+        return {"jobs": [job.as_dict() for job in found]}
+
+    @app.get("/api/jobs/{job_id}")
+    def get_job(job_id: str) -> dict[str, Any]:
+        from stepswitch.core import jobs
+
+        job = jobs.get(services.db(), job_id)
+        if job is None:
+            raise _not_found("job")
+        return job.as_dict()
+
 
 def _model_routes(app: FastAPI, services: Services) -> None:
     @app.get("/api/endpoints")

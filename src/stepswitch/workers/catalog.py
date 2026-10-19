@@ -25,7 +25,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from stepswitch.compat import forwarding
-from stepswitch.workers.base import StepModel, ToolProtocol, Worker, WorkerSpec
+from stepswitch.workers.base import SLOW_TIER, StepModel, ToolProtocol, Worker, WorkerSpec
+
+# Engines whose models are slow-lane workers (tier "sl", ADR 0030): asynchronous jobs only.
+SLOW_ENGINES = frozenset({"airllm", "ktransformers"})
+SLOW_NOTE = "slow lane: asynchronous jobs only (`ssw jobs`)"
 
 if TYPE_CHECKING:
     from stepswitch.config import Config, EndpointConfig
@@ -350,12 +354,13 @@ class Catalog:
                     calibration=_latest_calibration(db, endpoint.name, model),
                 )
                 parser, parser_notes = _table_tool_parser(table)
+                slow = facts.tier == SLOW_TIER or endpoint.engine in SLOW_ENGINES
                 spec = WorkerSpec(
                     id=f"{endpoint.name}/{model}",
                     endpoint=endpoint.name,
                     model=model,
                     format=fmt,
-                    tier=facts.tier,
+                    tier=SLOW_TIER if slow else facts.tier,
                     family=facts.family,
                     local=local,
                     roles=facts.roles,
@@ -368,7 +373,9 @@ class Catalog:
                     registry_id=facts.registry_id,
                     notes=facts.notes
                     + parser_notes
-                    + ((f"counts as remote: {forwards}",) if forwards else ()),
+                    + ((f"counts as remote: {forwards}",) if forwards else ())
+                    + ((SLOW_NOTE,) if slow else ()),
+                    pin_only=slow,
                     reasoning=facts.reasoning,
                     tokenizer=facts.tokenizer,
                     cache_ratio=facts.cache_ratio,
@@ -399,12 +406,16 @@ class Catalog:
                     min(c for c in (facts.context, ctx) if c) if facts.context or ctx else None
                 )
                 parser, parser_notes = _table_tool_parser(table)
+                # Served only by slow-lane engines, or declared slow: asynchronous jobs only.
+                slow = facts.tier == SLOW_TIER or bool(
+                    entry.engines and set(entry.engines) <= SLOW_ENGINES
+                )
                 spec = WorkerSpec(
                     id=f"managed/{entry.id}",
                     endpoint="managed",
                     model=entry.id,
                     format="chat-completions",
-                    tier=facts.tier,
+                    tier=SLOW_TIER if slow else facts.tier,
                     family=facts.family,
                     local=True,
                     roles=facts.roles,
@@ -416,8 +427,8 @@ class Catalog:
                     decode_tps=facts.decode_tps,
                     gpu=False,
                     registry_id=entry.id,
-                    notes=facts.notes + parser_notes,
-                    pin_only=pin_only,
+                    notes=facts.notes + parser_notes + ((SLOW_NOTE,) if slow else ()),
+                    pin_only=pin_only or slow,
                     reasoning=facts.reasoning,
                     tokenizer=facts.tokenizer,
                     cache_ratio=facts.cache_ratio,
