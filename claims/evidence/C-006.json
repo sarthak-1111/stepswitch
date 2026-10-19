@@ -8,7 +8,7 @@
   },
   "command": "uv run ssw prove --claim C-006",
   "mode": "quick",
-  "source_digest": "b654df0ea59e191abdbf1e2491070c5298116fc98128043e16e3cd80d97be7a1",
+  "source_digest": "1461db4cc46d97d4a9f2d63e724f503021bd258215ddff14d79f48def548b4ef",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -20,10 +20,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-19T10:00:22+00:00",
+  "updated": "2026-10-19T10:33:03+00:00",
   "sections": {
     "flow": {
-      "recorded": "2026-10-19T10:00:22+00:00",
+      "recorded": "2026-10-19T10:33:03+00:00",
       "flow": [
         {
           "argv": [
@@ -45,7 +45,7 @@
             "--json"
           ],
           "exit_code": 0,
-          "seconds": 5.71,
+          "seconds": 5.66,
           "stderr_tail": []
         },
         {
@@ -56,10 +56,10 @@
             "--limit",
             "1000",
             "--task",
-            "t20261019-190016-2bff04"
+            "t20261019-193257-c9babe"
           ],
           "exit_code": 0,
-          "seconds": 0.51,
+          "seconds": 0.45,
           "stderr_tail": []
         },
         {
@@ -71,10 +71,10 @@
             "--limit",
             "1000",
             "--task",
-            "t20261019-190016-2bff04"
+            "t20261019-193257-c9babe"
           ],
           "exit_code": 0,
-          "seconds": 0.45,
+          "seconds": 0.46,
           "stderr_tail": []
         }
       ],
@@ -95,9 +95,9 @@
           "kind": "connect",
           "event": "socket.connect",
           "family": 2,
-          "address": "('127.0.0.1', 50312)",
+          "address": "('127.0.0.1', 60272)",
           "host": "127.0.0.1",
-          "port": 50312,
+          "port": 60272,
           "outbound": false
         },
         {
@@ -105,9 +105,9 @@
           "kind": "connect",
           "event": "socket.connect",
           "family": 2,
-          "address": "('127.0.0.1', 50312)",
+          "address": "('127.0.0.1', 60272)",
           "host": "127.0.0.1",
-          "port": 50312,
+          "port": 60272,
           "outbound": false
         },
         {
@@ -115,9 +115,9 @@
           "kind": "connect",
           "event": "socket.connect",
           "family": 2,
-          "address": "('127.0.0.1', 50312)",
+          "address": "('127.0.0.1', 60272)",
           "host": "127.0.0.1",
-          "port": 50312,
+          "port": 60272,
           "outbound": false
         },
         {
@@ -125,9 +125,9 @@
           "kind": "connect",
           "event": "socket.connect",
           "family": 2,
-          "address": "('127.0.0.1', 50312)",
+          "address": "('127.0.0.1', 60272)",
           "host": "127.0.0.1",
-          "port": 50312,
+          "port": 60272,
           "outbound": false
         },
         {
@@ -135,9 +135,9 @@
           "kind": "connect",
           "event": "socket.connect",
           "family": 2,
-          "address": "('127.0.0.1', 50312)",
+          "address": "('127.0.0.1', 60272)",
           "host": "127.0.0.1",
-          "port": 50312,
+          "port": 60272,
           "outbound": false
         },
         {
@@ -145,9 +145,9 @@
           "kind": "connect",
           "event": "socket.connect",
           "family": 2,
-          "address": "('127.0.0.1', 50312)",
+          "address": "('127.0.0.1', 60272)",
           "host": "127.0.0.1",
-          "port": 50312,
+          "port": 60272,
           "outbound": false
         },
         {
@@ -155,9 +155,9 @@
           "kind": "connect",
           "event": "socket.connect",
           "family": 2,
-          "address": "('127.0.0.1', 50312)",
+          "address": "('127.0.0.1', 60272)",
           "host": "127.0.0.1",
-          "port": 50312,
+          "port": 60272,
           "outbound": false
         },
         {
@@ -165,9 +165,9 @@
           "kind": "connect",
           "event": "socket.connect",
           "family": 2,
-          "address": "('127.0.0.1', 50312)",
+          "address": "('127.0.0.1', 60272)",
           "host": "127.0.0.1",
-          "port": 50312,
+          "port": 60272,
           "outbound": false
         }
       ],
@@ -238,7 +238,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "rev-parse"
@@ -253,7 +253,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "rev-parse"
@@ -268,7 +268,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "rev-parse"
@@ -283,7 +283,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "worktree"
@@ -344,7 +344,7 @@
             "--verify",
             "--quiet",
             "--end-of-options",
-            "7ac1ac319e7339ff0d198b7a20b2bec7db94dfa5^{commit}"
+            "292de823de3674265b42e853bc1b26935c852b9d^{commit}"
           ],
           "outbound": false
         },
@@ -475,7 +475,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "rev-parse"
@@ -490,7 +490,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "read-tree"
@@ -505,7 +505,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "-c"
@@ -520,7 +520,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "ls-files"
@@ -535,7 +535,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "diff"
@@ -550,7 +550,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "read-tree"
@@ -565,7 +565,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "-c"
@@ -580,7 +580,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "ls-files"
@@ -595,7 +595,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "diff"
@@ -610,7 +610,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "read-tree"
@@ -625,7 +625,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "-c"
@@ -640,7 +640,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "ls-files"
@@ -655,7 +655,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "diff"
@@ -670,7 +670,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "read-tree"
@@ -685,7 +685,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "-c"
@@ -700,7 +700,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "ls-files"
@@ -715,7 +715,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "diff"
@@ -730,7 +730,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "read-tree"
@@ -745,7 +745,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "-c"
@@ -760,7 +760,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "ls-files"
@@ -775,7 +775,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "write-tree"
@@ -790,7 +790,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "rev-parse"
@@ -805,7 +805,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "-c"
@@ -820,7 +820,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "update-ref"
@@ -835,7 +835,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "reset"
@@ -850,7 +850,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "branch"
@@ -865,7 +865,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "worktree"
@@ -880,7 +880,7 @@
           "argv": [
             "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
             "-c",
-            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-828\\c0060\\project\\.stepswitch\\wt\\.nohooks",
             "-c",
             "core.longpaths=true",
             "worktree"
@@ -894,18 +894,18 @@
       "outbound": []
     },
     "audit": {
-      "recorded": "2026-10-19T10:00:22+00:00",
+      "recorded": "2026-10-19T10:33:03+00:00",
       "rule": "destinations (host, port) of the task's audit rows equal the destinations the `ssw run` process connected to, minus sockets it bound itself",
       "observed": [
         [
           "127.0.0.1",
-          50312
+          60272
         ]
       ],
       "audited": [
         [
           "127.0.0.1",
-          50312
+          60272
         ]
       ],
       "audit_rows": 8,

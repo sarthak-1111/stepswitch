@@ -12,7 +12,7 @@
   },
   "command": "uv run ssw prove --claim C-015",
   "mode": "quick",
-  "source_digest": "b654df0ea59e191abdbf1e2491070c5298116fc98128043e16e3cd80d97be7a1",
+  "source_digest": "1461db4cc46d97d4a9f2d63e724f503021bd258215ddff14d79f48def548b4ef",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -24,10 +24,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-19T10:03:49+00:00",
+  "updated": "2026-10-19T10:36:31+00:00",
   "sections": {
     "simulation": {
-      "recorded": "2026-10-19T10:03:49+00:00",
+      "recorded": "2026-10-19T10:36:31+00:00",
       "worlds": 30,
       "rounds": 4000,
       "workers": [

@@ -350,7 +350,7 @@ claims:
       - tests/claims/test_c017_quickstart.py::test_install_to_first_task_under_five_minutes
     thresholds: {max_minutes_excluding_downloads: 5, cpus: 8, memory_limit_gb: 8, final_status: done}
     evidence: [claims/evidence/C-017.json]
-    status: pending
+    status: passing
 
   - id: C-018
     text: "Every number in this README is reproducible."

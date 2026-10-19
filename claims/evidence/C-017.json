@@ -1,0 +1,91 @@
+{
+  "claim": "C-017",
+  "text": "Goes from install to first completed task in under 5 minutes on a CPU-only machine.",
+  "scope": "Scripted quickstart (install.sh, ssw init, ssw models pull --tier cpu, ssw run) in a clean CPU-only Linux container with 8 CPUs and 8 GB of memory, on a toy project with its own virtual environment; the task must end done with the project's tests passing. Model download time is reported separately and excluded; the engine install and every other step count (ADR 0033).",
+  "thresholds": {
+    "max_minutes_excluding_downloads": 5,
+    "cpus": 8,
+    "memory_limit_gb": 8,
+    "final_status": "done"
+  },
+  "command": "uv run ssw prove --claim C-017",
+  "mode": "quick",
+  "source_digest": "1461db4cc46d97d4a9f2d63e724f503021bd258215ddff14d79f48def548b4ef",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-19T10:39:57+00:00",
+  "sections": {
+    "quickstart": {
+      "recorded": "2026-10-19T10:39:57+00:00",
+      "image": "python:3.12-slim",
+      "image_digests": [
+        "python@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1"
+      ],
+      "wheel": "stepswitch-0.1.0.dev0-py3-none-any.whl",
+      "docker_flags": [
+        "--memory=8g",
+        "--memory-swap=8g",
+        "--cpuset-cpus=0-7"
+      ],
+      "container": {
+        "machine": "x86_64",
+        "system": "Linux",
+        "cgroup": {
+          "memory.max": "8589934592",
+          "memory.swap.max": "0",
+          "memory.peak": "8588734464"
+        }
+      },
+      "usable_cpus": 8,
+      "gpu_devices_visible": 0,
+      "steps_seconds": {
+        "install": 28.1,
+        "init": 0.4,
+        "engine_install": 2.9,
+        "first_task": 155.9
+      },
+      "total_seconds": 187.3,
+      "total_minutes": 3.12,
+      "excluded": {
+        "model_pull_seconds": 0.3,
+        "model_files": "mounted read-only from the host's verified store",
+        "model_bytes": 4783005064,
+        "tier_models": [
+          "qwen2.5-coder-1.5b",
+          "qwen3-4b-instruct-2507",
+          "qwen3-embedding-0.6b"
+        ],
+        "installed": [
+          "qwen2.5-coder-1.5b",
+          "qwen3-4b-instruct-2507",
+          "qwen3-embedding-0.6b"
+        ],
+        "downloaded": []
+      },
+      "engine": {
+        "name": "llamacpp",
+        "status": "installed",
+        "tag": "b11669"
+      },
+      "final_status": "done",
+      "stop_reason": null,
+      "task_steps": 9,
+      "gates": {
+        "format": "skipped",
+        "lint": "skipped",
+        "typecheck": "skipped",
+        "impacted_tests": "passed",
+        "full_tests": "passed"
+      }
+    }
+  }
+}

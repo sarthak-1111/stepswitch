@@ -1,8 +1,8 @@
 # Prove report
 
 - Mode: quick
-- Created: 2026-10-19T10:07:34+00:00
-- Source digest: `b654df0ea59e191abdbf1e2491070c5298116fc98128043e16e3cd80d97be7a1`
+- Created: 2026-10-19T10:43:26+00:00
+- Source digest: `1461db4cc46d97d4a9f2d63e724f503021bd258215ddff14d79f48def548b4ef`
 - Platform: windows amd64, Python 3.12.15
 
 | Claim | Status | Tests |
@@ -23,6 +23,7 @@
 | C-014 | passing | test_replay_reproduces_diffs_and_gate_results: passed |
 | C-015 | passing | test_bandit_regret_below_random_and_fixed_policies: passed |
 | C-016 | pending | test_prove_quick_passed_on_linux_macos_windows: skipped |
+| C-017 | passing | test_install_to_first_task_under_five_minutes: passed |
 | C-018 | passing | test_every_readme_number_has_evidence_and_command: passed |
 | C-019 | passing | test_ledger_matches_server_usage_within_one_percent: passed |
 | C-020 | passing | test_tiny_budgets_stop_with_status_and_bounded_overrun: passed |
