@@ -3806,3 +3806,154 @@ Sources: https://docs.sglang.io/advanced_features/server_arguments.html,
   - gitleaks sets a minimum per rule, from 2 to 3.5; its generic rule uses 3.5.
   - The redactor counts a value as random when it mixes letters and digits at 3.0 or more, or
     when it has at least 32 characters at 3.5 or more.
+
+## Verified during Phase 10
+
+These are the facts behind the launch work: the docs site (ADR 0032), and the installers, the
+release workflow and the C-017 measurement (ADR 0033). Each was read in the project's
+documentation, package metadata or source on 2026-10-19.
+
+### Docs site tools (checked 2026-10-19)
+
+| Tool | Latest (date) | License | Status |
+|---|---|---|---|
+| MkDocs 1.x | 1.6.1 (2024-08-30) | BSD-2-Clause | no release since |
+| MkDocs 2.0 | pre-releases only, 2.0.dev0 (2026-08-28) to 2.0.dev6 (2026-09-15) | none in the wheel | not released |
+| Material for MkDocs | 9.7.7 (2026-07-17) | MIT | maintenance mode since 9.7.0 (2025-11-11); critical and security fixes until 2027-05-05 |
+| Zensical | 0.0.71 (2026-10-16) | MIT | alpha; the 0.1 "dependable release line" is planned for 2026-11-05 |
+| Sphinx | 9.1.0 (2025-12-31) | BSD-2-Clause | maintained |
+| MyST-Parser | 5.1.0 (2026-05-13) | MIT | maintained |
+| Furo | 2025.12.19 | MIT | maintained |
+
+- **MkDocs 2.0.dev6** (wheel read directly): a rewrite with no plugin API that reads no config
+  file yet. It stops with "Found mkdocs.yml config, but mkdocs 2.0 pre-release is installed".
+  Material for MkDocs pins `mkdocs<2` since 9.7.5.
+- **Zensical**: `zensical new|build|serve`. It reads `zensical.toml` and "natively reads
+  mkdocs.yml". The default theme loads web fonts from a font CDN in the reader's browser
+  unless `[project.theme] font = false`. The 0.0.71 sdist has no telemetry or update check.
+- **Sphinx 9.1.0 needs Python ≥ 3.12; 9.0.4 supports 3.11.** With `sphinx>=9.0.4,<10` in a
+  dependency group, `uv lock` forks: 9.0.4 below Python 3.12, 9.1.0 from 3.12 (checked in
+  uv.lock).
+- **MyST-Parser 5.1.0** requires Sphinx `>=8,<10`, docutils `>=0.20,<0.23` and markdown-it-py
+  `~=4.2`. **Furo 2025.12.19** requires Sphinx `>=7,<10`. Its wheel has no network code and no
+  external fonts.
+- **Math.** `sphinx.ext.mathjax` loads MathJax from cdn.jsdelivr.net on pages that contain
+  math. `mathjax_path` can point at a vendored copy. MyST parses math only with the
+  `dollarmath` or `amsmath` extensions.
+- **Observed in the build of `docs/site`** (Sphinx 9.1.0, MyST-Parser 5.1.0, Furo):
+  - A link to a local file that is not a page becomes a download, copied under `_downloads/`.
+  - `myst_heading_anchors` gives headings slugs, so `[text](#heading)` links resolve.
+  - The `source-read` event hands the handler `(app, docname, source)`, where `source` is a
+    one-item list. Replacing `source[0]` changes the text that is parsed.
+  - JSON code blocks holding placeholders (`[TaskSummary, ...]`) raise a highlighting
+    warning, which `-W` turns into an error.
+  - No built page or stylesheet references a remote asset. The only remote URLs are plain
+    links, such as the theme's footer credits.
+- Sources: https://pypi.org/project/mkdocs/#history,
+  https://squidfunk.github.io/mkdocs-material/blog/2026/02/18/mkdocs-2.0/,
+  https://zensical.org/docs/compatibility/mkdocs/, https://pypi.org/project/Sphinx/,
+  https://pypi.org/project/myst-parser/, https://pypi.org/project/furo/,
+  https://www.sphinx-doc.org/en/master/extdev/event_callbacks.html,
+  https://myst-parser.readthedocs.io/en/latest/syntax/cross-referencing.html
+
+### Release workflow (checked 2026-10-19)
+
+- **`pypa/gh-action-pypi-publish` v1.14.2 (2026-07-29).**
+  - The job needs `permissions: id-token: write`, with no stored credentials. The README's
+    example sets `environment: {name: pypi, url: https://pypi.org/p/<name>}`.
+  - The action is a container action, so it runs on Linux jobs only, and not in jobs with
+    `container:`.
+  - PEP 740 attestations are on by default with trusted publishing since v1.11.0.
+  - `verbose` and `print-hash` are on by default since v1.14.0.
+- **`uv build`** builds the sdist, then the wheel from that sdist. The docs recommend
+  `uv build --no-sources` before publishing.
+- **Hatch `artifacts`** includes files the VCS ignores and is not affected by `exclude`.
+  Because the wheel is built from the sdist, the sdist must list the built dashboard. Verified:
+  `uv build --no-sources` with `[tool.hatch.build.targets.sdist] artifacts =
+  ["dashboard/dist/**"]` gave a wheel holding `stepswitch/_dashboard/index.html` and an sdist
+  with neither `.stepswitch/` nor `node_modules/`.
+- **The GitHub CLI** sends pseudonymous telemetry by default from 2.91.0 (2026-04-22), and its
+  docs do not exempt CI. `GH_TELEMETRY=false` or `DO_NOT_TRACK=true` turns it off.
+  `gh release create <tag> <files> --verify-tag --notes-file <file>` creates a release from an
+  existing tag.
+- **git-cliff 2.14.2** (2026-09-18) is MIT OR Apache-2.0 and ships wheels on the package
+  index, so `uvx git-cliff@2.14.2` runs it. `--latest --strip header` prints the newest
+  release's notes without the changelog header.
+- **Pinned actions.** These are the commits the tags point to, from `git ls-remote` on
+  2026-10-19:
+
+  | Action | Tag | Commit |
+  |---|---|---|
+  | actions/checkout | v7.0.1 | 3d3c42e5aac5ba805825da76410c181273ba90b1 |
+  | actions/setup-node | v7.1.0 | 949feb2413d6458794dcd2491c4babbbce0c15c1 |
+  | astral-sh/setup-uv | v10.3.0 | 1c37ad07a6a961277cf70c0d37d6f313000f5884 |
+  | actions/upload-artifact | v7.0.2 | cf430e030ddbb5b0abf93d22962f4752f3646cd9 |
+  | actions/download-artifact | v8.0.2 | 9000827ccba6bdab643e8b6fd33ac0654aef8333 |
+  | pypa/gh-action-pypi-publish | v1.14.2 | dc37677b2e1c63e2034f94d8a5b11f265b73ba33 |
+
+- Sources: https://github.com/pypa/gh-action-pypi-publish,
+  https://docs.pypi.org/attestations/producing-attestations/,
+  https://docs.astral.sh/uv/guides/integration/github/,
+  https://hatch.pypa.io/latest/config/build/#artifacts,
+  https://docs.github.com/en/github-cli/github-cli/github-cli-telemetry,
+  https://git-cliff.org/docs/usage/args
+
+### uv installers (0.13.1, checked 2026-10-19)
+
+- **`install.sh`.** Pinned at `https://astral.sh/uv/0.13.1/install.sh`, SHA-256
+  `7c482d409673a53f4d9bd34ae95c9166be3b8d89ca82f27dd7bca3cab457afff` (downloaded and hashed).
+  - It embeds a SHA-256 per artifact and checks it with `sha256sum`, but skips the check
+    when `sha256sum` is missing.
+  - It takes `--quiet`, `UV_INSTALL_DIR`, and `UV_NO_MODIFY_PATH=1`, which leaves shell
+    profiles alone. The `--no-modify-path` flag is deprecated in favour of the variable.
+- **`install.ps1`** checks no hash. The release attaches each archive with a `.sha256` file:
+
+  | Archive | SHA-256 |
+  |---|---|
+  | uv-x86_64-pc-windows-msvc.zip | 3b2661a463a5baea7f5076ea2b25ab71d77f36a6c0d809e5350651792f80a672 |
+  | uv-aarch64-pc-windows-msvc.zip | ec7846a5939b4654afee24f2d82bf6fde71bd7a6952d7748f1135ab301dd0a49 |
+
+- `uv tool install <package>` installs into an isolated environment. `uv tool dir --bin`
+  prints the directory of its executables.
+- Sources: https://docs.astral.sh/uv/getting-started/installation/,
+  https://docs.astral.sh/uv/reference/installer/,
+  https://github.com/astral-sh/uv/releases/tag/0.13.1
+
+### Community files (checked 2026-10-19)
+
+- **Contributor Covenant 3.0** is the current version: announced 2025-07-28, licensed
+  CC BY-SA 4.0. Source: https://www.contributor-covenant.org/version/3/0/code_of_conduct/
+- **Issue forms** are YAML files in `.github/ISSUE_TEMPLATE/`. `name`, `description` and `body`
+  are required. A `config.yml` there sets `blank_issues_enabled` and `contact_links`.
+- **PR templates** are read from `pull_request_template.md` in the root, `docs/` or `.github/`.
+- **Community health files** (SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md) are looked up
+  in `.github/`, then the root, then `docs/`. Private vulnerability reporting is available for
+  public repositories.
+- Sources: https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms,
+  https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/creating-a-default-community-health-file
+
+### llama.cpp threads and the CPU build (b11669, checked 2026-10-19)
+
+- **How llama.cpp counts cores.** In `common/common.cpp` at tag b11669, the default thread
+  count is `common_cpu_get_num_math()`. Except on hybrid CPUs, it returns
+  `common_cpu_get_num_physical_cores()`.
+  - On Linux, that function reads `/sys/devices/system/cpu/cpu<N>/topology/thread_siblings`
+    for N = 0, 1, … until a file is missing, and counts the distinct sets.
+  - Neither function reads the CPU affinity mask or the cgroup CPU quota. A container limited
+    to some of the CPUs still counts every core of the machine.
+- **Observed in `python:3.12-slim`** started with `--cpuset-cpus=0-7` on the development host:
+  - sysfs lists every CPU of the host;
+  - the sibling sets of CPUs 0–7 are 0-1, 2-3, 4-5 and 6-7, so four physical cores;
+  - `os.sched_getaffinity(0)` has eight CPUs, while Python 3.12's `os.cpu_count()` counts the
+    whole machine.
+- **cgroup v2 quotas.** `/sys/fs/cgroup/cpu.max` holds `<quota> <period>`, or `max` without a
+  quota.
+- **The Linux CPU asset** is `llama-b11669-bin-ubuntu-x64.tar.gz`, SHA-256
+  `cf07c1c112d709bd67e522017471de57ed0ec8bea031d732c5422351c07f65ac`. Its ELF headers need
+  `libgomp.so.1`, `libssl.so.3`/`libcrypto.so.3`, `libstdc++.so.6` and glibc ≥ 2.34. The slim
+  Python images have no `libgomp.so.1` (`apt-get install libgomp1`).
+- Since v0.7.0, `llama-server` listens on 127.0.0.1:9931 by default. The adapter passes
+  `--host` and `--port` itself.
+- Sources: https://github.com/ggml-org/llama.cpp/blob/b11669/common/common.cpp,
+  https://github.com/ggml-org/llama.cpp/releases/tag/b11669,
+  https://docs.kernel.org/admin-guide/cgroup-v2.html
