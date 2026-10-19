@@ -140,8 +140,9 @@ and the context settings), `classify` (`data.features`), `learning`, `ladder`, `
 `switch`, `escalation`, `step` (one model call), `aux` (a brief or summary written by the
 summarizer), `tool` (one tool call and its result), `compress`, `context`, `handoff`,
 `model_error`, `error`, `gates` (`data.verdict`), `review`, `budget`, `cancelled`, `applied`
-and `task_end`. `after` returns only events with a larger `seq`. The `data` of the most useful
-ones:
+and `task_end`. A slow-lane review job adds `slow_review` and `review_comment` events after
+`task_end` (see Jobs below). `after` returns only events with a larger `seq`. The `data` of
+the most useful ones:
 
 - `step`: `step_type`, `worker`, `endpoint`, `model`, `tool_calls` (names), `text` (the first
   400 characters of the reply), `finish_reason`, `usage` (token counts), `wall_seconds`,
@@ -154,7 +155,11 @@ ones:
 - `gates`: `run`, `verdict` (`passed`, `failed_gate`, `report`, and `results`: per gate
   `name`, `status`, `seconds`, `summary`, `details`, `report`; the `golden` gate's `details`
   hold the numerical report, served in a friendlier form by `GET /api/science`);
-- `task_end`: `status`, `stop_reason`, `detail`, `summary`, `budget`, `ledger` (totals).
+- `task_end`: `status`, `stop_reason`, `detail`, `summary`, `budget`, `ledger` (totals);
+- `slow_review`: `job`, then the review as in the cross-family review: `approved`, `issues`,
+  `score`, `blocking`, `constrained`, `reviewer`, `reviewer_family`, `author_families`,
+  `cross_family`, `text`;
+- `review_comment`: `job`, `reviewer`, `severity`, `file`, `line`, `note` (one per issue).
 
 ### `GET /api/trajectories?limit=50`
 
@@ -454,6 +459,36 @@ Numerical diff reports from the science gates (`golden`), newest first.
 A file from a task's run directory (`.stepswitch/runs/<task id>/`), such as a plot. Paths
 outside that directory get `404`. Images (PNG, JPEG, GIF, WebP) are sent as they are, text files
 as `text/plain`, anything else as a download; all with a `sandbox` Content-Security-Policy.
+
+## Jobs
+
+Slow-lane jobs (ADR 0030) are submitted and run from the CLI (`ssw jobs submit`, `ssw jobs run`,
+`ssw run --slow-review`); the API reads them.
+
+### `GET /api/jobs?status=<status>&task=<id>&limit=50`
+
+```json
+{
+  "jobs": [
+    {"id": "j20261019-101500-1a2b3c", "kind": "review", "status": "done",
+     "created": 1760868900.0, "updated": 1760870100.0, "task_id": "...",
+     "worker": "big-box/huge-moe", "payload": {}, "error": null, "attempts": 1,
+     "started": 1760868950.0, "finished": 1760870100.0, "runner": {"pid": 4242, "start": "..."},
+     "result": {"review": {"approved": false, "issues": []}, "reviewer": "big-box/huge-moe",
+                "comments": 2, "seconds": 1150.2, "tokens": {}}}
+  ]
+}
+```
+
+Newest first. `status` is one of `queued`, `running`, `done`, `failed` and `cancelled` (others
+get `422`); `task` keeps the jobs of one task (a review job's task). A `review` job's `result`
+holds the review and the number of comments it added to the task. A `task` job's `result` holds
+the new task's `task_id`, `status`, `stop_reason`, `worker` and `changed_files`; while it runs,
+only `task_id`, which is there from the start, so that cancelling the job stops that task.
+
+### `GET /api/jobs/{id}`
+
+One job, as above; `404` for an unknown id.
 
 ## Live events
 

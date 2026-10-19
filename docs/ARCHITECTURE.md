@@ -197,8 +197,15 @@ Details and rationale: ADR 0003. Formats and their fields: docs/RESEARCH.md, "AP
 - **Engine availability by OS** is data, not code: vLLM, SGLang and KTransformers are
   Linux-only, so on a Windows workstation they run under WSL2 or a container and are reached over
   HTTP like any other endpoint (RESEARCH.md, "Engines").
-- **Slow lane** (SPEC §5 "SL"): asynchronous jobs only, behind the same HTTP interface; engines
-  without a server get a thin local HTTP shim.
+- **Slow lane** (SPEC §5 "SL", ADR 0030): asynchronous jobs only, behind the same HTTP
+  interface.
+  - AirLLM gets a local HTTP shim over the transformers wrapper, and serves local directories
+    only. KTransformers runs as an SGLang profile (`sglang-kt`, Linux x86-64), with its CPU
+    features checked per `--kt-method`.
+  - Slow-lane workers are pin-only, and an interactive pin is refused. They take jobs from the
+    `jobs` table (`stepswitch.core.jobs`, `ssw jobs`):
+    - `review` jobs append `slow_review` and `review_comment` events to the reviewed task;
+    - `task` jobs run a whole task with the worker pinned.
 
 ## 7. Workers and harness adapters (`stepswitch.workers`)
 
@@ -289,9 +296,10 @@ Best-of-N, the disagreement signal and cross-family review (SPEC §8.3 to §8.5,
 ## 10. State, ledger and trajectories
 
 - **State**: one SQLite database per project at `.stepswitch/state.db`, WAL mode, versioned
-  migrations. Tables: tasks, steps, events, decisions, ledger, endpoints, probes, bandit,
-  egress_audit, prove_runs. WAL needs SQLite 3.51.3 or later and a local disk; `ssw doctor`
-  checks both, and on network volumes the database uses `journal_mode=DELETE` (ADR 0002).
+  migrations. Tables: meta, tasks, events, decisions, ledger, probes, calibrations,
+  cancellations, router_params, egress_audit, process_audit and jobs. WAL needs SQLite 3.51.3
+  or later and a local disk; `ssw doctor` checks both, and on network volumes the database uses
+  `journal_mode=DELETE` (ADR 0002).
 - **Blobs**: `.stepswitch/blobs/<aa>/<sha256>` for raw tool outputs and diffs.
 - **Ledger** (TK12): per step tokens in/out, cached tokens, wall time, GPU-seconds and cache
   hits, taken from server-reported usage; estimates are flagged as such. C-019 compares ledger
@@ -352,19 +360,33 @@ source checkout with an `index.html` fallback for every path outside `/api/`. A 
 
 ## 13. Network egress (`stepswitch.net`)
 
-- One factory returns httpx clients whose transport enforces policy and records audit rows (host,
-  port, bytes, purpose, task ID). In offline mode only local addresses (127.0.0.0/8, ::1, Unix
-  sockets) are reachable.
-- Egress behind a local URL is closed too: in offline mode, engine models that forward to a
-  hosted service and hot-swap configs with remote peers are rejected (SPEC §15).
-- The secret scanner and redactor run before any remote call; per-path deny lists apply.
-- Downloads (model weights, grammars, tokenizer files, BPE tables) happen only in explicit
-  commands that go through `stepswitch.net`, including an install-time prefetch into caches
-  under `.stepswitch/`. Lazy downloads by libraries are switched off; in offline mode they are
-  forbidden, and context services are tested with networking disabled.
-- Tests add an interpreter audit hook on socket connects and process spawns as an independent
-  observer (C-006, C-007). It cannot see child processes' own connections, so Linux CI also runs
-  the flow under OS-level network isolation (ADR 0011).
+ADR 0031 has the details.
+
+- **Clients.** One factory returns httpx clients whose transport enforces policy and records
+  audit rows: host, port, bytes sent and received (streams when they close), purpose and task
+  ID. In offline mode only local addresses (127.0.0.0/8, ::1, Unix sockets) are reachable.
+- **Per task.** Every task and every proxy run gets a child egress layer (`Egress.child`) whose
+  policy can only tighten. `--offline`, `privacy.mode = "local"` and the science track's policy
+  are therefore enforced at the transport, not only in routing.
+- **Processes.** Every process started through `subprocess` is logged in `process_audit`, with
+  a redacted command line. Commands run while offline get the offline switches of common tools.
+- **Egress behind a local URL counts as remote.** This covers Ollama cloud-backed models and
+  llama-swap peers or remote proxies, read from the endpoint's `engine_config`. Offline routing
+  skips these workers, the redactor applies to them, and the client asks Ollama again before a
+  model's first offline request (SPEC §15).
+- **Redaction.** The secret redactor runs on every request to a non-local endpoint
+  (`privacy.redact`).
+- **Deny lists.** `privacy.deny_paths` is one deny list, applied by the built-in tools, the ACP
+  client, Claude Code, OpenCode, and the Pi and Oh My Pi extensions.
+- **Downloads.** Model weights, grammars, tokenizer files and BPE tables are downloaded only in
+  explicit commands that go through `stepswitch.net`, among them the install-time
+  `ssw prefetch`. Lazy downloads by libraries are switched off, and in offline mode they are
+  forbidden. Context services are tested with every connection and name lookup refused.
+- **Claim tests.** C-006 and C-007 run the flow under a recorder that observes, and with
+  C-006's guard refuses, socket connects, sends, binds, name lookups and process spawns. It
+  uses audit hooks where they work and wrapped functions where they don't. It cannot see child
+  processes' own connections, so on Linux the flow runs in a network namespace with only
+  loopback (ADR 0011).
 
 ## 14. Claims and prove
 

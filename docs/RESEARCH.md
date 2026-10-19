@@ -3545,3 +3545,264 @@ source under https://github.com/MoonshotAI/kimi-code/blob/main/packages/agent-co
   update preflight at all) and `KIMI_DISABLE_CRON=1`. The web tools are auto-allowed, and only
   `config.toml` turns them off (`[tools] disabled = ["WebSearch", "FetchURL"]`, with
   `telemetry = false`).
+
+## Verified during Phase 9
+
+These are the facts behind the slow lane (ADR 0030) and zero-egress enforcement (ADR 0031),
+read in each project's documentation and source on 2026-10-19. The development machine has
+neither AirLLM nor a Linux host with AMX, so the two slow-lane adapters are tested against
+fakes built from these notes.
+
+### AirLLM (4.0.0, checked 2026-10-19)
+
+Sources: https://pypi.org/pypi/airllm/json, https://github.com/lyogavin/airllm/releases,
+https://raw.githubusercontent.com/lyogavin/airllm/main/air_llm/airllm/airllm_base.py with
+`auto_model.py` and `utils.py` beside it, and the README.
+
+- **Release.** 4.0.0 was uploaded on 2026-09-05 (3.3.0 on 2026-08-28). The license is
+  Apache-2.0, and `requires_python` is not declared.
+- **Dependencies (setup.py).** tqdm, torch>=2.4, transformers>=4.49,<6, accelerate>=1.0,
+  safetensors, huggingface-hub, scipy and sentencepiece.
+  - bitsandbytes is needed only for `compression`, and is asserted at run time.
+  - mlx is needed on macOS.
+- **Model class.** `AirLLMBaseModel` is a plain class, not a transformers model. Its signature:
+  `(model_local_path_or_repo_id, device="cuda:0", dtype=None, max_seq_len=512,
+  layer_shards_saving_path=None, profiling_mode=False, compression=None, hf_token=None,
+  prefetching=True, delete_original=False, install_hooks=True, load_resident=True)`.
+  - `generate(*args, **kwargs)` forwards to the wrapped transformers model, so sampling,
+    stopping and `streamer=` behave as in transformers. This is not documented upstream; it
+    follows from the source.
+  - `compression` is `None`, `"4bit"` or `"8bit"`.
+- **`AutoModel.from_pretrained`.** It reads `AutoConfig.from_pretrained(...,
+  trust_remote_code=True)` and picks the class from `config.architectures`, falling back to the
+  base class.
+  - On macOS it always returns `AirLLMLlamaMlx`. That class's
+    `generate(x, temperature=0, max_new_tokens=None, **kwargs)` returns decoded text. The shim
+    cannot drive it, so the adapter refuses macOS.
+- **Tokenizer and generation config.** The tokenizer is
+  `AutoTokenizer.from_pretrained(local_path, trust_remote_code=True)`, and the generation config
+  is read from the local path. Remote code is always trusted; issue #293 about this is open.
+- **Loading.** A path that exists and holds `model.safetensors.index.json`,
+  `pytorch_model.bin.index.json`, `model.safetensors` or `pytorch_model.bin` is split into
+  per-layer shards locally. Every `snapshot_download` call sits behind `assert repo_id is not
+  None`, so the local branch never downloads.
+  - Any other string is a model-hub ID and is downloaded. AirLLM has no offline handling of
+    its own. The shim therefore serves local directories only, and the adapter sets
+    `HF_HUB_OFFLINE=1` and `HF_HUB_DISABLE_TELEMETRY=1`.
+  - Shards go to `<checkpoint>/splitted_model[.4bit]` or to `layer_shards_saving_path`, and are
+    reused once complete.
+- **No server.** The serving request (#205) was closed as not planned. A local API pull
+  request (#308) was closed unmerged. The open #358 adds only a terminal chat.
+- **Platforms.** The default device is `cuda:0`. CPU inference is mentioned only in the
+  v2.10.1 changelog (2024-08-18), and Windows not at all.
+- **Speed.**
+  - The v3.1.0 release notes (2026-07-29) report about 292 s per token for a 2.8T MoE model on
+    a 48 GB card, disk-bound, after about 900 s of start-up.
+  - A community report (issue #186) gives about 2 minutes per token for a 32B 4-bit model read
+    from a hard disk.
+  - There is no official figure for a 70B model.
+- **Used by.** `stepswitch/serve/airllm_server.py` and `stepswitch/serve/airllm.py`.
+
+### KTransformers and sglang-kt (0.7.2, checked 2026-10-19)
+
+Sources:
+
+- https://pypi.org/pypi/ktransformers/json, https://pypi.org/pypi/kt-kernel/json and
+  https://pypi.org/pypi/sglang-kt/json;
+- https://github.com/kvcache-ai/ktransformers/tree/main/kt-kernel;
+- https://raw.githubusercontent.com/kvcache-ai/ktransformers/main/doc/en/Kimi-K2-Thinking.md;
+- https://newreleases.io/project/github/kvcache-ai/ktransformers/release/v0.7.0.post4;
+- the fork's `python/sglang/srt/server_args.py` and `python/sglang/srt/entrypoints/http_server.py`.
+
+| Package | Version (date) | Notes |
+|---|---|---|
+| `ktransformers` | 0.7.2 (2026-10-15), Python >= 3.11 | Meta-package: `kt-kernel==0.7.2`; the extra `[sglang]` adds `sglang-kt==0.7.2` |
+| `kt-kernel` | 0.7.2 (2026-10-14) | Wheels for cp311 and cp312 `manylinux_2_35_x86_64` only; torch==2.9.1; ships the `kt` CLI |
+| `sglang-kt` | 0.7.2 (2026-10-15) | One wheel, `py3-none-manylinux_2_35_x86_64`: a fork of SGLang |
+
+All three are Apache-2.0.
+
+- **Install.** `pip uninstall sglang -y && pip install kt-kernel sglang-kt`. The fork replaces
+  the official package; the two must not share an environment.
+- **Launch.**
+
+  ```
+  python -m sglang.launch_server --host 127.0.0.1 --port 30000 --model <dir> \
+    --kt-method AMXINT8 --kt-weight-path <cpu weights> --kt-cpuinfer 64 \
+    --kt-threadpool-count 2 --kt-num-gpu-experts 32 --kt-max-deferred-experts-per-token 2
+  ```
+
+  - GGUF weights use `--kt-method LLAMAFILE --kt-weight-path <gguf dir>`.
+  - Older guides spell the flags `--kt-amx-weight-path` and `--kt-amx-method`.
+- **Flags.**
+  - `--kt-method`: AMXINT4, AMXINT8, RAWINT4, FP8, FP8_PERCHANNEL, BF16 or LLAMAFILE.
+  - `--kt-weight-path`: the CPU expert weights. Convert them for AMX with
+    `scripts/convert_cpu_weights.py`.
+  - `--kt-cpuinfer`: CPU threads. The README says to use the physical cores.
+  - `--kt-threadpool-count`: one pool per NUMA node, default 2. `--kt-numa-nodes` lists the
+    node IDs.
+  - `--kt-num-gpu-experts`: GPU experts per MoE layer. `--kt-gpu-experts-ratio` overrides it.
+  - `--kt-max-deferred-experts-per-token`: 0 is synchronous; the README recommends 1 to 4.
+- **`kt run <model>`.** It only execs `python -m sglang.launch_server`, with host 0.0.0.0 by
+  default and no health check. The adapter launches the server itself on 127.0.0.1 instead.
+- **HTTP.** The fork keeps SGLang's routes: `/health`, `/health_generate`, `/model_info`,
+  `/server_info`, `/v1/models`, `/v1/chat/completions`, `/v1/completions`, `/v1/messages`,
+  `/v1/responses` and `/generate`.
+- **Requirements.**
+  - Linux x86-64 with glibc 2.35 or newer, and Python 3.11 or 3.12. The v0.7.0.post4 notes ask
+    for Python 3.12, CUDA 12.8 and Torch 2.9.1.
+  - The README's mentions of manylinux_2_17 and Python 3.10 are out of date.
+  - CPU features per method:
+    - AVX2 is the minimum (LLAMAFILE).
+    - RAWINT4 needs AVX-512 F and BW.
+    - BF16 needs AVX-512 BF16.
+    - FP8 needs AVX-512 BF16 and VBMI.
+    - AMXINT4 and AMXINT8 need AMX.
+    - FP8_PERCHANNEL's needs are not stated.
+
+    The adapter reads these from `/proc/cpuinfo` (`avx512f`, `avx512bw`, `avx512_bf16`,
+    `avx512vbmi`, `amx_tile`).
+  - A GPU is optional (compute capability 8.0 or newer).
+- **Legacy server.** The old integrated server is archived and unmaintained. It is not
+  targeted.
+- **Assumption, not verified.** `sglang-kt` keeps SGLang's `--config` file, which the adapter
+  uses for the API key. Until a live run confirms it, this stays isolated in the SGLang
+  adapter's key handling.
+
+### SGLang health and keys (0.5.22, checked 2026-10-19)
+
+Sources: https://docs.sglang.io/advanced_features/server_arguments.html,
+`python/sglang/srt/entrypoints/http_server.py`, `python/sglang/srt/environ.py` and
+`python/sglang/srt/utils/auth.py`, upstream and in the fork
+(https://raw.githubusercontent.com/kvcache-ai/sglang/main/python/sglang/srt/entrypoints/http_server.py).
+
+- **Health endpoints.** `/health` and `/health_generate` share one handler.
+  - It returns 503 while the server starts or shuts down.
+  - Otherwise `/health_generate` always runs a one-token generation. It returns 503 when
+    nothing comes back within the health-check timeout.
+  - `/health` runs the same generation unless `SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION` is
+    false. Its default is true (`EnvBool(True)` in `environ.py`); with it off, `/health`
+    answers 200 at once.
+- **No `/ready` in the fork.** The fork has `/health` and `/health_generate`, but no `/ready`.
+- **Keys.** The key is compared in constant time, and failures get 401. OPTIONS requests and
+  paths starting with `/health`, `/ready` or `/metrics` are exempt, so `/v1/models` needs the
+  key.
+- **Readiness.** The SGLang adapter polls `/ready` (Phase 3 notes). The KTransformers adapter
+  polls `/health` with `SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION=false`, so a poll never runs a
+  generation on a slow server.
+
+### Local endpoints that forward (checked 2026-10-19)
+
+- **Ollama.** The Phase 0 notes record that a signed-in server forwards cloud-backed models to
+  the hosted service, and that `/api/tags` marks them with `remote_host` and `remote_model`.
+  - Cloud tags are either `cloud` (for example `glm-5.3-flash:cloud`) or end in `-cloud` (for
+    example `gpt-oss:120b-cloud`, with `gpt-oss:20b-cloud` alongside it). Source:
+    https://ollama.com/library/gpt-oss/tags.
+- **llama-swap.** Source: https://raw.githubusercontent.com/mostlygeek/llama-swap/main/config-schema.json.
+  - `peers` is a map of peer servers. Each peer requires `proxy` (a URI) and `models` (a list).
+    Optional fields:
+    - `apiKey`, sent as a bearer key and as `x-api-key`;
+    - `tailcatKey`, for `tailcat://` URLs only;
+    - `filters` (`stripParams`, `setParams`);
+    - `timeouts`.
+  - A model's `proxy` defaults to `http://localhost:${PORT}`, where `${PORT}` is the port
+    llama-swap assigns. Other `${name}` macros come from `macros`.
+  - `aliases` give a model more names.
+  - Only the config file shows forwarding, so an endpoint names it in `engine_config`.
+
+### Harness deny rules (checked 2026-10-19)
+
+- **Claude Code.** Source: https://code.claude.com/docs/en/permissions.
+  - Read and Edit rules use gitignore syntax:
+    - `//path` is absolute;
+    - `~/path` is under the home directory;
+    - `/path` is relative to the settings source (for CLI flags, the primary working
+      directory);
+    - `path` and `./path` are relative to the current directory.
+  - A single-segment rule such as `Read(secrets/**)` matches at any depth.
+  - Rules are evaluated deny, then ask, then allow.
+  - A Read deny also blocks Edit and Write (v2.1.208 and v2.1.228 and later).
+  - Windows paths are normalized to POSIX form.
+  - Grep and Glob apply the Read deny rules, and deny rules also cover recognized Bash file
+    commands and redirects.
+  - The adapter passes `Read(<p>)` and `Edit(<p>)` in `--disallowedTools`.
+- **OpenCode.** Source: https://opencode.ai/docs/permissions/.
+  - In patterns, `*` matches zero or more characters and `?` matches one.
+  - The last matching rule wins.
+  - `read` matches the file path. Its defaults allow everything except `*.env` and `*.env.*`,
+    with `*.env.example` allowed again.
+  - The docs do not say whether patterns match relative or absolute paths, so the adapter
+    emits each pattern both bare and as `*/<pattern>`.
+- **Pi.** Sources: `extensions.md`, `src/core/extensions/types.ts` and
+  `src/core/tools/read.ts` (the Phase 8 sources).
+  - A `tool_call` handler can change a call's input or block it with
+    `ToolCallEventResult {block?, reason?, terminate?}`.
+  - A handler that throws blocks the tool.
+  - Events carry `toolName` and `input`. The read tool's input is `{path, offset?, limit?}`,
+    with the path relative or absolute.
+- **Oh My Pi.** Sources: `extensibility/extensions/types.ts` and `shared-events.ts`.
+  - `tool_call` events cover Bash, Read, Edit, Write, Grep, Glob and custom tools.
+  - Handlers return `ToolCallEventResult {block?: boolean, reason?: string}`.
+
+### Offline enforcement on Linux CI (checked 2026-10-19)
+
+- **Runner pin.** `ubuntu-latest` moves to Ubuntu 26.04 gradually from 2026-10-19 to
+  2026-11-19
+  (https://github.blog/changelog/2026-09-17-ubuntu-26-generally-available-and-latest-migration),
+  so the workflow keeps `ubuntu-24.04` pinned.
+- **Unprivileged namespaces.** Hosted 24.04 images keep the AppArmor restriction on them;
+  runner-images PR #14412 (merged 2026-07-20) installs a profile only when
+  `/proc/sys/kernel/apparmor_restrict_unprivileged_userns` reads 1.
+  - Under the restriction, `unshare -rn` fails with
+    `write failed /proc/self/uid_map: Operation not permitted`.
+  - The workflow therefore sets `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`
+    before the C-006 and C-007 runs. The Phase 1 notes above give the trade-off.
+- **Loopback.** A fresh network namespace has `lo` down (https://lwn.net/Articles/580893/), so
+  the claim tests run `ip link set lo up` inside it first.
+- **Not covered.** A network namespace does not block AF_UNIX sockets (systemd.exec(5)). A
+  daemon socket can still reach the network, and the namespace alone does not prevent that.
+
+### Observing connections from Python (checked 2026-10-19)
+
+- **Audit events.** Source: the Python 3.15 audit events table.
+  - Network: `socket.connect` (also raised by `connect_ex`), `socket.sendto`,
+    `socket.sendmsg`, `socket.getaddrinfo`, `socket.gethostbyname`, `socket.gethostbyaddr`,
+    `socket.getnameinfo`, `socket.bind`, `socket.__new__`.
+  - Processes: `subprocess.Popen`, `os.exec`, `os.posix_spawn`, `os.system`, `os.fork`,
+    `_winapi.CreateProcess`.
+- **What hooks cannot do.** Hooks apply per interpreter and cannot be removed (PEP 578). The
+  docs call them "not suitable for implementing a sandbox". A child that starts a new
+  interpreter has no hooks (inferred).
+- **Gaps in CPython main.**
+  - On Windows, asyncio's default event loop connects through `_overlapped.ConnectEx`, which
+    raises no audit event.
+  - asyncio skips `getaddrinfo` for IP literals.
+  - C extensions that open their own sockets bypass hooks.
+
+  The claim recorder therefore also wraps the socket functions, and on Linux the evidence
+  comes from the network namespace.
+
+### Secret patterns (checked 2026-10-19)
+
+| Source | License | Latest | Usable as data |
+|---|---|---|---|
+| gitleaks `config/gitleaks.toml` (about 220 rules) | MIT | v8.30.1 (2026-03-21) | yes, with its notice |
+| Betterleaks `config/betterleaks.toml` | MIT | v1.9.0 (2026-09-29) | yes |
+| detect-secrets (27 plugins) | Apache-2.0 | 1.5.0 (2024-05-06) | yes, with NOTICE; its CLI verifies found secrets over the network unless `--no-verify` |
+| Kingfisher (YAML rules) | Apache-2.0 | active (last push 2026-10-13) | yes; `--no-validate` turns network validation off |
+| Nosey Parker | Apache-2.0 | archived | historical only |
+| TruffleHog | AGPL-3.0 | - | no |
+| secrets-patterns-db | CC-BY-SA-4.0 (with AGPL-derived parts) | last push 2025-08-06 | no |
+
+- **What the redactor uses.** `stepswitch.redact` vendors no rule file and calls no scanner.
+  - Its formats are short regular expressions written for Python's `re` from the high-signal
+    rule descriptions: private-key blocks, cloud access-key IDs, code-host tokens,
+    chat-workspace tokens, JWTs, model-hub tokens, PyPI and npm tokens, and payment keys.
+  - Each format is tested against true and false positives in `tests/unit/test_redact.py`.
+- **Weak markers.** A bare `sk-` prefix is weak, so the redactor pairs it with a randomness
+  test. So does every `name = value` assignment.
+- **Entropy thresholds (Shannon bits per character).**
+  - detect-secrets defaults to 4.5 for base64 and 3.0 for hex strings.
+  - gitleaks sets a minimum per rule, from 2 to 3.5; its generic rule uses 3.5.
+  - The redactor counts a value as random when it mixes letters and digits at 3.0 or more, or
+    when it has at least 32 characters at 3.5 or more.
