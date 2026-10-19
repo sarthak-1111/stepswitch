@@ -1,0 +1,72 @@
+{
+  "command": "ssw bench run --suite mini-general --workers router --seeds 2 --router-pool ws-ollama-local/gpt-oss:120b,ws-ollama-local/qwen2.5:32b --budget-seconds 900.0",
+  "commit": "c59bfc71d43a",
+  "contestants": [
+    {
+      "cache_hit_rate": 0.8361968144898179,
+      "cached_input_tokens": 1067483,
+      "ci": {
+        "confidence": 0.95,
+        "high": 1.0,
+        "low": 1.0,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "router",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 2449.726,
+      "input_tokens": 1276593,
+      "median_hosted_tokens": 0.0,
+      "median_tokens": 28468.0,
+      "median_uncached_tokens": 8698.0,
+      "median_wall_seconds": 92.2815,
+      "output_tokens": 77107,
+      "pass_rate": 1.0,
+      "passed": 30,
+      "rank": 1,
+      "reference_cost": null,
+      "runs": 30,
+      "statuses": {
+        "done": 30
+      },
+      "tasks": 15,
+      "tests_modified": 0
+    }
+  ],
+  "date": "2026-10-19T23:01:50+00:00",
+  "hardware": {
+    "arch": "x86_64",
+    "cpu_cores": 32,
+    "gpu_memory_gb": [
+      51.53,
+      48.31,
+      51.53,
+      51.53
+    ],
+    "gpus": 4,
+    "os": "Windows",
+    "ram_gb": 1098.43
+  },
+  "interval": {
+    "confidence": 0.95,
+    "resamples": 10000,
+    "seed": 0
+  },
+  "prices": null,
+  "results_file": "results.jsonl",
+  "router_pool": [
+    "ws-ollama-local/gpt-oss:120b",
+    "ws-ollama-local/qwen2.5:32b"
+  ],
+  "runs": 30,
+  "schema": 1,
+  "scoring": "passes when every acceptance command exits with 0 on a fresh copy with the run's diff applied and the suite's protected paths restored",
+  "seeds": [
+    0,
+    1
+  ],
+  "sources": null,
+  "suite": "mini-general",
+  "tasks": 15,
+  "version": "0.1.0.dev0"
+}

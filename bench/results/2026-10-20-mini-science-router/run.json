@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "suite": "mini-science",
+  "suite_file": "mini-science.yaml",
+  "command": "ssw bench run --suite mini-science --workers router --seeds 2 --router-pool ws-ollama-local/gpt-oss:120b,ws-ollama-local/qwen2.5:32b --budget-seconds 900.0",
+  "started": "2026-10-19T23:01:51+00:00",
+  "finished": "2026-10-19T23:16:54+00:00",
+  "hardware": {
+    "os": "Windows",
+    "arch": "x86_64",
+    "cpu_cores": 32,
+    "ram_gb": 1098.43,
+    "gpus": 4,
+    "gpu_memory_gb": [
+      51.53,
+      48.31,
+      51.53,
+      51.53
+    ]
+  },
+  "version": "0.1.0.dev0",
+  "commit": "c386a9d8e322",
+  "seeds": [
+    0,
+    1
+  ],
+  "contestants": [
+    "router"
+  ],
+  "tasks": [
+    "centroid-intensity-weights",
+    "baseline-end-points",
+    "wavenumber-to-wavelength",
+    "trapezoid-end-weights",
+    "vectorize-gaussian-sum",
+    "moving-average-alignment"
+  ],
+  "review": true,
+  "prices": null,
+  "router_pool": [
+    "ws-ollama-local/gpt-oss:120b",
+    "ws-ollama-local/qwen2.5:32b"
+  ],
+  "optimize": true,
+  "scoring": "passes when every acceptance command exits with 0 on a fresh copy with the run's diff applied and the suite's protected paths restored"
+}
