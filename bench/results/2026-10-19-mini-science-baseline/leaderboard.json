@@ -1,0 +1,70 @@
+{
+  "command": "ssw bench run --suite mini-science --workers router --seeds 2 --router-pool ws-ollama-local/gpt-oss:120b,ws-ollama-local/qwen2.5:32b --baseline --budget-seconds 900.0",
+  "commit": "7cb9ba428a4c",
+  "contestants": [
+    {
+      "cache_hit_rate": 0.7559840945634696,
+      "cached_input_tokens": 347919,
+      "ci": {
+        "confidence": 0.95,
+        "high": 1.0,
+        "low": 1.0,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "router",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 442.691,
+      "input_tokens": 460220,
+      "median_tokens": 39028.0,
+      "median_wall_seconds": 40.578,
+      "output_tokens": 27961,
+      "pass_rate": 1.0,
+      "passed": 12,
+      "rank": 1,
+      "reference_cost": null,
+      "runs": 12,
+      "statuses": {
+        "done": 12
+      },
+      "tasks": 6,
+      "tests_modified": 0
+    }
+  ],
+  "date": "2026-10-18T23:13:17+00:00",
+  "hardware": {
+    "arch": "x86_64",
+    "cpu_cores": 32,
+    "gpu_memory_gb": [
+      51.53,
+      48.31,
+      51.53,
+      51.53
+    ],
+    "gpus": 4,
+    "os": "Windows",
+    "ram_gb": 1098.43
+  },
+  "interval": {
+    "confidence": 0.95,
+    "resamples": 10000,
+    "seed": 0
+  },
+  "prices": null,
+  "results_file": "results.jsonl",
+  "router_pool": [
+    "ws-ollama-local/gpt-oss:120b",
+    "ws-ollama-local/qwen2.5:32b"
+  ],
+  "runs": 12,
+  "schema": 1,
+  "scoring": "passes when every acceptance command exits with 0 on a fresh copy with the run's diff applied and the suite's protected paths restored",
+  "seeds": [
+    0,
+    1
+  ],
+  "sources": null,
+  "suite": "mini-science",
+  "tasks": 6,
+  "version": "0.1.0.dev0"
+}

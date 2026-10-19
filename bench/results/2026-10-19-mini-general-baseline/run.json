@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "suite": "mini-general",
+  "suite_file": "mini-general.yaml",
+  "command": "ssw bench run --suite mini-general --workers router --seeds 2 --router-pool ws-ollama-local/gpt-oss:120b,ws-ollama-local/qwen2.5:32b --baseline --budget-seconds 900.0",
+  "started": "2026-10-18T22:10:31+00:00",
+  "finished": "2026-10-18T22:36:10+00:00",
+  "hardware": {
+    "os": "Windows",
+    "arch": "x86_64",
+    "cpu_cores": 32,
+    "ram_gb": 1098.43,
+    "gpus": 4,
+    "gpu_memory_gb": [
+      51.53,
+      48.31,
+      51.53,
+      51.53
+    ]
+  },
+  "version": "0.1.0.dev0",
+  "commit": "eee786076888",
+  "seeds": [
+    0,
+    1
+  ],
+  "contestants": [
+    "router"
+  ],
+  "tasks": [
+    "pager-first-page",
+    "restock-report-threshold",
+    "agenda-time-order",
+    "tags-ignore-case",
+    "playlist-own-tracks",
+    "notes-corrupt-file",
+    "billing-month-end",
+    "recipe-scaling",
+    "post-slugs",
+    "temperature-units",
+    "todo-priority",
+    "rename-format-duration",
+    "entry-from-line",
+    "upload-limits",
+    "calc-bug"
+  ],
+  "review": true,
+  "prices": null,
+  "router_pool": [
+    "ws-ollama-local/gpt-oss:120b",
+    "ws-ollama-local/qwen2.5:32b"
+  ],
+  "optimize": false,
+  "scoring": "passes when every acceptance command exits with 0 on a fresh copy with the run's diff applied and the suite's protected paths restored"
+}

@@ -1,0 +1,69 @@
+{
+  "command": "ssw bench run --suite mini-general --workers relay --seeds 2 --relay ws-ollama-local/qwen2.5:32b,ws-ollama-local/gpt-oss:120b --relay-step 6 --budget-seconds 900.0",
+  "commit": "7cb9ba428a4c",
+  "contestants": [
+    {
+      "cache_hit_rate": 0.6988127317335392,
+      "cached_input_tokens": 811193,
+      "ci": {
+        "confidence": 0.95,
+        "high": 0.9,
+        "low": 0.4666666666666667,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "relay",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 1913.744,
+      "input_tokens": 1160816,
+      "median_tokens": 16544.0,
+      "median_wall_seconds": 58.070499999999996,
+      "output_tokens": 64905,
+      "pass_rate": 0.7,
+      "passed": 21,
+      "rank": 1,
+      "reference_cost": null,
+      "runs": 30,
+      "statuses": {
+        "done": 21,
+        "failed": 8,
+        "stopped": 1
+      },
+      "tasks": 15,
+      "tests_modified": 8
+    }
+  ],
+  "date": "2026-10-19T00:06:00+00:00",
+  "hardware": {
+    "arch": "x86_64",
+    "cpu_cores": 32,
+    "gpu_memory_gb": [
+      51.53,
+      48.31,
+      51.53,
+      51.53
+    ],
+    "gpus": 4,
+    "os": "Windows",
+    "ram_gb": 1098.43
+  },
+  "interval": {
+    "confidence": 0.95,
+    "resamples": 10000,
+    "seed": 0
+  },
+  "prices": null,
+  "results_file": "results.jsonl",
+  "router_pool": null,
+  "runs": 30,
+  "schema": 1,
+  "scoring": "passes when every acceptance command exits with 0 on a fresh copy with the run's diff applied and the suite's protected paths restored",
+  "seeds": [
+    0,
+    1
+  ],
+  "sources": null,
+  "suite": "mini-general",
+  "tasks": 15,
+  "version": "0.1.0.dev0"
+}
