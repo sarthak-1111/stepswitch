@@ -1284,7 +1284,7 @@ def _p7_simulation() -> tuple[bool, str]:
     untested = tests_matching("simulate")
     return combine(
         (callable(getattr(module, "simulate", None)), "simulate() missing"),
-        (SIMULATION_POLICIES <= policies, f"POLICIES is {sorted(policies)}"),
+        (policies >= SIMULATION_POLICIES, f"POLICIES is {sorted(policies)}"),
         (not untested, "no tests matching: " + ", ".join(untested)),
     )
 

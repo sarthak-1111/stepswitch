@@ -248,6 +248,8 @@ class _Shared:
     planner: Callable[[int], list[Any]] | None = None
     # The learning router's samples for this task (SPEC §10, ADR 0026).
     learned: dict[str, float] = field(default_factory=dict)
+    # A replay of a recorded run (SPEC §11, ADR 0027): `trajectory.replay.Replay`.
+    replay: Any = None
 
 
 @dataclass
@@ -304,8 +306,10 @@ def run_task(
     echo: Callable[[str], None] | None = None,
     gates: Callable[..., Any] | None = None,
     task_id: str | None = None,
+    replay: Any = None,
 ) -> TaskResult:
-    """Run one task to a final status and return its result."""
+    """Run one task to a final status and return its result. With `replay` (a
+    `trajectory.replay.Replay`), run it again from its recording (SPEC §11)."""
     from stepswitch import config as config_module
     from stepswitch.context.settings import ContextSettings
     from stepswitch.core.track import track_policy
@@ -314,7 +318,7 @@ def run_task(
     from stepswitch.workers.catalog import Catalog
     from stepswitch.worktree import WorktreePool
 
-    clock = clock or time.monotonic
+    clock = replay.clock if replay is not None else clock or time.monotonic
     say = echo or (lambda _msg: None)
     root = root.resolve()
     repo = spec.repo.resolve()
@@ -329,7 +333,12 @@ def run_task(
         _budgets(spec, config), clock=clock, cancelled=lambda: db.cancel_requested(task_id)
     )
     offline = spec.offline or config.offline
-    trajectory.emit("task_start", task_id=task_id, spec=json.loads(spec.model_dump_json()))
+    trajectory.emit(
+        "task_start",
+        task_id=task_id,
+        spec=json.loads(spec.model_dump_json()),
+        **(replay.header() if replay is not None else {}),
+    )
     say(f"Task {task_id}")
 
     pool = WorktreePool(repo, state_dir)
@@ -344,7 +353,7 @@ def run_task(
     try:
         if db.cancel_requested(task_id):
             raise _Cancelled
-        first = pool.acquire(task_id, include_uncommitted=spec.include_uncommitted)
+        first = _acquire(pool, task_id, spec, replay, None)
         runs.append(_Run(None, None, first))
         workdir = Path(first.path)
         trajectory.emit("worktree", path=str(workdir), base=first.base_commit)
@@ -354,26 +363,42 @@ def run_task(
         if catalog is None:
             catalog = Catalog.from_config(config, root, egress=egress, db=db, task_id=task_id)
         settings = ContextSettings.from_config(config)
+        if replay is not None:
+            catalog = replay.catalog(catalog)
+            settings = replay.recording.context_settings() or settings
         optimize = settings.optimize if spec.optimize is None else spec.optimize
         # The writer of briefs may be outside the routing pool: it never takes a step.
-        summarizer = catalog.summarizer() if optimize else None
+        summarizer = None
+        if optimize:
+            summarizer = replay.summarizer(catalog) if replay is not None else catalog.summarizer()
+        trajectory.emit(
+            "catalog",
+            workers=[dataclasses.asdict(s) for s in catalog.specs()],
+            summarizer=summarizer.spec.id if summarizer is not None else None,
+            settings=dataclasses.asdict(settings),
+        )
         if spec.workers:
             catalog = catalog.subset(spec.workers)
             trajectory.emit("pool", workers=[w.spec.id for w in catalog.workers.values()])
         relay = _relay(spec, catalog)
         for note in catalog.notes:
             say(f"  note: {note}")
-        features = _classify(
-            spec,
-            workdir,
-            catalog=catalog,
-            offline=offline,
-            ledger=ledger,
-            budget=budget,
-            trajectory=trajectory,
-            clock=clock,
-            cache_path=state_dir / "cache" / CLASSIFIER_CACHE,
-        )
+        if replay is not None:
+            features = _recorded_features(
+                replay, catalog=catalog, ledger=ledger, budget=budget, trajectory=trajectory
+            )
+        else:
+            features = _classify(
+                spec,
+                workdir,
+                catalog=catalog,
+                offline=offline,
+                ledger=ledger,
+                budget=budget,
+                trajectory=trajectory,
+                clock=clock,
+                cache_path=state_dir / "cache" / CLASSIFIER_CACHE,
+            )
         features_seen = features
         policy = track_policy(spec.track, workdir, config, features)
         policy_offline = offline or policy.offline
@@ -425,8 +450,15 @@ def run_task(
                 relay_step=spec.relay_step,
                 scrub=[],
             ),
+            replay=replay,
         )
-        learning_settings, shared.learned = _learning_samples(shared)
+        if replay is not None:
+            # A replay samples nothing and teaches the learning router nothing.
+            shared.learned = replay.learned()
+            if replay.recording.learning is not None:
+                trajectory.emit("learning", **replay.recording.learning)
+        else:
+            learning_settings, shared.learned = _learning_samples(shared)
         count = (
             1 if relay is not None else best_of_n.resolve_count(spec.best_of, features.difficulty)
         )
@@ -573,13 +605,19 @@ def _run_candidate(shared: _Shared, run: _Run) -> None:
     if run.index:
         trajectory.emit("worktree", path=str(workdir), base=run.worktree.base_commit)
     source = shared.catalog.subset(list(plan.workers)) if plan is not None else shared.catalog
-    if shared.pinned is not None:
-        ladder = Ladder.for_levels([shared.pinned.spec.level])
+    recorded = shared.replay.ladder(run.index) if shared.replay is not None else None
+    why: str | None
+    if recorded is not None and recorded.get("levels"):
+        ladder = Ladder.for_levels([int(level) for level in recorded["levels"]])
+        ladder.level, why = int(recorded["start"]), str(recorded.get("reason") or "")
     else:
-        ladder = Ladder.for_levels(
-            source.levels(offline=shared.offline, allow_remote=shared.allow_remote)
-        )
-    ladder.level, why = start_level(shared.features, ladder, track=spec.track)
+        if shared.pinned is not None:
+            ladder = Ladder.for_levels([shared.pinned.spec.level])
+        else:
+            ladder = Ladder.for_levels(
+                source.levels(offline=shared.offline, allow_remote=shared.allow_remote)
+            )
+        ladder.level, why = start_level(shared.features, ladder, track=spec.track)
     trajectory.emit(
         "ladder",
         levels=ladder.levels,
@@ -599,6 +637,12 @@ def _run_candidate(shared: _Shared, run: _Run) -> None:
         cache_dir=shared.state_dir / "cache" / "context",
     )
     run.toolbox = toolbox
+    scrub = [(str(workdir), "."), (str(shared.root), "<project>"), (str(Path.home()), "~")]
+    replay = shared.replay.for_candidate(run.index) if shared.replay is not None else None
+    recorded_workdir = shared.replay.workdir(run.index) if shared.replay is not None else None
+    if recorded_workdir:
+        # Recorded tool results name the recorded worktree.
+        scrub.insert(0, (recorded_workdir, "."))
     try:
         run.agent = AgentLoop(
             spec=task_spec,
@@ -628,17 +672,11 @@ def _run_candidate(shared: _Shared, run: _Run) -> None:
             candidate=run.index,
             families=frozenset({plan.family}) if plan is not None else None,
             learned=dict(shared.learned),
-            **{
-                **shared.opt,
-                "scrub_paths": [
-                    (str(workdir), "."),
-                    (str(shared.root), "<project>"),
-                    (str(Path.home()), "~"),
-                ],
-            },
+            replay=replay,
+            **{**shared.opt, "scrub_paths": scrub},
         )
         run.outcome = run.agent.run()
-        if run.agent.optimize:
+        if run.agent.optimize and replay is None:
             _learn_from_handoffs(
                 shared.db, run.agent.handoffs, success=run.outcome.status == "done"
             )
@@ -678,8 +716,14 @@ def _best_of_n(shared: _Shared, pool: Any, runs: list[_Run], count: int) -> tupl
     def rank(worker: Any) -> float:
         return prior(worker, "edit", shared.features, base=base_rates.get(worker.id))
 
-    def planner(n: int) -> list[Any]:
+    def live_plans(n: int) -> list[Any]:
         return best_of_n.plan_candidates(eligible, n, rank=rank, seed=spec.seed)
+
+    def planner(n: int) -> list[Any]:
+        if shared.replay is None:
+            return live_plans(n)
+        recorded: list[Any] = shared.replay.plans(n, live_plans)
+        return recorded
 
     shared.planner = planner
     plans = planner(count)
@@ -745,13 +789,14 @@ def _start(shared: _Shared, pool: Any, runs: list[_Run], plan: Any, run: _Run | 
     """Run the candidate of `plan`: in `run` (the first, whose worktree the task acquired) or
     in a new worktree, appended to `runs` before it starts."""
     if run is None:
-        worktree = pool.acquire(
-            f"{shared.task_id}-c{plan.index}", include_uncommitted=shared.spec.include_uncommitted
+        worktree = _acquire(
+            pool, f"{shared.task_id}-c{plan.index}", shared.spec, shared.replay, plan.index
         )
         run = _Run(plan.index, plan, worktree)
         runs.append(run)
     else:
         run.index, run.plan = plan.index, plan
+    shared.trajectory.emit("candidate_start", candidate=plan.index, plan=plan.as_dict())
     shared.say(f"  candidate {plan.index} ({plan.family})")
     _run_candidate(shared, run)
     shared.trajectory.emit(
@@ -912,6 +957,51 @@ def _settle_by_tests(
     report.resolved = True
     report.kept = kept
     report.resolution = f"targeted tests kept candidates {', '.join(map(str, kept))}"
+
+
+def _acquire(pool: Any, name: str, spec: TaskSpec, replay: Any, candidate: int | None) -> Any:
+    """A worktree for the task or a candidate: in a replay, at the recorded base commit."""
+    if replay is not None and pool.mode() == "git":
+        base = replay.base(candidate)
+        if base:
+            try:
+                return pool.acquire(name, base=base)
+            except Exception as exc:  # noqa: BLE001 - say which commit is missing
+                raise ValueError(f"the recorded base commit {base[:12]} is gone: {exc}") from exc
+    return pool.acquire(name, include_uncommitted=spec.include_uncommitted and replay is None)
+
+
+def _recorded_features(
+    replay: Any, *, catalog: Catalog, ledger: Ledger, budget: BudgetTracker, trajectory: Trajectory
+) -> TaskFeatures:
+    """A replay's task features: the recorded classification, charged as it was."""
+    from stepswitch.compat.ir import Usage
+
+    recording = replay.recording
+    features: TaskFeatures = recording.features()
+    details = dict(recording.classify.get("details") or {})
+    replay.clock.advance(recording.classify_seconds)
+    if details.get("classifier") == "model":
+        usage = details.get("usage") or {}
+        fields = usage_row_fields(Usage(**usage) if usage else None)
+        worker_id = features.source.removeprefix("model:")
+        worker = catalog.workers.get(worker_id)
+        ledger.record(
+            LedgerRow(
+                task_id=ledger.task_id,
+                step=0,
+                step_type="classify",
+                endpoint=worker.spec.endpoint if worker is not None else "",
+                model=worker.spec.model if worker is not None else worker_id,
+                wall_seconds=round(recording.classify_seconds, 6),
+                gpu_seconds=0.0,
+                data={"worker": worker_id, "replayed": True},
+                **fields,
+            )
+        )
+        budget.charge(tokens=fields["input_tokens"] + fields["output_tokens"])
+    trajectory.emit("classify", step=0, features=features.as_dict(), details=details)
+    return features
 
 
 def _relay(spec: TaskSpec, catalog: Catalog) -> tuple[str, str] | None:

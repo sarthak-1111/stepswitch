@@ -6,8 +6,11 @@ per line, each with `seq`, `ts`, `type` and the event's fields. Events are also 
 tool outputs, diffs) go to the content-addressed blob store `.stepswitch/blobs/<aa>/<sha256>`
 and events refer to them by hash.
 
-Event types written by the built-in agent: task_start, classify, decision, switch, step, tool,
-gates, escalation, review, model_error, budget, task_end.
+Event types written by the built-in agent: task_start, catalog, classify, learning, ladder,
+decision, switch, step, aux, tool, compress, context, handoff, gates, escalation, review,
+model_error, budget, task_end (and best_of_n, candidate_start, candidate_end and selection for
+best-of-N). Model answers (`response_blob`), long tool outputs (`output_blob`, `raw_blob`) and
+compressions (`output_blob`) are kept whole as blobs, so `trajectory.replay` can replay a run.
 """
 
 from __future__ import annotations

@@ -65,13 +65,7 @@ def test_phase_2_commands_exist_with_their_options(command: str, options: list[s
     assert all(option in result.output for option in options), result.output
 
 
-@pytest.mark.parametrize(
-    ("args", "phase"),
-    [
-        (["proxy"], 8),
-        (["replay", "run-1"], 7),
-    ],
-)
+@pytest.mark.parametrize(("args", "phase"), [(["proxy"], 8)])
 def test_later_phase_commands_say_so_and_exit_2(args: list[str], phase: int) -> None:
     result = runner.invoke(app, args)
     assert result.exit_code == 2

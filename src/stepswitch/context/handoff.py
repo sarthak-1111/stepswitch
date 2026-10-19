@@ -464,7 +464,12 @@ def write_state(
         data = json.loads(text[start : end + 1]) if 0 <= start < end else None
         jsonschema.validate(data, WRITER_SCHEMA)
     except (ValueError, jsonschema.ValidationError) as exc:
-        return None, {"writer": "fallback", "reason": f"answer unusable: {str(exc)[:200]}"}
+        # The answer still cost tokens: the caller accounts for (and records) it.
+        return None, {
+            "writer": "fallback",
+            "reason": f"answer unusable: {str(exc)[:200]}",
+            "completion": completion,
+        }
     usage = completion.response.usage
     state: dict[str, Any] = dict(data or {})
     return state, {

@@ -50,7 +50,7 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from stepswitch.compat.client import Completion
 from stepswitch.compat.errors import ModelError
@@ -230,6 +230,60 @@ class LoopOutcome:
     detail: str = ""
 
 
+class _AuxModel:
+    """The summarizer's model for one purpose (a brief or an output summary). A failed call is
+    recorded, so that a replay fails it the same way."""
+
+    def __init__(self, loop: AgentLoop, worker: Worker, purpose: str) -> None:
+        self.loop = loop
+        self.worker = worker
+        self.purpose = purpose
+
+    def complete(self, request: Request) -> Completion:
+        try:
+            return self.loop._model(self.worker, "aux").complete(request)
+        except Exception as exc:
+            kind = exc.kind if isinstance(exc, ModelError) else type(exc).__name__
+            self.loop.trajectory.emit(
+                "model_error",
+                step=self.loop.step,
+                purpose=self.purpose,
+                worker=self.worker.spec.id,
+                endpoint=self.worker.spec.endpoint,
+                kind=kind,
+                message=str(exc)[:500],
+            )
+            raise
+
+
+class _RecordedCompressor:
+    """Records every compression of a tool result (TK7), so that a replay gives the same text."""
+
+    def __init__(self, inner: Any, loop: AgentLoop) -> None:
+        self.inner = inner
+        self.loop = loop
+
+    def compress(self, text: str, rate: float) -> str:
+        trajectory = self.loop.trajectory
+        try:
+            compressed = self.inner.compress(text, rate)
+        except Exception as exc:
+            trajectory.emit(
+                "compress",
+                step=self.loop.step,
+                chars=len(text),
+                error=f"{type(exc).__name__}: {exc}"[:300],
+            )
+            raise
+        trajectory.emit(
+            "compress",
+            step=self.loop.step,
+            chars=len(text),
+            output_blob=trajectory.blob(compressed or ""),
+        )
+        return str(compressed or "")
+
+
 @dataclass
 class AgentLoop:
     spec: TaskSpec
@@ -277,6 +331,9 @@ class AgentLoop:
     families: frozenset[str] | None = None
     # The learning router's sampled task-level success per worker (SPEC §10, ADR 0026).
     learned: dict[str, float] = field(default_factory=dict)
+    # A replay of a recorded run (SPEC §11, ADR 0027): its `trajectory.replay.CandidateReplay`,
+    # which answers model and tool calls from the recording until the fork step.
+    replay: Any = None
 
     step: int = 0
     current: str | None = None
@@ -334,6 +391,13 @@ class AgentLoop:
             for path, replacement in sorted(self.scrub_paths, key=lambda p: -len(p[0]))
             if path.strip("\\/")
         ]
+        if self.compressor is not None:
+            inner = (
+                self.replay.compressor(self.compressor)
+                if self.replay is not None
+                else self.compressor
+            )
+            self.compressor = _RecordedCompressor(inner, self)
 
     # ------------------------------------------------------------------------------------
     # Requests
@@ -420,6 +484,7 @@ class AgentLoop:
         return seen, round(prompt_tokens * chain.prefix_tokens / chain.tokens)
 
     def _decide(self, step_type: str, probe: Request, *, work: bool) -> Decision:
+        recorded = self.replay.decision(self.step + 1) if self.replay is not None else None
         prompt_tokens = self._prompt_tokens(probe)
         seen: dict[str, int] = {}
         prefix_tokens = 0
@@ -428,6 +493,8 @@ class AgentLoop:
         elif work:
             seen = dict(self.seen_tokens)
         pin, threshold = self._relay_pin(work)
+        if self.replay is not None and self.replay.forked and self.replay.fork_worker:
+            pin = self.replay.fork_worker
         state = RouterState(
             step=self.step + 1,
             current=self.current,
@@ -453,7 +520,7 @@ class AgentLoop:
             ),
             learned=dict(self.learned),
         )
-        decision = route(
+        decision = recorded or route(
             self.features,
             step_type,
             state,
@@ -525,7 +592,7 @@ class AgentLoop:
             self.step += 1
             started = self.clock()
             try:
-                completion = worker.get_model().complete(request)
+                completion = self._model(worker, "step").complete(request)
             except Exception as exc:  # noqa: BLE001 - any failure takes this worker out
                 kind = exc.kind if isinstance(exc, ModelError) else type(exc).__name__
                 if kind == "too_large":
@@ -564,6 +631,17 @@ class AgentLoop:
                 self.work_families.add(spec.family_key)
                 self.work_steps[spec.id] = self.work_steps.get(spec.id, 0) + 1
             return completion, spec.id
+
+    def _model(self, worker: Worker, kind: str) -> StepModelLike:
+        """The model that answers `worker`: in a replay, the recording (until the fork)."""
+        if self.replay is not None:
+            return cast(StepModelLike, self.replay.model(worker, kind))
+        return worker.get_model()
+
+    def _aux_model(self, purpose: str) -> StepModelLike:
+        """The summarizer's model for a brief or a summary."""
+        assert self.summarizer is not None
+        return _AuxModel(self, self.summarizer, purpose)
 
     def _observe_cache(
         self, worker_id: str, chain: Chain, predicted: int, usage: Usage | None
@@ -636,6 +714,7 @@ class AgentLoop:
             usage={k: v for k, v in fields.items()},
             wall_seconds=round(wall, 3),
             gpu_seconds=round(gpu, 3),
+            response_blob=self.trajectory.blob(response.model_dump_json()),
         )
         self.echo(
             f"[{self.step}] {step_type:9} {spec.id}" + (f" -> {', '.join(calls)}" if calls else "")
@@ -693,6 +772,7 @@ class AgentLoop:
             model=spec.model,
             usage=dict(fields),
             wall_seconds=round(wall, 3),
+            response_blob=self.trajectory.blob(response.model_dump_json()),
         )
 
     # ------------------------------------------------------------------------------------
@@ -824,7 +904,7 @@ class AgentLoop:
         started = self.clock()
         try:
             state, details = handoff.write_state(
-                self.summarizer.get_model(), digest, seed=self.spec.seed
+                self._aux_model("handoff"), digest, seed=self.spec.seed
             )
         except Exception as exc:  # noqa: BLE001 - the facts still make a brief
             state, details = None, {"writer": "fallback", "reason": f"{type(exc).__name__}: {exc}"}
@@ -1060,7 +1140,14 @@ class AgentLoop:
 
     def _execute(self, call: ToolCallPart) -> tuple[ToolOutput, bool]:
         """Run one call; also say whether it repeats the previous call and its result."""
+        recorded = self.replay.tool(self.step, call) if self.replay is not None else None
         output = self._stored_output(call) if self.optimize else None
+        if output is None and recorded is not None:
+            # A replay: the transcript gets the recorded result; edits, commands and tests
+            # run again for their effect on the files.
+            if recorded.effects:
+                self.replay.check(recorded, self.toolbox.execute(call.name, call.arguments))
+            output = recorded.output()
         if output is None:
             output = self.toolbox.execute(call.name, call.arguments)
         payload = output.text
@@ -1077,6 +1164,7 @@ class AgentLoop:
             is_error=output.is_error,
             output=payload[:2000] if ref is None else payload[:500],
             output_blob=ref,
+            raw_blob=self.trajectory.blob(output.raw) if output.raw is not None else None,
             changed_files=list(output.changed_files),
             data=output.data,
             repeated=repeated,
@@ -1091,7 +1179,7 @@ class AgentLoop:
             return None
         started = self.clock()
         try:
-            summary, completion = distill.summarize(self.summarizer.get_model(), text)
+            summary, completion = distill.summarize(self._aux_model("distill"), text)
         except Exception:  # noqa: BLE001 - the key lines still stand without a summary
             return None
         self._account_aux(

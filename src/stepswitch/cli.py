@@ -1575,14 +1575,75 @@ def cmd_dash(
 
 @app.command("replay")
 def cmd_replay(
-    run: Annotated[str, typer.Argument(help="Recorded run id.")],
-    from_step: Annotated[int, typer.Option("--from-step", help="Step to fork from.")] = 0,
-    worker: Annotated[
-        str | None, typer.Option("--worker", help="Worker for the forked steps.")
+    ctx: typer.Context,
+    run: Annotated[
+        str, typer.Argument(help="Recorded run: task id, unique prefix, run directory or last.")
+    ],
+    from_step: Annotated[
+        int | None,
+        typer.Option(
+            "--from-step",
+            min=1,
+            help="Fork at this model call: from here on, models answer live and tools run.",
+        ),
     ] = None,
+    worker: Annotated[
+        str | None,
+        typer.Option("--worker", help="Worker for the forked steps (forks at step 1 alone)."),
+    ] = None,
+    json_out: Annotated[bool, typer.Option("--json", help="Print the comparison as JSON.")] = False,
 ) -> None:
-    """Replay a recorded run, optionally forking at a step with another worker."""
-    _not_yet("replay", 7)
+    """Replay a recorded run from its trajectory, or fork it at a step with another worker.
+
+    A replay asks no model: the recorded answers and tool results are replayed, edits and
+    commands run again, and the gates run for real. It exits with 1 when a replay does not
+    reproduce the recorded diffs and gate results."""
+    from stepswitch.trajectory.replay import replay_run
+
+    state = _state(ctx)
+    echo = (lambda _msg: None) if json_out else typer.echo
+    with _user_errors():
+        replayed = replay_run(
+            run,
+            state.root,
+            from_step=from_step,
+            worker=worker,
+            config=state.config,
+            egress=state.egress(),
+            echo=echo,
+        )
+    report = replayed.comparison
+    result = replayed.result
+    if json_out:
+        _print_json({**report, "result": result.model_dump(mode="json", exclude={"diff"})})
+    else:
+        fork = report["fork"]
+        if fork:
+            what = f"Forked {report['replay_of']} at step {fork['from_step']}"
+            what += f" on {fork['worker']}" if fork["worker"] else ""
+        else:
+            what = f"Replayed {report['replay_of']}"
+        status = result.status + (f" ({result.stop_reason})" if result.stop_reason else "")
+        typer.echo(f"{what} as {report['task_id']}: {status}")
+        calls = report["model_calls"]
+        typer.echo(
+            f"Model calls: {calls['from_recording']} from the recording, {calls['live']} live;"
+            f" tool calls run again: {report['tools_run_again']}"
+        )
+        same = {True: "identical", False: "different"}
+        typer.echo(
+            f"Diffs: {same[report['identical_diffs']]}; gate results:"
+            f" {same[report['identical_gate_results']]}"
+        )
+        for note in report["departures"][:10]:
+            typer.echo(f"  departed: {note}")
+        typer.echo(f"Trajectory: {result.run_dir}")
+    reproduced = report["identical_diffs"] and report["identical_gate_results"]
+    if not report["fork"] and not reproduced:
+        raise typer.Exit(1)
+    code = _exit_code(result.status) if report["fork"] else 0
+    if code:
+        raise typer.Exit(code)
 
 
 def main() -> None:

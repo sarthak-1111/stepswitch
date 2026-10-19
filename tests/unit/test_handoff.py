@@ -191,6 +191,7 @@ def test_writer_answer_must_match_the_state_schema() -> None:
 
     state, details = handoff.write_state(Scripted('{"done": "not a list"}'), "log")
     assert state is None and details["writer"] == "fallback"
+    assert details["completion"] is not None  # an unusable answer still cost tokens
     state, details = handoff.write_state(Scripted("no json here"), "log")
     assert state is None
     state, details = handoff.write_state(Scripted(error=ModelError("server", "boom")), "log")
