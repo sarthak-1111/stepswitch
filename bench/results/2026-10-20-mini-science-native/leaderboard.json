@@ -1,0 +1,99 @@
+{
+  "command": "ssw bench run --suite mini-science --workers native:claude-code:claude-sonnet-5-5,native:claude-code:claude-opus-5-5 --seeds 2 --budget-seconds 900.0",
+  "commit": "c59bfc71d43a",
+  "contestants": [
+    {
+      "cache_hit_rate": 0.8999510795873205,
+      "cached_input_tokens": 741368,
+      "ci": {
+        "confidence": 0.95,
+        "high": 1.0,
+        "low": 1.0,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "native:claude-code:claude-sonnet-5-5",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 0.0,
+      "input_tokens": 823787,
+      "median_hosted_tokens": 73472.0,
+      "median_tokens": 73472.0,
+      "median_uncached_tokens": 7092.5,
+      "median_wall_seconds": 12.891,
+      "output_tokens": 12644,
+      "pass_rate": 1.0,
+      "passed": 12,
+      "rank": 1,
+      "reference_cost": null,
+      "runs": 12,
+      "statuses": {
+        "done": 12
+      },
+      "tasks": 6,
+      "tests_modified": 0
+    },
+    {
+      "cache_hit_rate": 0.9154352845045886,
+      "cached_input_tokens": 1187553,
+      "ci": {
+        "confidence": 0.95,
+        "high": 1.0,
+        "low": 1.0,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "native:claude-code:claude-opus-5-5",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 0.0,
+      "input_tokens": 1297255,
+      "median_hosted_tokens": 109101.0,
+      "median_tokens": 109101.0,
+      "median_uncached_tokens": 9612.0,
+      "median_wall_seconds": 23.241999999999997,
+      "output_tokens": 20828,
+      "pass_rate": 1.0,
+      "passed": 12,
+      "rank": 2,
+      "reference_cost": null,
+      "runs": 12,
+      "statuses": {
+        "done": 12
+      },
+      "tasks": 6,
+      "tests_modified": 0
+    }
+  ],
+  "date": "2026-10-19T22:38:36+00:00",
+  "hardware": {
+    "arch": "x86_64",
+    "cpu_cores": 32,
+    "gpu_memory_gb": [
+      51.53,
+      48.31,
+      51.53,
+      51.53
+    ],
+    "gpus": 4,
+    "os": "Windows",
+    "ram_gb": 1098.43
+  },
+  "interval": {
+    "confidence": 0.95,
+    "resamples": 10000,
+    "seed": 0
+  },
+  "prices": null,
+  "results_file": "results.jsonl",
+  "router_pool": null,
+  "runs": 24,
+  "schema": 1,
+  "scoring": "passes when every acceptance command exits with 0 on a fresh copy with the run's diff applied and the suite's protected paths restored",
+  "seeds": [
+    0,
+    1
+  ],
+  "sources": null,
+  "suite": "mini-science",
+  "tasks": 6,
+  "version": "0.1.0.dev0"
+}
