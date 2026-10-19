@@ -4,6 +4,52 @@ Newest phase first. Each phase records what was done, what research changed, ope
 actions that only the maintainer can take. Phase checks: `uv run python scripts/phase_check.py N`
 (one phase) or `--upto N` (phases 0 to N).
 
+## Phase 7: Learning router, fork and replay
+
+Status: done on 2026-10-19. `scripts/phase_check.py 7` passes 5 of 5 checks. `uv run pytest -q`
+with the CPU models present: 1769 passed, 7 skipped (among them the tests that need a
+configured local model server). `ssw prove --quick --phase 7` (752 s): seventeen claims
+passing, C-014 and C-015 among them for the first time, and C-016 pending CI.
+
+### Done
+
+- **The learning router** (ADR 0026): contextual Thompson sampling.
+  - It learns per worker a Beta posterior of success and running means of normalized time and
+    tokens. It works on five context levels that back off to coarser ones.
+  - It draws one sample per worker per task, seeded by the task, and credits workers by their
+    share of the work steps.
+  - Modes: `on`, `frozen` and `off`. Bench runs default to `off`, and a replay never learns.
+  - `ssw router stats` shows the statistics. `--export` writes aggregates without endpoint
+    names or single-task contexts.
+- **C-015**, scoped to the simulation harness (`router.simulate`): synthetic worlds of four
+  workers. The learning router is compared with the static router, the best fixed worker and
+  random routing on the same draws.
+  - Over 30 worlds of 4,000 tasks, the mean total regret was 118 for the learning router,
+    194 for the static router, 167 for the best fixed worker (chosen knowing the world) and
+    670 for random routing. The learning router's regret per task fell from 0.045 in the
+    first quarter to 0.021 in the last.
+  - Per world it had less regret than the static router in 18 of 30 and than the best
+    fixed worker in 15 of 30, so the claim rests on the mean, not on every world.
+- **Replay and fork** (ADR 0027).
+  - Runs record whole model answers and tool outputs.
+  - `ssw replay <task>` reruns a recording. It applies edits, commands and tests again for
+    their effect on the files, answers from the recording, runs the gates for real, and
+    reports each departure from the recording.
+  - `--from-step k` and `--worker` fork a run: the recording plays up to call k, and live
+    models take over from there.
+  - The API and the dashboard can start replays and forks.
+- **C-014** replays seven recorded fake-worker runs and compares their diffs and gate results
+  with the recordings. All 7 reproduced them, a failover, a handoff brief, a stop at the time
+  budget and a best-of-N run among them, with every model call answered from the recording.
+- **Fixes found along the way.**
+  - The `test` and `run` tools drop stale bytecode first. An edit of the same size within the
+    same second as the last compile would otherwise run the old code. The gates also leave
+    generated files out of a task's change.
+  - Handoff records calibrate the handoff recovery, so they now carry the router's estimates
+    of success (the posterior mean, with the step shift) rather than the learning router's
+    samples. A sample can rank a weaker worker first, which dropped the handoff from
+    calibration at random and made one unit test flaky (ADR 0026).
+
 ## Phase 6: Best-of-N, disagreement and cross-family review
 
 Status: done on 2026-10-19. `scripts/phase_check.py 6` passes 7 of 7 checks. `uv run pytest -q`
@@ -649,6 +695,6 @@ Details are in the SPEC change table and the ADRs. The main points:
    Node 22.12 or later (the current LTS line is recommended) before Phase 4. The Ollama release
    that was researched is 0.40.5; older installs may lack routes the research relies on.
 
-## Next: Phase 7
+## Next: Phase 8
 
-The learning router, fork and replay (SPEC §23). Claims due: C-014 and C-015.
+`ssw proxy` and the external harness adapters (SPEC §23). No claims are assigned to it.
