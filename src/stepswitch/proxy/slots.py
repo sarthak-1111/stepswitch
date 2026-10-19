@@ -2,8 +2,9 @@
 
 A harness names a model on every request. The proxy reads the name as a hint:
 
-* `ssw:auto` lets the router decide everything, `ssw:plan`, `ssw:edit`, `ssw:fast` and
-  `ssw:review` name the step type the router routes as.
+* `ssw:auto` lets the router decide everything, `ssw:plan`, `ssw:edit`, `ssw:fast`,
+  `ssw:review` and `ssw:summarize` name the step type the router routes as. Each also has a
+  dash form (`ssw-auto`, ...) for harnesses whose model selectors reserve ':'.
 * A worker ID, `<endpoint>/<model>`, model name or registry ID pins the request to that worker.
 * `[proxy.aliases]` maps other names (a harness's own model names) to either of the above.
 * Any other name is routed as `ssw:auto`, and the decision says so.
@@ -29,7 +30,10 @@ SLOTS: dict[str, str | None] = {
     "ssw:edit": "edit",
     "ssw:fast": "navigate",
     "ssw:review": "review",
+    "ssw:summarize": "summarize",
 }
+# The same slots for harnesses whose model selectors reserve ':' (`provider/model:thinking`).
+DASH_SLOTS: dict[str, str] = {name.replace(":", "-"): name for name in SLOTS}
 # The request-class hint of a supported harness (docs/RESEARCH.md, Claude Code) and the step
 # types its classes stand for; classes not listed keep the inferred step type.
 CLASS_HEADERS = ("x-claude-code-request-class",)
@@ -73,6 +77,7 @@ def resolve_slot(
     name = request.model.strip()
     klass = request_class(headers)
     target = (aliases or {}).get(name, name)
+    target = DASH_SLOTS.get(target, target)
     if target in SLOTS:
         return Slot(name, SLOTS[target] or inferred_step(request, klass), None, klass)
     worker = catalog.find(target) if target else None

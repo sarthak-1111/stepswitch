@@ -25,6 +25,7 @@ import time
 from collections import OrderedDict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from typing import Any
 
 from stepswitch.compat.ir import Message, Request
 
@@ -66,9 +67,13 @@ class SessionKey:
     conversation: str
 
 
-def session_key(fmt: str, request: Request, headers: Mapping[str, str]) -> SessionKey:
+def session_key(
+    fmt: str, request: Request, headers: Mapping[str, str], *, bound: str | None = None
+) -> SessionKey:
+    """The task and conversation of a request. A proxy bound to one task (`bound`, a harness
+    run's own proxy) puts every request in that task, whatever the headers say."""
     digest = conversation_hash(fmt, request)
-    run = header(headers, SESSION_HEADER)
+    run = bound or header(headers, SESSION_HEADER)
     if run is None:
         run = next((v for name in HARNESS_RUN_HEADERS if (v := header(headers, name))), None)
     if run is None:
@@ -104,7 +109,12 @@ def new_proxy_task_id(clock: Callable[[], float] = time.time) -> str:
 
 @dataclass
 class ProxyTask:
-    """The task a harness run is recorded as."""
+    """The task a harness run is recorded as.
+
+    An *attached* task belongs to a caller (a `ssw run --harness` task, `ProxyService.attach`):
+    its records are the caller's, it never ends on its own, and it carries what the caller's
+    routing knows (features, rung, pin, families, learned priors). `on_step` hears of every
+    recorded step."""
 
     key: str
     task_id: str
@@ -113,11 +123,28 @@ class ProxyTask:
     instruction: str = ""
     steps: int = 0
     lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    attached: bool = False
+    features: Any = None
+    level: int | None = None
+    pin: str | None = None
+    families: frozenset[str] | None = None
+    learned: dict[str, float] = field(default_factory=dict)
+    on_step: Callable[[dict[str, Any]], None] | None = field(default=None, repr=False)
+    # Why the task may take no more steps (its budget is used up, or it was cancelled), or None.
+    limit: Callable[[], str | None] | None = field(default=None, repr=False)
+    failovers: int = 0
+    # Decisions made ahead of their requests (`ProxyService.route_only`), by chosen worker.
+    reserved: dict[str, Any] = field(default_factory=dict, repr=False)
 
     def next_step(self) -> int:
         with self.lock:
             self.steps += 1
             return self.steps
+
+    def advance_to(self, step: int) -> None:
+        """Continue numbering after `step` (the caller took steps of its own)."""
+        with self.lock:
+            self.steps = max(self.steps, step)
 
 
 @dataclass
@@ -183,6 +210,26 @@ class SessionStore:
                 self._end_if_idle(old.task)
             return conversation, new_task
 
+    def bind(self, key: str, task_id: str, *, instruction: str = "", **fields: Any) -> ProxyTask:
+        """Register an attached task under the session key `key` (see `ProxyTask`)."""
+        now = self.clock()
+        task = ProxyTask(key, task_id, now, now, instruction[:2000], attached=True, **fields)
+        with self._lock:
+            self._tasks[key] = task
+        return task
+
+    def release(self, key: str) -> ProxyTask | None:
+        """Forget an attached task and its conversations."""
+        with self._lock:
+            task = self._tasks.pop(key, None)
+            for conversation_key in [k for k, c in self._conversations.items() if c.task is task]:
+                self._conversations.pop(conversation_key)
+            return task
+
+    def conversations(self, task: ProxyTask) -> list[Conversation]:
+        with self._lock:
+            return [c for c in self._conversations.values() if c.task is task]
+
     def tasks(self) -> list[ProxyTask]:
         with self._lock:
             return list(self._tasks.values())
@@ -199,7 +246,7 @@ class SessionStore:
             self._end_if_idle(self._conversations.pop(key).task)
 
     def _end_if_idle(self, task: ProxyTask) -> None:
-        if any(c.task is task for c in self._conversations.values()):
+        if task.attached or any(c.task is task for c in self._conversations.values()):
             return
         if self._tasks.pop(task.key, None) is not None:
             self.ended.append(task)

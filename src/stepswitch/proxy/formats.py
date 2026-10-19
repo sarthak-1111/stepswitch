@@ -47,6 +47,15 @@ def _description(name: str, catalog: Catalog) -> str:
     return f"pinned to {worker.spec.id}" if worker is not None else name
 
 
+def _window(name: str, catalog: Catalog) -> dict[str, int]:
+    """A worker's context window, for harnesses that size their transcript by it (the Pi
+    extension); other clients ignore the field."""
+    worker = catalog.find(name) if name not in SLOTS else None
+    if worker is None or not worker.spec.context:
+        return {}
+    return {"context_window": worker.spec.context}
+
+
 def models_list(catalog: Catalog) -> dict[str, Any]:
     names = listed_models(catalog)
     data = [
@@ -59,6 +68,7 @@ def models_list(catalog: Catalog) -> dict[str, Any]:
             "owned_by": "stepswitch",
             "display_name": name,
             "description": _description(name, catalog),
+            **_window(name, catalog),
         }
         for name in names
     ]

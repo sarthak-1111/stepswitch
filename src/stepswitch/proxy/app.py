@@ -54,6 +54,7 @@ INBOUND_ROUTES = (
     "/api/tags",
     "/api/show",
     "/v1/models",
+    "/stepswitch/v1/route",
 )
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 MESSAGES_PING = 'event: ping\ndata: {"type": "ping"}\n\n'
@@ -349,6 +350,17 @@ def create_proxy_app(
             return _error_response("messages", exc)
         headers = {formats.ESTIMATE_HEADER: "characters/4"}
         return JSONResponse(formats.count_tokens(request), headers=headers)
+
+    @app.post("/stepswitch/v1/route", include_in_schema=False)
+    async def route_only(http: HttpRequest) -> Response:
+        try:
+            body = await _json_body(http)
+            if not isinstance(body, dict):
+                raise ModelError("bad_request", "the body is a JSON object", status=400)
+            answer = await _run(service.route_only, body, dict(http.headers))
+        except ModelError as exc:
+            return _error_response("chat-completions", exc)
+        return JSONResponse(answer)
 
     @app.get("/v1/models", include_in_schema=False)
     async def models() -> Response:

@@ -41,16 +41,20 @@ from stepswitch.compat.ir import (
     Request,
     Response,
     StartDelta,
+    ToolSpec,
 )
 from stepswitch.compat.stream import StreamAssembler, response_to_deltas
 from stepswitch.core.task import TaskSpec
 from stepswitch.ledger import Ledger, LedgerRow, estimate_tokens, gpu_seconds_of, usage_row_fields
 from stepswitch.proxy.sessions import (
+    SESSION_HEADER,
     Conversation,
     ProxyTask,
     ResponseStore,
+    SessionKey,
     SessionStore,
     first_user_text,
+    header,
     session_key,
     user_turn,
 )
@@ -191,6 +195,45 @@ class ProxyService:
         self._trajectories: dict[str, Trajectory] = {}
         self._ledgers: dict[str, Ledger] = {}
         self._lock = threading.Lock()
+        # The session every request belongs to, when the proxy serves one attached task.
+        self.bound: str | None = None
+
+    # ------------------------------------------------------------------------------------
+    # Attached tasks (a harness run of `ssw run --harness`)
+    # ------------------------------------------------------------------------------------
+
+    def attach(
+        self,
+        session: str,
+        *,
+        task_id: str,
+        trajectory: Trajectory,
+        ledger: Ledger,
+        instruction: str = "",
+        bind_all: bool = True,
+        **fields: Any,
+    ) -> ProxyTask:
+        """Make the requests of `session` steps of an existing task: decisions, step events
+        and ledger rows go to the caller's trajectory and ledger, under the caller's task ID.
+        With `bind_all`, every request this proxy serves belongs to that session. `fields` set
+        the task's routing context (`ProxyTask`)."""
+        task = self.sessions.bind(session, task_id, instruction=instruction, **fields)
+        with self._lock:
+            self._trajectories[task_id] = trajectory
+            self._ledgers[task_id] = ledger
+        if bind_all:
+            self.bound = session
+        return task
+
+    def detach(self, session: str) -> ProxyTask | None:
+        task = self.sessions.release(session)
+        if task is not None:
+            with self._lock:
+                self._trajectories.pop(task.task_id, None)
+                self._ledgers.pop(task.task_id, None)
+        if self.bound == session:
+            self.bound = None
+        return task
 
     # ------------------------------------------------------------------------------------
     # Decoding and routing
@@ -244,15 +287,23 @@ class ProxyService:
         store = False
         if fmt == "responses":
             request, store = self._continue_stored(request)
-        key = session_key(fmt, request, headers)
+        key = session_key(fmt, request, headers, bound=self.bound)
         conversation, new_task = self.sessions.conversation(
             key, instruction=first_user_text(request)
         )
         if new_task:
             self._start_task(conversation.task, fmt)
+        limit = conversation.task.limit() if conversation.task.limit is not None else None
+        if limit is not None:
+            raise ModelError("quota", f"the task takes no more steps: {limit}", status=429)
         slot = resolve_slot(request, headers, self.catalog, self.settings.aliases)
         call: Call | None = None
-        decision = self._route(conversation, request, slot)
+        # A decision made ahead for this worker (`route_only`) is this request's step.
+        reserved = None
+        if slot.pin is not None:
+            with conversation.task.lock:
+                reserved = conversation.task.reserved.pop(slot.pin, None)
+        decision = reserved or self._route(conversation, request, slot)
         if decision.chosen is None:
             self._record_decision(conversation, decision, slot, fmt)
             raise NoWorker(decision.reason)
@@ -272,8 +323,57 @@ class ProxyService:
         if fmt == "responses":
             call.response_id = f"resp_{uuid.uuid4().hex}"
             call.store = store
-        self._record_decision(conversation, decision, slot, fmt)
+        if reserved is None:
+            self._record_decision(conversation, decision, slot, fmt)
         return call
+
+    def route_only(self, body: Mapping[str, Any], headers: Mapping[str, str]) -> dict[str, Any]:
+        """Which worker takes a harness's next request, decided before the request exists
+        (`POST /stepswitch/v1/route`: the Pi extension's virtual model, SPEC §12 item 4).
+
+        `body`: `model` (a slot name, default `ssw:auto`), `reason` (`user` starts a new user
+        turn; `continuation`, `retry` and `direct` do not), `previous` (the worker of the
+        previous request), `failed` (a worker that just failed), `transcript_tokens` and
+        `tools` (whether tools are offered). The decision is recorded and kept for the task:
+        its next request that names the chosen worker is that step."""
+        name = str(body.get("model") or "ssw:auto")
+        reason = str(body.get("reason") or "user")
+        run = self.bound or header(headers, SESSION_HEADER) or "route"
+        key = SessionKey(task=run, conversation=f"{run}/route")
+        conversation, new_task = self.sessions.conversation(key)
+        if new_task:
+            self._start_task(conversation.task, "route")
+        limit = conversation.task.limit() if conversation.task.limit is not None else None
+        if limit is not None:
+            raise ModelError("quota", f"the task takes no more steps: {limit}", status=429)
+        tools = [ToolSpec(name="tool")] if body.get("tools", True) else []
+        probe = Request(model=name, tools=tools)
+        slot = resolve_slot(probe, headers, self.catalog, self.settings.aliases)
+        with conversation.lock:
+            previous = body.get("previous")
+            conversation.current = str(previous) if previous in self.catalog else None
+            if body.get("failed"):
+                conversation.failed.add(str(body["failed"]))
+        decision = self._decide(
+            conversation,
+            slot,
+            tokens=max(0, int(body.get("transcript_tokens") or 0)),
+            open_turn=reason != "user",
+            output_tokens=OUTPUT_RESERVE,
+        )
+        self._record_decision(conversation, decision, slot, "route")
+        if decision.chosen is None:
+            raise NoWorker(decision.reason)
+        with conversation.task.lock:
+            conversation.task.reserved[decision.chosen] = decision
+        spec = self.catalog.get(decision.chosen).spec
+        return {
+            "worker": spec.id,
+            "context": spec.context,
+            "step": decision.step,
+            "step_type": decision.step_type,
+            "reason": decision.reason,
+        }
 
     def _level(self, step_type: str) -> int:
         ladder = Ladder.for_levels(
@@ -288,34 +388,55 @@ class ProxyService:
         return level
 
     def _route(self, conversation: Conversation, request: Request, slot: Slot) -> Decision:
+        return self._decide(
+            conversation,
+            slot,
+            tokens=estimate_tokens(request_chars(request)),
+            open_turn=not user_turn(request),
+            output_tokens=min(request.max_output_tokens or 1024, OUTPUT_RESERVE),
+        )
+
+    def _decide(
+        self,
+        conversation: Conversation,
+        slot: Slot,
+        *,
+        tokens: int,
+        open_turn: bool,
+        output_tokens: int,
+    ) -> Decision:
         """One decision. Inside a turn (tool results, a continued assistant turn) the
         conversation stays on its worker even where a rule or the rung would send this step
         type elsewhere; it moves only when that worker cannot take the request at all (it
         failed, or the transcript no longer fits its context). A model name that pins a
         worker is the caller's own choice and always holds."""
-        tokens = estimate_tokens(request_chars(request))
-        step = conversation.task.next_step()
+        task = conversation.task
+        step = task.next_step()
         workers = [w.spec for w in self.catalog]
-        features = TaskFeatures(offline=self.settings.offline)
+        features = task.features or TaskFeatures(offline=self.settings.offline)
+        pin = slot.pin or task.pin
         with conversation.lock:
             current = conversation.current
             state = RouterState(
                 step=step,
                 current=current,
-                level=self._level(slot.step_type),
+                level=task.level if task.level is not None else self._level(slot.step_type),
                 transcript_tokens=tokens,
-                output_tokens=min(request.max_output_tokens or 1024, OUTPUT_RESERVE),
+                output_tokens=output_tokens,
                 seen_tokens=dict(conversation.seen_tokens),
-                open_tool_calls=not user_turn(request),
+                open_tool_calls=open_turn,
                 # The harness keeps its transcript; the proxy never replaces it with a brief.
                 handoff_allowed=False,
+                track=getattr(features, "track", "general"),
                 offline=self.settings.offline,
                 allow_remote=self.settings.allow_remote,
-                worker_pin=slot.pin,
+                worker_pin=pin,
                 failed=frozenset(conversation.failed),
+                families=task.families,
+                learned=dict(task.learned),
             )
         decision: Decision | None = None
-        if state.open_tool_calls and slot.pin is None and current and current in self.catalog:
+        if state.open_tool_calls and pin is None and current and current in self.catalog:
             held = route(
                 features, slot.step_type, replace(state, worker_pin=current), workers, seed=step
             )
@@ -432,7 +553,7 @@ class ProxyService:
         call.attempts.append({"worker": call.worker.spec.id, "error": error.kind})
         if error.kind not in FAILOVER_KINDS or len(call.attempts) >= self.settings.max_attempts:
             return False
-        if call.slot.pin is not None:
+        if call.slot.pin is not None or call.conversation.task.pin is not None:
             return False
         with call.conversation.lock:
             call.conversation.failed.add(call.worker.spec.id)
@@ -445,6 +566,8 @@ class ProxyService:
         call.step = decision.step
         call.worker = self.catalog.get(decision.chosen)
         call.upstream = self._upstream_request(call.request, call.worker)
+        with call.conversation.task.lock:
+            call.conversation.task.failovers += 1
         return True
 
     def _with_response_id(self, call: Call, response: Response) -> Response:
@@ -569,11 +692,13 @@ class ProxyService:
                 **fields,
             )
         )
+        switched = False
         with conversation.lock:
             conversation.requests += 1
             if error is None:
                 if conversation.current not in (None, spec.id):
                     conversation.switches += 1
+                    switched = True
                 conversation.current = spec.id
                 conversation.seen_tokens[spec.id] = estimate_tokens(
                     request_chars(call.upstream) + reply_chars
@@ -602,10 +727,29 @@ class ProxyService:
             event["error"] = {"kind": error.kind, "message": error.message[:400]}
         trajectory.emit("step", step=call.step, **event)
         self._touch(conversation.task)
+        if conversation.task.on_step is not None:
+            conversation.task.on_step(
+                {
+                    "step": call.step,
+                    "step_type": call.slot.step_type,
+                    "request_class": call.slot.request_class,
+                    "worker": spec.id,
+                    "endpoint": spec.endpoint,
+                    "family": spec.family_key,
+                    "usage": dict(fields),
+                    "wall_seconds": wall,
+                    "gpu_seconds": gpu,
+                    "error": error.kind if error is not None else None,
+                    "switched": switched,
+                    "conversation": conversation.key.conversation,
+                }
+            )
 
     def end_tasks(self, tasks: Sequence[ProxyTask] | None = None, *, reason: str) -> list[str]:
-        """Record proxy tasks as stopped (their sessions ended, or the proxy is shutting down)."""
+        """Record proxy tasks as stopped (their sessions ended, or the proxy is shutting down).
+        Attached tasks are their callers' to end."""
         ended = list(tasks) if tasks is not None else self.sessions.tasks()
+        ended = [task for task in ended if not task.attached]
         for task in ended:
             trajectory = self._trajectory(task)
             trajectory.emit("task_end", status="stopped", stop_reason=reason, steps=task.steps)

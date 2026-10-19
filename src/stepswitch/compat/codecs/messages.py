@@ -129,6 +129,7 @@ KIND_ERRORS: dict[str, tuple[int, str]] = {
     "not_found": (404, "not_found_error"),
     "too_large": (413, "request_too_large"),
     "rate_limit": (429, "rate_limit_error"),
+    "quota": (429, "rate_limit_error"),
     "server": (500, "api_error"),
     "invalid_response": (502, "api_error"),
     "connection": (502, "api_error"),
