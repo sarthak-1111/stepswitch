@@ -1,0 +1,27 @@
+# Copy to .stepswitch/local.toml. Machine-specific: never commit it.
+schema = 1
+
+# A KTransformers server on a Linux x86-64 host: its workers are slow-lane workers.
+[[endpoints]]
+name = "big-box"
+url = "http://127.0.0.1:30000"
+engine = "ktransformers"
+models = ["big-moe"]
+
+# AirLLM runs in an environment of its own, with airllm, torch and transformers installed.
+[engines.airllm]
+python = "/opt/airllm/bin/python"
+
+# A llama.cpp server that keeps a big MoE model's experts in system RAM is slow too: mark its
+# model as a slow-lane model (models are keyed by the name the endpoint serves).
+[[endpoints]]
+name = "offload"
+url = "http://127.0.0.1:8081"
+engine = "llamacpp"
+models = ["big-moe-offload"]
+
+[models."big-moe-offload"]
+tier = "sl"
+
+[jobs]
+timeout_seconds = 21600             # how long one job's model call may take

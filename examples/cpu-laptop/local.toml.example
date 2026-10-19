@@ -1,0 +1,6 @@
+# Copy to .stepswitch/local.toml. Machine-specific: never commit it.
+schema = 1
+
+[storage]
+max_gb = 8                          # the disk cap for `ssw models pull`
+# models_dir = "~/models/stepswitch"   # default: the per-user data directory

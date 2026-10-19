@@ -1,0 +1,16 @@
+# A CPU-only laptop with 8 GB of RAM. The tiny tier's models are served by llama.cpp:
+# `ssw models pull --tier cpu` downloads them and installs the engine.
+schema = 1
+
+[privacy]
+# With no remote endpoint configured, nothing leaves the machine anyway. Set "local" to refuse
+# any non-local connection outright (pull the models first: downloads are refused too).
+mode = "default"
+deny_paths = [".env", ".env.*", "secrets/**"]
+
+[budgets]
+tokens = 200000
+wall_seconds = 1200
+
+[tracks.general]
+gates = ["format", "lint", "typecheck", "impacted_tests", "full_tests"]

@@ -1,0 +1,10 @@
+# Copy to .stepswitch/local.toml. Machine-specific: never commit it.
+schema = 1
+
+[[endpoints]]
+name = "ollama"
+url = "http://127.0.0.1:11434"
+engine = "ollama"
+formats = ["ollama-native", "chat-completions"]
+# Models this server has pulled (`ollama list`); `ssw probe` records what each one can do.
+models = ["qwen2.5:32b", "gpt-oss:120b"]

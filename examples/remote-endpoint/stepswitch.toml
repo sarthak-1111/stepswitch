@@ -1,0 +1,19 @@
+# A hosted chat-completions endpoint next to local models. Secrets in requests to non-local
+# endpoints are redacted, and files on the deny list are never read or sent.
+schema = 1
+
+[privacy]
+mode = "default"
+redact = "remote"                   # the default; "all" also redacts local requests
+deny_paths = [".env", ".env.*", "secrets/**", "*.pem", "*.key"]
+
+[budgets]
+tokens = 400000
+wall_seconds = 1800
+
+[tracks.general]
+gates = ["format", "lint", "typecheck", "impacted_tests", "full_tests"]
+
+[tracks.science]
+gates = ["format", "lint", "protected", "impacted_tests", "golden", "full_tests"]
+offline = true                      # science tasks stay on this machine

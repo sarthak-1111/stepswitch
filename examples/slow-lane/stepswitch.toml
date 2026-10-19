@@ -1,0 +1,13 @@
+# A very large model on the slow lane: it never takes interactive steps. Reviews and whole
+# tasks are queued with `ssw jobs submit` (or `ssw run --slow-review`) and run by `ssw jobs run`.
+schema = 1
+
+[privacy]
+mode = "default"
+
+[budgets]
+tokens = 400000
+wall_seconds = 1800
+
+[tracks.general]
+gates = ["format", "lint", "typecheck", "impacted_tests", "full_tests"]

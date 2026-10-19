@@ -1,0 +1,19 @@
+# Science-track checks (docs/science-toml.md): reference runs compared with tests/golden/,
+# and values that may change only with an explicit allowance.
+
+[[golden]]
+case = "reference"                  # tests/golden/reference/
+command = ["{python}", "-m", "analysis", "{case}/input.json", "{output}/result.json"]
+timeout = 300
+
+[[golden.quantities]]
+name = "peak positions"
+file = "result.json"
+key = "peaks"
+mode = "elementwise"
+rtol = 1e-6
+atol = 1e-9
+
+[[protected]]
+file = "analysis/constants.py"
+names = ["SPEED_OF_LIGHT", "BOLTZMANN"]

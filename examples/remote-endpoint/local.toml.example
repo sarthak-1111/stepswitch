@@ -1,0 +1,10 @@
+# Copy to .stepswitch/local.toml. Machine-specific: never commit it.
+schema = 1
+
+[[endpoints]]
+name = "hosted"
+url = "https://models.example.invalid/v1"
+format = "chat-completions"
+auth = "bearer"
+api_key_env = "HOSTED_MODELS_KEY"   # the key stays in the environment, never in a file
+models = ["your-model-name"]

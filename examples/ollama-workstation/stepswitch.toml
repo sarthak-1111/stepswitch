@@ -1,0 +1,14 @@
+# A GPU workstation running Ollama. The router picks a model for each step of a task, from
+# the endpoint's models and the registry's managed models.
+schema = 1
+
+[privacy]
+mode = "default"
+deny_paths = [".env", ".env.*"]
+
+[budgets]
+tokens = 600000
+wall_seconds = 3600
+
+[tracks.general]
+gates = ["format", "lint", "typecheck", "impacted_tests", "full_tests"]
