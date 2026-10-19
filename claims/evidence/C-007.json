@@ -7,7 +7,7 @@
   },
   "command": "uv run ssw prove --claim C-007",
   "mode": "quick",
-  "source_digest": "4e82712ac35836ac43548d09034d9a8ab9016794e8193e3e6c4b96a1328b5d80",
+  "source_digest": "3941eb6e3b9c6fb2b9c44b028d11e693523f14e4226a84c65758e47cb2612b6a",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -19,10 +19,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-19T08:44:29+00:00",
+  "updated": "2026-10-19T09:28:06+00:00",
   "sections": {
     "default_flow": {
-      "recorded": "2026-10-19T08:44:29+00:00",
+      "recorded": "2026-10-19T09:28:06+00:00",
       "flow": [
         {
           "argv": [
@@ -30,7 +30,7 @@
             "--help"
           ],
           "exit_code": 0,
-          "seconds": 0.72,
+          "seconds": 0.71,
           "stderr_tail": []
         },
         {
@@ -40,7 +40,7 @@
             "--json"
           ],
           "exit_code": 0,
-          "seconds": 1.47,
+          "seconds": 1.21,
           "stderr_tail": []
         },
         {
@@ -50,7 +50,7 @@
             "--json"
           ],
           "exit_code": 0,
-          "seconds": 1.52,
+          "seconds": 1.28,
           "stderr_tail": []
         },
         {
@@ -63,7 +63,7 @@
             "--json"
           ],
           "exit_code": 0,
-          "seconds": 1.02,
+          "seconds": 0.91,
           "stderr_tail": []
         },
         {
@@ -74,7 +74,7 @@
             "--json"
           ],
           "exit_code": 0,
-          "seconds": 1.07,
+          "seconds": 0.86,
           "stderr_tail": []
         },
         {
@@ -84,7 +84,7 @@
             "--json"
           ],
           "exit_code": 0,
-          "seconds": 0.55,
+          "seconds": 0.44,
           "stderr_tail": []
         }
       ],
