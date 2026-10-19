@@ -4,6 +4,86 @@ Newest phase first. Each phase records what was done, what research changed, ope
 actions that only the maintainer can take. Phase checks: `uv run python scripts/phase_check.py N`
 (one phase) or `--upto N` (phases 0 to N).
 
+## Phase 6: Best-of-N, disagreement and cross-family review
+
+Status: done on 2026-10-19. `scripts/phase_check.py 6` passes 7 of 7 checks. `uv run pytest -q`
+with the CPU models present and the dashboard built: 1742 passed, 6 skipped.
+`ssw prove --quick --phase 6` (615 s): fifteen claims passing, C-012 and C-013 among them for the
+first time, and C-016 pending CI.
+
+### Done
+
+- **Cross-family review** (SPEC §8.5, ADR 0025).
+  - Review steps avoid the model families that did the task's work. When the current rung
+    has no other family, the review moves to the nearest rung that has one and records the
+    move. With no other family anywhere, the author's family reviews, with a note.
+  - The reviewer answers the §8.5 schema as a strict response format. Reading is lenient:
+    fenced or prefixed answers, common severity aliases and the Phase 2 plain-text answer are
+    all accepted. A live check on both local model families conformed on correct and wrong
+    diffs (docs/RESEARCH.md).
+  - This applies to every task, so a single-candidate task's review is cross-family too.
+- **Best-of-N** (SPEC §8.3). `ssw run --best-of N` (or `auto`, the SPEC's table by difficulty)
+  runs N candidates one after another, each in its own worktree, on one model family each,
+  within the task's one budget.
+  - Selection: the gates, then the cross and probe tests passed, then a non-blocking review,
+    then the change size band, the review score and the plan order. The SPEC puts diff size
+    straight after the gates; ADR 0025 explains the change.
+  - Every candidate with changes is committed to its own branch, and the winner's diff is the
+    task's diff.
+- **The disagreement signal** (SPEC §8.4). When at least two candidates pass, the tests each
+  one added run against the others' code, and a probe test written from the instruction alone
+  runs against all of them. In the science track every golden case is compared across the
+  candidates. Candidates that behave differently form separate clusters, and the task is
+  flagged.
+  - Policies (`--on-disagreement`): `flag` (the default; the change is kept but not
+    applied), `tests` (targeted tests decide between the clusters), `escalate` (one more
+    candidate) and `human`.
+- **The `best-of-n` bench contestant** draws its candidates from the run's worker pool, so a
+  bench run with the pool's workers as single contestants gives the C-012 comparison.
+- **C-012**: on both mini suites, best-of-N across the two local model families against each
+  of them alone, two seeds per task (`bench/results/2026-10-19-mini-*-best-of-n`).
+  - mini-science: best-of-N passed 12 of 12 task runs, the best single worker 12 of 12 and the
+    other 7 of 12.
+  - mini-general: best-of-N passed 29 of 30, the best single worker 29 of 30 and the other
+    16 of 30.
+  - Both candidates passed in 15 of the 30 mini-general runs and 8 of the 12 mini-science
+    runs. The disagreement signal flagged 2 of those 15 and none of those 8.
+  - Best-of-N's mean wall time was 1.4 times the best single worker's on mini-general and 2.0
+    times on mini-science.
+- **C-013**: seeded tasks, each solved by two scripted candidates from different families
+  that both pass the gates (`tests/claims/disagreement_fixture.py`).
+  - In an ambiguous task each candidate takes one reading of the instruction, or, in the
+    science track, the candidates' outputs differ from each other by more than the tolerance.
+  - In an unambiguous task the code differs but the behaviour does not.
+  - All 4 ambiguous tasks (3 general, 1 science) were flagged, and none of the 4 unambiguous
+    ones. Every task had two passing candidates.
+
+### What changed against the spec
+
+- ADR 0025: best-of-N is opt-in (`--best-of`), because the SPEC's table as the default would
+  run every task of difficulty 3 or more two or three times, even on a laptop with one tiny
+  model. Candidates run one after another, since one server usually serves every worker.
+- The selection order puts the tests and the review before the diff size (ADR 0025, item 7).
+
+### Open issues
+
+- Probe tests are model output and can be wrong. They count only when they pass on some
+  candidate, so they can split candidates but never fail a task on their own.
+- With fewer families than candidates, candidates reuse a family with another seed, which is
+  weaker evidence of agreement. The plan records each reuse.
+- **C-012 has no margin on mini-general.** Best-of-N tied the best single worker, so one more
+  failure would break the claim. Its one failure was a model error in the gpt-oss candidate,
+  on a task run that gpt-oss alone passed. A model error takes a worker out for the rest of
+  the task, and a candidate limited to one family has no other worker. The bench removes run
+  directories unless `--keep` is given, so the error itself was not kept.
+- The two flags on real model output were not checked by hand. The bench records whether a
+  task was flagged, not the clusters, so false flags are not measured yet.
+
+### Waiting on the maintainer
+
+1. C-016 (Phase 1, unchanged): add a remote and let the `prove` workflow run on the three
+   hosted platforms.
+
 ## Phase 5: Token and cache optimization
 
 Status: done on 2026-10-19. `scripts/phase_check.py 5` passes 9 of 9 checks (`--upto 5`: 43 of 44, the one failure
@@ -569,7 +649,6 @@ Details are in the SPEC change table and the ADRs. The main points:
    Node 22.12 or later (the current LTS line is recommended) before Phase 4. The Ollama release
    that was researched is 0.40.5; older installs may lack routes the research relies on.
 
-## Next: Phase 6
+## Next: Phase 7
 
-Best-of-N across model families, the disagreement signal and cross-family review (SPEC §23).
-Claims due: C-012 and C-013.
+The learning router, fork and replay (SPEC §23). Claims due: C-014 and C-015.
