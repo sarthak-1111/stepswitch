@@ -331,8 +331,11 @@ claims:
   - id: C-017
     text: "Goes from install to first completed task in under 5 minutes on a CPU-only machine."
     scope: >-
-      Scripted quickstart in a clean CPU-only container; model download time is reported
-      separately and excluded.
+      Scripted quickstart (install.sh, ssw init, ssw models pull --tier cpu, ssw run) in a clean
+      CPU-only Linux container with 8 CPUs and 8 GB of memory, on a toy project with its own
+      virtual environment; the task must end done with the project's tests passing. Model
+      download time is reported separately and excluded; the engine install and every other
+      step count (ADR 0033).
     proof: >-
       Timed scripted quickstart in a clean container (model download time reported
       separately).
@@ -340,7 +343,7 @@ claims:
     phase: 10
     tests:
       - tests/claims/test_c017_quickstart.py::test_install_to_first_task_under_five_minutes
-    thresholds: {max_minutes_excluding_downloads: 5}
+    thresholds: {max_minutes_excluding_downloads: 5, cpus: 8, memory_limit_gb: 8, final_status: done}
     evidence: [claims/evidence/C-017.json]
     status: pending
 
