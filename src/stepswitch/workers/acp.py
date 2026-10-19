@@ -52,7 +52,7 @@ from stepswitch.workers.harness import (
     HarnessTask,
     RunHandle,
     RunResult,
-    allowed_test_prefix,
+    allowed_test_prefixes,
     path_inside,
     tail,
 )
@@ -273,13 +273,13 @@ def decide(
     if kind == "switch_mode":
         return True, "mode switch"
     if kind == "execute":
-        prefix = allowed_test_prefix(settings)
+        prefixes = allowed_test_prefixes(settings)
         raw = tool_call.get("rawInput") or {}
         command = raw.get("command") if isinstance(raw, dict) else None
         if isinstance(command, list):
             command = " ".join(str(part) for part in command)
         command = str(command or tool_call.get("title") or "")
-        if prefix and command.strip().startswith(prefix):
+        if any(command.strip().startswith(prefix) for prefix in prefixes):
             return True, "the test command"
         return False, "commands other than the test command need the 'all' permission"
     if kind == "fetch":

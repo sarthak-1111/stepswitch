@@ -113,6 +113,9 @@ def test_a_harness_run_is_one_task_through_its_own_proxy(
     assert not (repo / ".stepswitch" / "harness" / result.task_id).exists()
     text = transcript.read_text("utf-8")
     assert "the-user's-own-key" not in text
+    # The prompt spells the test command as the harness's shell takes it (forward slashes).
+    [start] = [e for e in events(result) if e["type"] == "harness_start"]
+    assert "-m pytest" in start["prompt"] and chr(92) not in start["prompt"]
 
 
 def test_a_failed_check_sends_the_harness_back_in_its_session(tmp_path: Path) -> None:

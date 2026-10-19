@@ -10,7 +10,9 @@ other models through a gateway is not supported (docs/RESEARCH.md, Claude Code).
   UUID) or `--resume` (the session of the previous attempt).
 * **Permissions.** "edits" is `acceptEdits` plus the project's test command as the one allowed
   Bash command prefix (`Bash(<command> *)`, which also matches the bare command); "all" is
-  `bypassPermissions`, for sandboxed runs only.
+  `bypassPermissions`, for sandboxed runs only. The Bash tool is a POSIX shell on every
+  platform, so the rule spells the command as the prompt shows it, with Windows paths in
+  forward slashes (`shell_command`); a rule with backslashes never matched on Windows.
 * **Isolation.** `CLAUDE_CONFIG_DIR` is the run's own directory, so the user's settings,
   credentials, history and `~/.claude.json` are never read or written. The environment is
   `minimal_env`, so the user's own keys never reach the harness; `ANTHROPIC_AUTH_TOKEN` carries
@@ -41,7 +43,7 @@ from stepswitch.workers.harness import (
     ParseState,
     RunResult,
     RunStatus,
-    allowed_test_prefix,
+    allowed_test_prefixes,
     proxy_headers,
     tail,
 )
@@ -90,9 +92,9 @@ class ClaudeCodeAdapter(HarnessAdapter):
             args += ["--permission-mode", "bypassPermissions"]
         else:
             args += ["--permission-mode", "acceptEdits"]
-            prefix = allowed_test_prefix(settings)
-            if prefix:
-                args += ["--allowedTools", f"Bash({prefix} *)"]
+            prefixes = allowed_test_prefixes(settings)
+            if prefixes:
+                args += ["--allowedTools", *(f"Bash({prefix} *)" for prefix in prefixes)]
         args += ["--permission-prompts", "none", "--strict-mcp-config"]
         args += ["--disallowedTools", *WEB_TOOLS]
         if task.resume:

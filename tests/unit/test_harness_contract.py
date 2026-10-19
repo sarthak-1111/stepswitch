@@ -26,6 +26,7 @@ from typing import Any
 
 import pytest
 
+from stepswitch.workers.acp import decide
 from stepswitch.workers.harness import (
     ADAPTERS,
     HarnessEndpoint,
@@ -34,6 +35,7 @@ from stepswitch.workers.harness import (
     HarnessTask,
     RunResult,
     get_adapter,
+    shell_command,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -173,6 +175,36 @@ def test_claude_code_runs_against_the_proxy_with_its_own_config_dir(tmp_path: Pa
     args = adapter.command(HarnessTask("x"), tmp_path, endpoint(), every)
     assert args[args.index("--permission-mode") + 1] == "bypassPermissions"
     assert "--allowedTools" not in args
+
+
+def test_the_test_command_is_allowed_as_the_prompt_spells_it(tmp_path: Path) -> None:
+    # A live run on Windows: the rule had backslashes, the model typed forward slashes into
+    # the POSIX shell tool, and the test command was denied.
+    python = r"C:\proj\.venv\Scripts\python.exe"
+    assert shell_command([python, "-m", "pytest"]) == "C:/proj/.venv/Scripts/python.exe -m pytest"
+    assert shell_command([r"C:\Program Files\py\python.exe", "-q"]) == (
+        "'C:/Program Files/py/python.exe' -q"
+    )
+    assert shell_command(["/usr/bin/python3", "-m", "pytest"]) == "/usr/bin/python3 -m pytest"
+    settings = HarnessSettings(
+        state_dir=tmp_path / "state", test_command=[python, "-m", "pytest", "-q"]
+    )
+    shown, written = "C:/proj/.venv/Scripts/python.exe -m pytest -q", f"{python} -m pytest -q"
+    args = get_adapter("claude-code").command(HarnessTask("x"), tmp_path, endpoint(), settings)
+    start = args.index("--allowedTools") + 1
+    assert args[start : start + 2] == [f"Bash({shown} *)", f"Bash({written} *)"]
+    env = get_adapter("opencode").full_environment(
+        HarnessTask("x"), tmp_path, endpoint(), settings, base={}
+    )
+    rules = json.loads(env["OPENCODE_CONFIG_CONTENT"])["permission"]["bash"]
+    assert rules[shown] == rules[f"{shown} *"] == rules[f"{written} *"] == "allow"
+    for command, allowed in (
+        (f"{shown} --tb=short", True),
+        (f"{written} -x", True),
+        ("rm -rf .", False),
+    ):
+        call = {"kind": "execute", "rawInput": {"command": command}}
+        assert decide(call, tmp_path, settings)[0] is allowed, command
 
 
 def test_pi_and_oh_my_pi_get_a_generated_provider_in_their_own_agent_dir(tmp_path: Path) -> None:

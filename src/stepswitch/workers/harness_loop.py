@@ -46,6 +46,7 @@ from stepswitch.workers.harness import (
     RunResult,
     get_adapter,
     harness_settings,
+    shell_command,
     tail,
 )
 
@@ -417,7 +418,7 @@ class HarnessLoop:
         if test:
             lines.append(
                 "When you are done, Stepswitch checks the change by running the project's"
-                f" tests: `{' '.join(test)}`."
+                f" tests: `{shell_command(test)}`."
             )
         return "\n\n".join(lines)
 

@@ -32,13 +32,15 @@ from __future__ import annotations
 import contextlib
 import os
 import queue
+import re
+import shlex
 import subprocess
 import threading
 import time
 from collections import deque
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import IO, Any, Literal
 
 from stepswitch.context.proc import SECRET_NAME_RE, kill_tree, minimal_env, popen_kwargs, which
@@ -48,6 +50,8 @@ RunStatus = Literal["done", "failed", "stopped"]
 
 # Lines of stderr kept for the result's detail.
 STDERR_TAIL = 40
+# An absolute Windows path in backslashes (`shell_command`).
+WINDOWS_PATH_RE = re.compile(r"^[A-Za-z]:\\")
 # Seconds a cancelled harness gets to exit on its own before its process tree is killed.
 CANCEL_GRACE_SECONDS = 5.0
 VERSION_TIMEOUT_SECONDS = 20.0
@@ -551,11 +555,27 @@ def proxy_headers(endpoint: HarnessEndpoint) -> dict[str, str]:
     return {"x-stepswitch-session": endpoint.session}
 
 
-def allowed_test_prefix(settings: HarnessSettings) -> str | None:
-    """The test command as one string, for harnesses that allow commands by prefix."""
+def shell_command(parts: Sequence[str]) -> str:
+    """A command as a model types it into a harness's shell tool.
+
+    Windows paths are written with forward slashes, which every Windows shell accepts. The
+    harnesses' shell tools are POSIX shells, which read a backslash as an escape, so a model
+    rewrites `C:\\venv\\python.exe` as `C:/venv/python.exe`. Parts are quoted for a POSIX shell.
+    """
+    return shlex.join(
+        PureWindowsPath(part).as_posix() if WINDOWS_PATH_RE.match(part) else part
+        for part in map(str, parts)
+    )
+
+
+def allowed_test_prefixes(settings: HarnessSettings) -> list[str]:
+    """The test command as harnesses that allow commands by prefix match it: as the prompt
+    shows it (`shell_command`) and, when that differs, as written."""
     if not settings.test_command:
-        return None
-    return " ".join(str(part) for part in settings.test_command)
+        return []
+    shown = shell_command(settings.test_command)
+    written = " ".join(str(part) for part in settings.test_command)
+    return [shown] if written == shown else [shown, written]
 
 
 def tail(text: str, limit: int = 1200) -> str:

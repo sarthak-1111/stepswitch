@@ -23,7 +23,7 @@ from stepswitch.workers.harness import (
     HarnessEndpoint,
     HarnessSettings,
     HarnessTask,
-    allowed_test_prefix,
+    allowed_test_prefixes,
     model_id,
 )
 
@@ -66,8 +66,7 @@ class OpenCodeAdapter(AcpAdapter):
         if settings.permission != "all":
             # In a pattern map the last matching rule wins: ask for everything, run the tests.
             bash = {"*": "ask"}
-            prefix = allowed_test_prefix(settings)
-            if prefix:
+            for prefix in allowed_test_prefixes(settings):
                 bash.update({prefix: "allow", f"{prefix} *": "allow"})
         return {
             "provider": {
