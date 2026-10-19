@@ -24,6 +24,7 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tomllib
@@ -1682,7 +1683,25 @@ COMMUNITY_FILES = (
 ISSUE_FORM_KEYS = {"name", "description", "body"}
 PINNED_ACTION_RE = re.compile(r"^\s*-?\s*uses:\s*[\w.-]+/[\w./-]+@([0-9a-f]{40})\b")
 ANY_ACTION_RE = re.compile(r"^\s*-?\s*uses:\s*(\S+)")
-INSTALLERS = ("install.sh", "install.ps1")
+# What each installer must contain: the pinned uv and the check of what it downloads, the
+# prefetch and the package override. install.sh runs uv's installer, so it also opts out of
+# that installer's profile edits; install.ps1 unpacks uv's release archive itself.
+INSTALLER_NEEDLES = {
+    "install.sh": (
+        'UV_VERSION="',
+        "UV_INSTALLER_SHA256=",
+        "UV_NO_MODIFY_PATH=1",
+        "ssw prefetch",
+        "STEPSWITCH_PACKAGE",
+    ),
+    "install.ps1": ("$UvVersion = '", "Get-FileHash", "ssw prefetch", "STEPSWITCH_PACKAGE"),
+}
+# Writes to a shell profile or to the user's environment variables.
+PROFILE_EDIT_RE = re.compile(
+    r">>\s*\S*\.(profile|bashrc|bash_profile|zshrc)\b"
+    r"|SetEnvironmentVariable|(Add|Set)-Content\s+(-Path\s+)?\$PROFILE",
+    re.I,
+)
 
 
 @check(10, "README: what it is, the quickstart, the demo, links, and the generated claims")
@@ -1703,20 +1722,46 @@ def _p10_readme() -> tuple[bool, str]:
     )
 
 
+# A built page that would load something from the network: a remote script, stylesheet,
+# image or frame, or a CSS url()/@import of a remote file.
+REMOTE_ASSET_RE = re.compile(
+    r"""<(?:script|link|img|source|iframe)\b[^>]*\b(?:src|href)\s*=\s*["'](?:https?:)?//"""
+    r"""|url\(\s*["']?(?:https?:)?//|@import\s+(?:url\()?["']?(?:https?:)?//""",
+    re.I,
+)
+
+
+def remote_assets(out: Path) -> list[str]:
+    """Built files of the docs site that reference a remote asset."""
+    return sorted(
+        path.relative_to(out).as_posix()
+        for path in out.rglob("*")
+        if path.suffix in {".html", ".css"}
+        and REMOTE_ASSET_RE.search(path.read_text(encoding="utf-8", errors="replace"))
+    )
+
+
 @check(10, "docs site: an ADR picks the tool, and the site builds offline with warnings as errors")
 def _p10_docs_site() -> tuple[bool, str]:
     decisions = ROOT / "docs" / "decisions"
     adr = any("docs" in p.name for p in decisions.glob("003[2-9]-*.md"))
     if not adr:
         return False, "no ADR (0032 or later) chooses the docs tool"
-    if not (ROOT / "docs" / "conf.py").is_file() or not (ROOT / "docs" / "index.md").is_file():
-        return False, "docs/conf.py or docs/index.md missing"
+    site = ROOT / "docs" / "site"
+    if not (site / "conf.py").is_file() or not (site / "index.md").is_file():
+        return False, "docs/site/conf.py or docs/site/index.md missing"
     if not has_module("sphinx"):
         return False, "Sphinx is not installed: `uv sync --group docs`"
     out = ROOT / ".stepswitch" / "docs-check"
+    shutil.rmtree(out, ignore_errors=True)
     sphinx = [sys.executable, "-m", "sphinx", "-W", "--keep-going", "-q", "-b", "html"]
-    code, stdout, stderr = run([*sphinx, "docs", str(out)], timeout=900)
-    return code == 0, "built" if code == 0 else (last_line(stderr) or last_line(stdout))
+    code, stdout, stderr = run([*sphinx, str(site), str(out)], timeout=900)
+    if code != 0:
+        return False, last_line(stderr) or last_line(stdout)
+    remote = remote_assets(out)
+    if remote:
+        return False, "remote assets in: " + ", ".join(remote[:5])
+    return True, "built, no remote assets"
 
 
 @check(10, "demo: a VHS tape and the GIF it records, shown in the README")
@@ -1796,14 +1841,14 @@ def _p10_release() -> tuple[bool, str]:
 @check(10, "installers: install.sh and install.ps1 pin uv, leave shell profiles alone, prefetch")
 def _p10_installers() -> tuple[bool, str]:
     problems = []
-    for name in INSTALLERS:
+    for name, needles in INSTALLER_NEEDLES.items():
         text = read(name)
         if not text:
             problems.append(f"{name} missing")
             continue
-        for needle in ("UV_VERSION", "UV_NO_MODIFY_PATH", "ssw prefetch", "STEPSWITCH_PACKAGE"):
-            if needle not in text:
-                problems.append(f"{name} lacks {needle}")
+        problems += [f"{name} lacks {needle}" for needle in needles if needle not in text]
+        if PROFILE_EDIT_RE.search(text):
+            problems.append(f"{name} writes to a shell profile or the user environment")
     if problems:
         return False, "; ".join(problems)
     return untested_or_run(("installers",), "tests/unit/test_installers.py")
