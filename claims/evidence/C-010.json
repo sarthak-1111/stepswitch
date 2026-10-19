@@ -1,0 +1,54 @@
+{
+  "claim": "C-010",
+  "text": "Handoff briefs validate against the HANDOFF v0.1 schema and stay under 1,500 tokens.",
+  "scope": "Every handoff produced during the bench suites, counted with the receiving model's tokenizer.",
+  "thresholds": {
+    "schema_valid": 1.0,
+    "max_tokens": 1500,
+    "min_handoffs": 20
+  },
+  "command": "uv run ssw prove --claim C-010",
+  "mode": "quick",
+  "source_digest": "ffe799970a9cc87f1bdbc5510df9d9cc8b914824b0ba83835668806d6e677698",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-19T01:49:56+00:00",
+  "sections": {
+    "handoffs": {
+      "recorded": "2026-10-19T01:49:56+00:00",
+      "runs": [
+        "2026-10-19-mini-general-optimized",
+        "2026-10-19-mini-general-optimized-v2",
+        "2026-10-19-mini-general-relay",
+        "2026-10-19-mini-science-optimized",
+        "2026-10-19-mini-science-optimized-v2",
+        "2026-10-19-mini-science-relay"
+      ],
+      "handoffs": 28,
+      "per_suite": {
+        "mini-general": 17,
+        "mini-science": 11
+      },
+      "reasons": {
+        "relay": 28
+      },
+      "schema_valid_fraction": 1.0,
+      "max_tokens": 1213,
+      "tokenizers": {
+        "mapped:gpt-oss": 28
+      },
+      "recounted": 28,
+      "problems": [],
+      "missing_records": []
+    }
+  }
+}

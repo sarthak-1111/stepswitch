@@ -1,0 +1,176 @@
+{
+  "claim": "C-011",
+  "text": "Uses fewer uncached tokens than the unoptimized baseline at the same pass rate.",
+  "scope": "The mini bench suites, optimized configuration vs the Phase 2 baseline. Uncached tokens are the input tokens the server did not serve from its prompt cache, plus the output tokens (ADR 0028). The public text will carry the measured percentage, rendered from evidence.",
+  "thresholds": {
+    "measure": "uncached",
+    "token_reduction_pct_min": 0,
+    "pass_rate_not_lower": true,
+    "significant": true,
+    "confidence_level": 0.95
+  },
+  "command": "uv run ssw prove --claim C-011",
+  "mode": "quick",
+  "source_digest": "ffe799970a9cc87f1bdbc5510df9d9cc8b914824b0ba83835668806d6e677698",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-19T01:49:57+00:00",
+  "sections": {
+    "comparison": {
+      "recorded": "2026-10-19T01:49:57+00:00",
+      "suites": {
+        "mini-general": {
+          "baseline": {
+            "run": "2026-10-19-mini-general-baseline",
+            "commit": "eee786076888",
+            "runs": 30,
+            "passed": 28,
+            "pass_rate": 0.9333,
+            "tokens": 1831708,
+            "input_tokens": 1752488,
+            "output_tokens": 79220,
+            "uncached_tokens": 347371
+          },
+          "optimized": {
+            "run": "2026-10-19-mini-general-optimized-v2",
+            "commit": "bc398811e039",
+            "runs": 30,
+            "passed": 29,
+            "pass_rate": 0.9667,
+            "tokens": 1458622,
+            "input_tokens": 1373455,
+            "output_tokens": 85167,
+            "uncached_tokens": 289912
+          },
+          "token_reduction_percent": 20.37,
+          "token_reduction_interval": {
+            "low": -27.33,
+            "high": 52.0,
+            "confidence": 0.95,
+            "method": "cluster bootstrap over tasks (percentile)",
+            "tasks": 15
+          },
+          "uncached_reduction": {
+            "percent": 16.54,
+            "interval": {
+              "low": -3.17,
+              "high": 33.04,
+              "confidence": 0.95,
+              "method": "cluster bootstrap over tasks (percentile)",
+              "tasks": 15
+            }
+          },
+          "claimed": {
+            "measure": "uncached",
+            "percent": 16.54,
+            "interval": {
+              "low": -3.17,
+              "high": 33.04,
+              "confidence": 0.95,
+              "method": "cluster bootstrap over tasks (percentile)",
+              "tasks": 15
+            }
+          }
+        },
+        "mini-science": {
+          "baseline": {
+            "run": "2026-10-19-mini-science-baseline",
+            "commit": "7cb9ba428a4c",
+            "runs": 12,
+            "passed": 12,
+            "pass_rate": 1.0,
+            "tokens": 488181,
+            "input_tokens": 460220,
+            "output_tokens": 27961,
+            "uncached_tokens": 140262
+          },
+          "optimized": {
+            "run": "2026-10-19-mini-science-optimized-v2",
+            "commit": "bc398811e039",
+            "runs": 12,
+            "passed": 12,
+            "pass_rate": 1.0,
+            "tokens": 366677,
+            "input_tokens": 333173,
+            "output_tokens": 33504,
+            "uncached_tokens": 106506
+          },
+          "token_reduction_percent": 24.89,
+          "token_reduction_interval": {
+            "low": 13.96,
+            "high": 33.98,
+            "confidence": 0.95,
+            "method": "cluster bootstrap over tasks (percentile)",
+            "tasks": 6
+          },
+          "uncached_reduction": {
+            "percent": 24.07,
+            "interval": {
+              "low": 14.73,
+              "high": 32.94,
+              "confidence": 0.95,
+              "method": "cluster bootstrap over tasks (percentile)",
+              "tasks": 6
+            }
+          },
+          "claimed": {
+            "measure": "uncached",
+            "percent": 24.07,
+            "interval": {
+              "low": 14.73,
+              "high": 32.94,
+              "confidence": 0.95,
+              "method": "cluster bootstrap over tasks (percentile)",
+              "tasks": 6
+            }
+          }
+        }
+      },
+      "baseline_tokens": 2319889,
+      "optimized_tokens": 1825299,
+      "token_reduction_percent": 21.3,
+      "token_reduction_interval": {
+        "low": -13.63,
+        "high": 47.81,
+        "confidence": 0.95,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "tasks": 21
+      },
+      "uncached_reduction": {
+        "percent": 18.71,
+        "interval": {
+          "low": 3.86,
+          "high": 30.85,
+          "confidence": 0.95,
+          "method": "cluster bootstrap over tasks (percentile)",
+          "tasks": 21
+        }
+      },
+      "claimed": {
+        "measure": "uncached",
+        "percent": 18.7,
+        "interval": {
+          "low": 3.86,
+          "high": 30.85,
+          "confidence": 0.95,
+          "method": "cluster bootstrap over tasks (percentile)",
+          "tasks": 21
+        }
+      },
+      "problems": [],
+      "bench_commands": [
+        "uv run ssw bench run --suite <suite> --baseline ...",
+        "uv run ssw bench run --suite <suite> ..."
+      ]
+    }
+  }
+}

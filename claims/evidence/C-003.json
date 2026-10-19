@@ -1,0 +1,39 @@
+{
+  "claim": "C-003",
+  "text": "Only switches models when the expected gain outweighs the cost of re-reading context.",
+  "scope": "The router's switch decision under the cache-aware cost model of SPEC \u00a77.2, over randomized scenarios.",
+  "thresholds": {
+    "min_examples": 1000,
+    "violations": 0
+  },
+  "command": "uv run ssw prove --claim C-003",
+  "mode": "quick",
+  "source_digest": "ffe799970a9cc87f1bdbc5510df9d9cc8b914824b0ba83835668806d6e677698",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-19T01:46:54+00:00",
+  "sections": {
+    "property": {
+      "recorded": "2026-10-19T01:46:54+00:00",
+      "seed": 20261019,
+      "scenarios": 4000,
+      "cost_model_decisions": 2597,
+      "switches": 455,
+      "stays": 2142,
+      "brief_handoffs": 51,
+      "forced_switches": 1127,
+      "held": 276,
+      "violations": 0,
+      "first_violations": []
+    }
+  }
+}

@@ -8,7 +8,7 @@
   },
   "command": "uv run ssw prove --claim C-002",
   "mode": "quick",
-  "source_digest": "ada24019f999ef17b509338c90576b0f69b3ca9f65f96ce76b6c64cdc0946f43",
+  "source_digest": "ffe799970a9cc87f1bdbc5510df9d9cc8b914824b0ba83835668806d6e677698",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -20,11 +20,11 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-16T13:45:29+00:00",
+  "updated": "2026-10-19T01:46:53+00:00",
   "sections": {
     "trajectory": {
-      "recorded": "2026-10-16T13:45:29+00:00",
-      "task_id": "t20261016-224525-8c487e",
+      "recorded": "2026-10-19T01:46:53+00:00",
+      "task_id": "t20261019-104648-59eeb4",
       "status": "done",
       "endpoints": [
         "alpha",
@@ -101,7 +101,7 @@
       "switches": [
         {
           "seq": 10,
-          "ts": 1792158325.973,
+          "ts": 1792374409.006,
           "type": "switch",
           "step": 2,
           "step_type": "navigate",
@@ -114,11 +114,12 @@
             "seconds": 0.735,
             "tokens": 1103.0
           },
-          "expected_gain": 0.735
+          "expected_gain": 0.735,
+          "handoff": false
         },
         {
           "seq": 26,
-          "ts": 1792158328.32,
+          "ts": 1792374411.42,
           "type": "switch",
           "step": 7,
           "step_type": "review",
@@ -126,12 +127,13 @@
           "to": "alpha/alpha-model",
           "from_endpoint": "beta",
           "to_endpoint": "alpha",
-          "reason": "switch beta/beta-model -> alpha/alpha-model for review: rule plan-and-review-on-alpha routes review steps elsewhere (rule plan-and-review-on-alpha); re-reading ~167 uncached tokens costs ~0.1 s",
+          "reason": "switch beta/beta-model -> alpha/alpha-model for review: rule plan-and-review-on-alpha routes review steps elsewhere (rule plan-and-review-on-alpha); re-reading ~171 uncached tokens costs ~0.1 s",
           "cost": {
-            "seconds": 0.111,
-            "tokens": 167.0
+            "seconds": 0.114,
+            "tokens": 171.0
           },
-          "expected_gain": 0.111
+          "expected_gain": 0.114,
+          "handoff": false
         }
       ],
       "switches_with_reason_and_cost": 2,

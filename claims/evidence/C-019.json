@@ -7,7 +7,7 @@
   },
   "command": "uv run ssw prove --claim C-019",
   "mode": "quick",
-  "source_digest": "ada24019f999ef17b509338c90576b0f69b3ca9f65f96ce76b6c64cdc0946f43",
+  "source_digest": "ffe799970a9cc87f1bdbc5510df9d9cc8b914824b0ba83835668806d6e677698",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -19,39 +19,39 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-16T13:53:04+00:00",
+  "updated": "2026-10-19T01:53:37+00:00",
   "sections": {
     "accounting": {
-      "recorded": "2026-10-16T13:53:04+00:00",
+      "recorded": "2026-10-19T01:53:37+00:00",
       "engine": "llama.cpp server",
       "runs": [
         {
           "worker": "managed/qwen3-4b-instruct-2507",
-          "status": "failed",
-          "steps": 13
+          "status": "done",
+          "steps": 12
         },
         {
           "worker": "managed/phi-3.5-mini-instruct",
           "status": "done",
-          "steps": 12
+          "steps": 6
         }
       ],
       "comparisons": [
         {
           "model": "phi-3.5-mini-instruct",
-          "calls": 12,
+          "calls": 5,
           "usage_sources": [
             "server"
           ],
           "ledger": {
-            "input": 20909,
-            "cached_input": 17711,
-            "output": 2097
+            "input": 6456,
+            "cached_input": 4597,
+            "output": 1478
           },
           "server": {
-            "input": 20909.0,
-            "cached_input": 17711.0,
-            "output": 2097.0
+            "input": 6456.0,
+            "cached_input": 4597.0,
+            "output": 1478.0
           },
           "relative_error": {
             "input": 0.0,
@@ -61,19 +61,19 @@
         },
         {
           "model": "qwen3-4b-instruct-2507",
-          "calls": 14,
+          "calls": 13,
           "usage_sources": [
             "server"
           ],
           "ledger": {
-            "input": 30319,
-            "cached_input": 27074,
-            "output": 1084
+            "input": 22690,
+            "cached_input": 19288,
+            "output": 1148
           },
           "server": {
-            "input": 30319.0,
-            "cached_input": 27074.0,
-            "output": 1084.0
+            "input": 22690.0,
+            "cached_input": 19288.0,
+            "output": 1148.0
           },
           "relative_error": {
             "input": 0.0,

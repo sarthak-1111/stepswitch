@@ -8,7 +8,7 @@
   },
   "command": "uv run ssw prove --full --claim C-005",
   "mode": "quick",
-  "source_digest": "ada24019f999ef17b509338c90576b0f69b3ca9f65f96ce76b6c64cdc0946f43",
+  "source_digest": "ffe799970a9cc87f1bdbc5510df9d9cc8b914824b0ba83835668806d6e677698",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -20,10 +20,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-16T13:48:21+00:00",
+  "updated": "2026-10-19T01:49:20+00:00",
   "sections": {
     "fallback": {
-      "recorded": "2026-10-16T13:48:21+00:00",
+      "recorded": "2026-10-19T01:49:20+00:00",
       "model": "phi-3.5-mini-instruct",
       "registry_tool_calls": "none",
       "worker": {
@@ -43,9 +43,12 @@
         ],
         "tool_protocol": "fallback",
         "tool_parser": null,
-        "context": 8192,
+        "context": 16384,
         "gpu": false,
-        "pin_only": false
+        "pin_only": false,
+        "reasoning": false,
+        "tokenizer": null,
+        "cache_ratio": null
       },
       "status": "done",
       "stop_reason": null,
@@ -69,43 +72,11 @@
           "step_type": "edit",
           "worker": "managed/phi-3.5-mini-instruct",
           "tool_calls": [
-            "grep"
+            "edit"
           ]
         },
         {
           "step": 4,
-          "step_type": "read",
-          "worker": "managed/phi-3.5-mini-instruct",
-          "tool_calls": [
-            "read"
-          ]
-        },
-        {
-          "step": 5,
-          "step_type": "edit",
-          "worker": "managed/phi-3.5-mini-instruct",
-          "tool_calls": [
-            "edit"
-          ]
-        },
-        {
-          "step": 6,
-          "step_type": "edit",
-          "worker": "managed/phi-3.5-mini-instruct",
-          "tool_calls": [
-            "read"
-          ]
-        },
-        {
-          "step": 7,
-          "step_type": "edit",
-          "worker": "managed/phi-3.5-mini-instruct",
-          "tool_calls": [
-            "edit"
-          ]
-        },
-        {
-          "step": 8,
           "step_type": "run",
           "worker": "managed/phi-3.5-mini-instruct",
           "tool_calls": [
@@ -113,43 +84,19 @@
           ]
         },
         {
-          "step": 9,
+          "step": 5,
           "step_type": "run",
           "worker": "managed/phi-3.5-mini-instruct",
           "tool_calls": []
         },
         {
-          "step": 10,
-          "step_type": "run",
-          "worker": "managed/phi-3.5-mini-instruct",
-          "tool_calls": [
-            "finish"
-          ]
-        },
-        {
-          "step": 11,
+          "step": 6,
           "step_type": "summarize",
           "worker": "managed/phi-3.5-mini-instruct",
           "tool_calls": []
         }
       ],
       "tool_calls": [
-        {
-          "name": "read",
-          "is_error": false
-        },
-        {
-          "name": "grep",
-          "is_error": false
-        },
-        {
-          "name": "read",
-          "is_error": false
-        },
-        {
-          "name": "edit",
-          "is_error": true
-        },
         {
           "name": "read",
           "is_error": false
@@ -163,14 +110,14 @@
           "is_error": false
         }
       ],
-      "turns_through_fallback": 9,
-      "model_turns": 12,
+      "turns_through_fallback": 4,
+      "model_turns": 7,
       "changed_files": [
         "calc.py"
       ]
     },
     "matrix": {
-      "recorded": "2026-10-16T13:48:21+00:00",
+      "recorded": "2026-10-19T01:49:20+00:00",
       "ci_set": [
         "qwen3-4b-instruct-2507",
         "phi-3.5-mini-instruct",

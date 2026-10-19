@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "mode": "quick",
-  "source_digest": "ada24019f999ef17b509338c90576b0f69b3ca9f65f96ce76b6c64cdc0946f43",
-  "created": "2026-10-16T13:53:14+00:00",
-  "duration_s": 617.0,
+  "source_digest": "ffe799970a9cc87f1bdbc5510df9d9cc8b914824b0ba83835668806d6e677698",
+  "created": "2026-10-19T01:53:47+00:00",
+  "duration_s": 594.87,
   "platform": {
     "os": "windows",
     "machine": "amd64",
@@ -15,7 +15,7 @@
     "image_version": null
   },
   "selection": {
-    "phase": 4,
+    "phase": 5,
     "claims": [],
     "skip": []
   },
@@ -32,6 +32,14 @@
       "status": "passing",
       "tests": {
         "tests/claims/test_c002_step_switching.py::test_single_task_switches_endpoints_with_logged_reasons": "passed"
+      },
+      "parts": [],
+      "notes": {}
+    },
+    "C-003": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c003_switch_cost.py::test_switch_iff_gain_exceeds_cost_plus_margin": "passed"
       },
       "parts": [],
       "notes": {}
@@ -83,6 +91,22 @@
       "parts": [],
       "notes": {}
     },
+    "C-010": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c010_handoff.py::test_bench_handoffs_validate_and_fit_token_budget": "passed"
+      },
+      "parts": [],
+      "notes": {}
+    },
+    "C-011": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c011_token_savings.py::test_optimized_uses_fewer_tokens_at_same_pass_rate": "passed"
+      },
+      "parts": [],
+      "notes": {}
+    },
     "C-016": {
       "status": "pending",
       "tests": {
@@ -120,7 +144,7 @@
   },
   "summary": {
     "pending": 1,
-    "passing": 10,
+    "passing": 13,
     "failing": 0
   }
 }
