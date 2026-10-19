@@ -599,14 +599,28 @@ class Toolbox:
             raise ToolError(f"no such file or directory: {rel}.{self._suggest(Path(rel).name)}")
         return resolved, rel
 
-    def _suggest(self, name: str) -> str:
-        found = []
+    def _named(self, name: str, limit: int) -> list[str]:
+        """Up to `limit` files of the repository whose file name is `name`."""
+        found: list[str] = []
         for rel, _ in iter_files(self.root, matcher=IgnoreMatcher(self.root), max_bytes=None):
             if rel.rsplit("/", 1)[-1] == name and not self.denied(rel):
                 found.append(rel)
-                if len(found) == 3:
+                if len(found) == limit:
                     break
+        return found
+
+    def _suggest(self, name: str) -> str:
+        found = self._named(name, 3)
         return f" Did you mean: {', '.join(found)}?" if found else ""
+
+    def _only_named(self, path: Path, rel: str) -> tuple[Path, str] | None:
+        """For a missing `rel`: the one file of the repository with its file name, if there is
+        exactly one. Small models misremember directories (`src/calc.py` for `calc.py`) and tend
+        to repeat a failed call; the file they mean is then not in doubt."""
+        if path.exists():
+            return None
+        found = self._named(rel.rsplit("/", 1)[-1], 2)
+        return self.resolve(found[0]) if len(found) == 1 else None
 
     # -- lazily built services ---------------------------------------------------------------
 
@@ -638,9 +652,22 @@ class Toolbox:
     # -- read --------------------------------------------------------------------------------
 
     def _tool_read(self, args: dict[str, Any]) -> ToolOutput:
-        path, rel = self.resolve(args["path"])
-        if path.is_dir():
-            return self._list_dir(path, rel)
+        path, rel = self.resolve(args["path"], must_exist=False)
+        only = self._only_named(path, rel)
+        if only is None:
+            path, rel = self.resolve(args["path"])
+            if path.is_dir():
+                return self._list_dir(path, rel)
+            return self._read_file(path, rel, args)
+        asked, (path, rel) = rel, only
+        output = self._read_file(path, rel, args)
+        output.text = f"[{asked} does not exist: this is {rel}, the only file of that name]\n" + (
+            output.text
+        )
+        output.data["asked"] = asked
+        return output
+
+    def _read_file(self, path: Path, rel: str, args: dict[str, Any]) -> ToolOutput:
         size = path.stat().st_size
         if size > READ_FILE_LIMIT:
             raise ToolError(f"{rel} is {size} bytes; too large to read. Use grep on it instead.")
@@ -926,6 +953,13 @@ class Toolbox:
 
     def _tool_edit(self, args: dict[str, Any]) -> ToolOutput:
         path, rel = self.resolve(args["path"], must_exist=False)
+        asked = None
+        if args.get("edits") is not None and not args.get("create"):
+            # Anchored edits change an existing file; a missing path stands for the one file
+            # of its name, as for read. The anchors are checked against that file.
+            only = self._only_named(path, rel)
+            if only is not None:
+                asked, (path, rel) = rel, only
         if path.is_dir():
             raise ToolError(f"{rel} is a directory")
         result = edit_format.edit_file(
@@ -959,6 +993,10 @@ class Toolbox:
                 f"(now {result.total_lines} lines)\n{diff}\n"
                 f"updated lines with fresh anchors:\n{result.preview}"
             )
+        if asked is not None:
+            data["asked"] = asked
+            note = f"[{asked} does not exist: the edit went to {rel}, the only file of that name]"
+            text = f"{note}\n{text}"
         return ToolOutput(text, data=data, changed_files=changed)
 
     # -- run and test ------------------------------------------------------------------------

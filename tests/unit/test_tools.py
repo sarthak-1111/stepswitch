@@ -118,6 +118,39 @@ def test_read_shows_anchors_that_edit_accepts(box: T.Toolbox, root: Path) -> Non
     assert stale.changed_files == []
 
 
+def test_a_missing_path_stands_for_the_only_file_of_its_name(box: T.Toolbox, root: Path) -> None:
+    # Small models misremember directories and repeat the failed call; the file they mean is
+    # not in doubt when only one file has that name.
+    shown = box.execute("read", {"path": "src/calc.py"})
+    assert not shown.is_error, shown.text
+    note, header = shown.text.split("\n")[:2]
+    assert note == "[src/calc.py does not exist: this is pkg/calc.py, the only file of that name]"
+    assert header.startswith("pkg/calc.py lines 1-6 of 6")
+    assert shown.data["path"] == "pkg/calc.py" and shown.data["asked"] == "src/calc.py"
+    line = anchors(shown)["    return a - b"]
+    edit = {"op": "replace", "start": line, "text": "    return a + b"}
+    done = box.execute("edit", {"path": "calc.py", "edits": [edit]})
+    assert not done.is_error, done.text
+    assert done.text.startswith(
+        "[calc.py does not exist: the edit went to pkg/calc.py, the only file of that name]\n"
+        "edited pkg/calc.py: +1 -1"
+    )
+    assert done.changed_files == ["pkg/calc.py"] and done.data["asked"] == "calc.py"
+    assert "return a + b" in (root / "pkg" / "calc.py").read_text(encoding="utf-8")
+    # A whole-file text creates the file where it was asked for.
+    made = box.execute("edit", {"path": "calc.py", "text": "x = 1\n"})
+    assert made.text.startswith("created calc.py") and made.changed_files == ["calc.py"]
+    # With two files of that name the path stays an error that names them.
+    missing = box.execute("read", {"path": "lib/calc.py"})
+    assert missing.is_error
+    assert missing.text.startswith("no such file or directory: lib/calc.py. Did you mean: ")
+    suggested = missing.text.split("Did you mean: ", 1)[1].rstrip("?").split(", ")
+    assert sorted(suggested) == ["calc.py", "pkg/calc.py"]
+    # Denied files are never the one file of a name.
+    hidden = box.execute("read", {"path": "token.txt"})
+    assert hidden.is_error and "TOKEN" not in hidden.text
+
+
 def test_edit_creates_files_and_reports_no_change(box: T.Toolbox, root: Path) -> None:
     made = box.execute("edit", {"path": "pkg/new.py", "text": "x = 1", "create": True})
     assert made.text.startswith("created pkg/new.py (1 lines)")
@@ -171,8 +204,8 @@ def test_paths_stay_inside_the_root(box: T.Toolbox, root: Path) -> None:
     denied = box.execute("read", {"path": "secrets/token.txt"})
     assert denied.is_error and "privacy deny list" in denied.text
     assert box.execute("edit", {"path": "x.pem", "text": "k", "create": True}).is_error
-    missing = box.execute("read", {"path": "calc.py"})
-    assert missing.is_error and "Did you mean: pkg/calc.py?" in missing.text
+    missing = box.execute("read", {"path": "notes.md"})
+    assert missing.is_error and missing.text == "no such file or directory: notes.md."
     grep = box.execute("grep", {"pattern": "TOKEN"})
     assert grep.data["matches"] == 0  # denied files never show up in results
     assert "secrets" not in box.execute("read", {"path": "."}).text
