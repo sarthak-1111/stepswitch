@@ -18,7 +18,15 @@ other models through a gateway is not supported (docs/RESEARCH.md, Claude Code).
 * **Isolation.** `CLAUDE_CONFIG_DIR` is the run's own directory, so the user's settings,
   credentials, history and `~/.claude.json` are never read or written. The environment is
   `minimal_env`, so the user's own keys never reach the harness; `ANTHROPIC_AUTH_TOKEN` carries
-  the run's proxy token (sent as a bearer token).
+  the run's proxy token (sent as a bearer token). An isolated run (`HarnessSettings.isolated`,
+  set by the bench) also gets `--safe-mode`, which turns off CLAUDE.md files (read from every
+  directory above the working directory too), skills, plugins, hooks and MCP servers, and has
+  auto memory off (`CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`).
+* **Native runs** (ADR 0034, bench baselines only). `--model <model>` on the harness's own
+  login: no proxy variables and no `CLAUDE_CONFIG_DIR`, so Claude Code reads its login from its
+  default config directory itself; Stepswitch never reads it. The flags are a proxy run's plus
+  `--safe-mode`, `--setting-sources project,local` (no user settings) and
+  `--no-session-persistence` (no session files); auto memory is off.
 * **Routing.** `ANTHROPIC_BASE_URL` is the proxy; the main model and the alias pins carry slot
   names (`HarnessEndpoint.slots`); `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1` adds the request-class
   headers the proxy routes by (main, subagent, compaction, auxiliary); `ANTHROPIC_CUSTOM_HEADERS`
@@ -32,6 +40,7 @@ other models through a gateway is not supported (docs/RESEARCH.md, Claude Code).
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
@@ -58,6 +67,10 @@ RESULT_STOPS: dict[str, tuple[RunStatus, str]] = {
     "error_max_turns": ("stopped", "max_steps"),
     "error_max_budget_usd": ("stopped", "budget_tokens"),
 }
+# Variables of isolated and native runs (ADR 0034).
+ISOLATED_ENV = {"CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"}
+# The final report of a run that a usage limit, a rate limit or an overloaded service ended.
+LIMIT_RE = re.compile(r"usage limit|rate limit|limit reached|hit your limit|overloaded", re.I)
 
 
 def deny_rules(patterns: Sequence[str]) -> list[str]:
@@ -86,6 +99,7 @@ class ClaudeCodeAdapter(HarnessAdapter):
         "CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL": "1",
     }
     resumable = True
+    native = True
     # A stdin-only prompt is not documented for `-p`; the prompt is an argument of the native
     # executable (never a batch shim, which would reparse it).
     prompt_on_stdin = False
@@ -100,11 +114,20 @@ class ClaudeCodeAdapter(HarnessAdapter):
         endpoint: HarnessEndpoint,
         settings: HarnessSettings,
     ) -> list[str]:
+        return self._args(task, endpoint.slot("main"), settings, native=False)
+
+    def native_command(
+        self, task: HarnessTask, workdir: Path, model: str, settings: HarnessSettings
+    ) -> list[str]:
+        return self._args(task, model, settings, native=True)
+
+    def _args(
+        self, task: HarnessTask, model: str, settings: HarnessSettings, *, native: bool
+    ) -> list[str]:
         # The prompt follows `-p` directly: the variadic tool lists below would take a prompt
         # placed after them, and a leading "-" would read as an option.
         prompt = task.prompt if not task.prompt.startswith("-") else "Task: " + task.prompt
-        args = ["-p", prompt, "--output-format", "stream-json", "--verbose"]
-        args += ["--model", endpoint.slot("main")]
+        args = ["-p", prompt, "--output-format", "stream-json", "--verbose", "--model", model]
         if settings.permission == "all":
             args += ["--permission-mode", "bypassPermissions"]
         else:
@@ -113,8 +136,13 @@ class ClaudeCodeAdapter(HarnessAdapter):
             if prefixes:
                 args += ["--allowedTools", *(f"Bash({prefix} *)" for prefix in prefixes)]
         args += ["--permission-prompts", "none", "--strict-mcp-config"]
+        if settings.isolated or native:
+            args += ["--safe-mode"]
+        if native:
+            # One session on the user's own login: no user settings, nothing kept on disk.
+            args += ["--setting-sources", "project,local", "--no-session-persistence"]
         args += ["--disallowedTools", *WEB_TOOLS, *deny_rules(settings.deny_paths)]
-        if task.resume:
+        if task.resume and not native:
             args += ["--resume", task.resume]
         else:
             args += ["--session-id", str(uuid.uuid4())]
@@ -143,11 +171,20 @@ class ClaudeCodeAdapter(HarnessAdapter):
         }
         if endpoint.context:
             env["CLAUDE_CODE_MAX_CONTEXT_TOKENS"] = str(endpoint.context)
+        if settings.isolated:
+            env.update(ISOLATED_ENV)
         directory = self.config_dir(settings)
         if directory is not None:
             directory.mkdir(parents=True, exist_ok=True)
             env["CLAUDE_CONFIG_DIR"] = str(directory)
         return env
+
+    def native_environment(
+        self, task: HarnessTask, workdir: Path, model: str, settings: HarnessSettings
+    ) -> dict[str, str]:
+        # Nothing points at a proxy and CLAUDE_CONFIG_DIR stays unset: the harness reads its own
+        # login from its default config directory.
+        return dict(ISOLATED_ENV)
 
     # -- the stream ----------------------------------------------------------------------------
 
@@ -186,6 +223,8 @@ class ClaudeCodeAdapter(HarnessAdapter):
                         "permission_mode": item.get("permissionMode"),
                         "tools": len(item.get("tools") or []),
                         "mcp_servers": len(item.get("mcp_servers") or []),
+                        # "none": no key or token variable, so the run used a login.
+                        "auth": item.get("apiKeySource"),
                     },
                 )
             ]
@@ -272,6 +311,7 @@ class ClaudeCodeAdapter(HarnessAdapter):
                 exit_code=exit_code,
                 detail=f"exit {exit_code} without a result; stderr: {tail(stderr)}",
                 version=state.version,
+                infra_error=True,
             )
         usage = final.get("usage") or {}
         counts = {
@@ -280,6 +320,7 @@ class ClaudeCodeAdapter(HarnessAdapter):
             "cached_input_tokens": usage.get("cache_read_input_tokens"),
             "cache_write_tokens": usage.get("cache_creation_input_tokens"),
         }
+        cost = final.get("total_cost_usd")
         result = RunResult(
             "done",
             session_id=final.get("session_id") or state.session_id,
@@ -288,6 +329,8 @@ class ClaudeCodeAdapter(HarnessAdapter):
             usage={k: int(v) for k, v in counts.items() if isinstance(v, int)},
             exit_code=exit_code,
             version=state.version,
+            models=model_usage(final.get("modelUsage")),
+            reported_cost=float(cost) if isinstance(cost, int | float) else None,
         )
         subtype = str(final.get("subtype") or "")
         errors = [str(e) for e in final.get("errors") or []]
@@ -307,7 +350,39 @@ class ClaudeCodeAdapter(HarnessAdapter):
             result.status, result.stop_reason = "failed", "error"
         result.summary = text
         result.detail = "; ".join(errors) or text or subtype or f"exit {exit_code}"
+        result.infra_error = final.get("api_error_status") is not None or bool(
+            LIMIT_RE.search(" ".join([text, *errors]))
+        )
         return result
+
+
+def model_usage(table: Any) -> dict[str, dict[str, int]]:
+    """`modelUsage` of the final report as the ledger counts tokens: input includes the cache
+    writes and reads (ADR 0034)."""
+    models: dict[str, dict[str, int]] = {}
+    for name, entry in (table or {}).items() if isinstance(table, dict) else ():
+        if not isinstance(entry, dict):
+            continue
+        fresh, written, read, output = (
+            _count(entry.get(key))
+            for key in (
+                "inputTokens",
+                "cacheCreationInputTokens",
+                "cacheReadInputTokens",
+                "outputTokens",
+            )
+        )
+        models[str(name)] = {
+            "input": fresh + written + read,
+            "cached_input": read,
+            "cache_write": written,
+            "output": output,
+        }
+    return models
+
+
+def _count(value: Any) -> int:
+    return int(value) if isinstance(value, int | float) and not isinstance(value, bool) else 0
 
 
 def _result_fields(item: dict[str, Any]) -> dict[str, Any]:

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -148,6 +148,21 @@ def summarize(rows: Any) -> dict[str, Any]:
     totals["tokens"] = totals["input_tokens"] + totals["output_tokens"]
     totals["wall_seconds"] = round(totals["wall_seconds"], 3)
     totals["gpu_seconds"] = round(totals["gpu_seconds"], 3)
+    return totals
+
+
+def by_worker(rows: Iterable[LedgerRow]) -> dict[tuple[str, str], dict[str, int]]:
+    """Calls and tokens per (endpoint, model): input (cached included), cached_input and
+    output."""
+    totals: dict[tuple[str, str], dict[str, int]] = {}
+    for row in rows:
+        counts = totals.setdefault(
+            (row.endpoint, row.model), {"calls": 0, "input": 0, "cached_input": 0, "output": 0}
+        )
+        counts["calls"] += 1
+        counts["input"] += int(row.input_tokens or 0)
+        counts["cached_input"] += int(row.cached_input_tokens or 0)
+        counts["output"] += int(row.output_tokens or 0)
     return totals
 
 

@@ -22,6 +22,10 @@ request. The interface is SPEC §12's:
 * **Records.** Adapters with a line protocol on stdout parse it in `parse`/`finish`; the raw lines
   can be written to a transcript file (`HarnessSettings.transcript`), which is how the contract
   fixtures under `tests/fixtures/harness/` are recorded.
+* **Native runs** (ADR 0034). An adapter with `native` can also run its harness alone, on the
+  harness's own login and a model it names, without the proxy (`start_native`). Only the bench
+  starts them, as baselines named by the user (`native:<harness>:<model>`). The environment is
+  still `minimal_env`, so no key of the user's reaches the harness: it reads its own login.
 
 `ADAPTERS` maps adapter names to adapters (built on first use, since the adapter modules
 import this one).
@@ -99,6 +103,10 @@ class HarnessSettings:
     deny_paths: Sequence[str] = ()
     # Where the adapter keeps generated config and isolated harness state for this task.
     state_dir: Path | None = None
+    # Run without the user's or the enclosing project's customizations (instruction files,
+    # skills, plugins, hooks, memory): bench runs set it (ADR 0034). Adapters without such a
+    # switch run as configured.
+    isolated: bool = False
     # Files for the raw stdout lines and for stderr (None: not kept).
     transcript: Path | None = None
     log: Path | None = None
@@ -165,6 +173,14 @@ class RunResult:
     exit_code: int | None = None
     detail: str = ""
     version: str | None = None
+    # Tokens per model as the harness reported them: `input` (cached tokens included),
+    # `cached_input`, `cache_write` and `output`.
+    models: dict[str, dict[str, int]] = field(default_factory=dict)
+    # The harness's own cost estimate, kept as reported; no claim uses it.
+    reported_cost: float | None = None
+    # The run ended on an error outside the model's work: an API or server error, a usage
+    # limit, or a harness that ended without its final report.
+    infra_error: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -175,6 +191,9 @@ class RunResult:
             "turns": self.turns,
             "tool_calls": self.tool_calls,
             "usage": dict(self.usage),
+            "models": {name: dict(counts) for name, counts in self.models.items()},
+            "reported_cost": self.reported_cost,
+            "infra_error": self.infra_error,
             "exit_code": self.exit_code,
             "detail": self.detail[:2000],
             "version": self.version,
@@ -232,6 +251,8 @@ class HarnessAdapter:
     # The task prompt goes to the harness on stdin (never as an argument: a Windows batch shim
     # would reparse it).
     prompt_on_stdin: bool = True
+    # The harness can run alone on its own login and a model it names (`start_native`).
+    native: bool = False
 
     # -- discovery ---------------------------------------------------------------------------
 
@@ -326,6 +347,52 @@ class HarnessAdapter:
             raise HarnessMissing(self)
         argv = [*command, *self.command(task, workdir, endpoint, settings)]
         env = self.full_environment(task, workdir, endpoint, settings)
+        return SubprocessRun(self, argv, env, workdir, self.stdin_text(task), settings)
+
+    # -- native runs (ADR 0034) ----------------------------------------------------------------
+
+    def native_command(
+        self, task: HarnessTask, workdir: Path, model: str, settings: HarnessSettings
+    ) -> list[str]:
+        raise NotImplementedError
+
+    def native_environment(
+        self, task: HarnessTask, workdir: Path, model: str, settings: HarnessSettings
+    ) -> dict[str, str]:
+        """The harness's own variables for a native run (none pointing at a proxy)."""
+        return {}
+
+    def native_full_environment(
+        self,
+        task: HarnessTask,
+        workdir: Path,
+        model: str,
+        settings: HarnessSettings,
+        *,
+        base: Mapping[str, str] | None = None,
+    ) -> dict[str, str]:
+        """`minimal_env` (no keys, tokens or endpoint variables of the user's), the harness's
+        native variables, its egress switches and the configured extras."""
+        env = minimal_env(base=base)
+        env.update(self.native_environment(task, workdir, model, settings))
+        env.update(self.offline_env)
+        env.update(settings.merged_env())
+        return env
+
+    def start_native(
+        self, task: HarnessTask, workdir: Path, model: str, settings: HarnessSettings
+    ) -> RunHandle:
+        """Run the harness alone on its own login with `model`: no proxy, and still no key of
+        the user's in its environment (`minimal_env`)."""
+        if not self.native:
+            raise ValueError(f"{self.title} has no native runs")
+        if settings.offline:
+            raise ValueError("a native run reaches the harness's hosted service: not offline")
+        command = self.executable(settings)
+        if command is None:
+            raise HarnessMissing(self)
+        argv = [*command, *self.native_command(task, workdir, model, settings)]
+        env = self.native_full_environment(task, workdir, model, settings)
         return SubprocessRun(self, argv, env, workdir, self.stdin_text(task), settings)
 
 

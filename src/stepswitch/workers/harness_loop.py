@@ -66,6 +66,42 @@ REPORT_CHARS = 4000
 TEXT_EVENT_CHARS = 4000
 
 
+def checks_text(acceptance: Sequence[str], test_command: Sequence[str] | None) -> str:
+    """What a harness is told about the checks: the acceptance commands and the test command."""
+    lines = []
+    if acceptance:
+        lines.append("Acceptance checks:\n" + "\n".join(f"- {cmd}" for cmd in acceptance))
+    if test_command:
+        # "Exactly as written": a harness allows this command by prefix, and a shortened one
+        # (a bare `pytest`) would also run outside the project's environment.
+        lines.append(
+            "Run the project's tests with this command, exactly as written:"
+            f" `{shell_command(test_command)}`. When you are done, Stepswitch runs it to check"
+            " the change."
+        )
+    return "\n\n".join(lines)
+
+
+def first_prompt(
+    instruction: str,
+    acceptance: Sequence[str],
+    test_command: Sequence[str] | None,
+    track_notes: str = "",
+) -> str:
+    """The prompt of a harness run's first attempt; native bench runs get the same one."""
+    parts = [instruction.strip()]
+    checks = checks_text(acceptance, test_command)
+    if checks:
+        parts.append(checks)
+    if track_notes:
+        parts.append(track_notes)
+    parts.append(
+        "Work only inside the current directory. Do not commit: Stepswitch reviews and"
+        " commits the change."
+    )
+    return "\n\n".join(parts)
+
+
 @dataclass
 class HarnessLoop:
     """One candidate's harness run (see the module docstring)."""
@@ -410,33 +446,13 @@ class HarnessLoop:
     # -- prompts -----------------------------------------------------------------------------
 
     def _checks(self) -> str:
-        lines = []
-        spec = self.helper.spec
-        if spec.acceptance:
-            lines.append("Acceptance checks:\n" + "\n".join(f"- {cmd}" for cmd in spec.acceptance))
-        test = self.settings.test_command
-        if test:
-            # "Exactly as written": a harness allows this command by prefix, and a shortened
-            # one (a bare `pytest`) would also run outside the project's environment.
-            lines.append(
-                "Run the project's tests with this command, exactly as written:"
-                f" `{shell_command(test)}`. When you are done, Stepswitch runs it to check"
-                " the change."
-            )
-        return "\n\n".join(lines)
+        return checks_text(self.helper.spec.acceptance, self.settings.test_command)
 
     def _first_prompt(self) -> str:
-        parts = [self.helper.spec.instruction.strip()]
-        checks = self._checks()
-        if checks:
-            parts.append(checks)
-        if self.helper.track_notes:
-            parts.append(self.helper.track_notes)
-        parts.append(
-            "Work only inside the current directory. Do not commit: Stepswitch reviews and"
-            " commits the change."
+        spec = self.helper.spec
+        return first_prompt(
+            spec.instruction, spec.acceptance, self.settings.test_command, self.helper.track_notes
         )
-        return "\n\n".join(parts)
 
     def _retry_prompt(self, verdict: Any) -> str:
         gate = verdict.failed_gate or "a"
@@ -493,6 +509,7 @@ class HarnessLoop:
             offline=offline,
             test_command=list(test_command) if test_command else None,
             state_dir=state_dir / "harness" / f"{helper.task_id}{suffix}",
+            isolated=helper.spec.isolated,
         )
         return cls(
             helper=helper,

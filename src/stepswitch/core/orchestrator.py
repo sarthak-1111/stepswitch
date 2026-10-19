@@ -353,6 +353,9 @@ def run_task(
     optimize = True
     learning_settings: Any = None
     features_seen: Any = None
+    # Every worker the task could know, before any pool narrows the catalog: it marks the
+    # ledger's workers local or not (`usage_by_worker`).
+    known_catalog: Any = catalog
     # The audit task ID of requests and spawned processes on this thread (SPEC §15).
     task_token = net.CURRENT_TASK.set(task_id)
     try:
@@ -379,6 +382,7 @@ def run_task(
         if replay is not None:
             catalog = replay.catalog(catalog)
             settings = replay.recording.context_settings() or settings
+        known_catalog = catalog
         optimize = settings.optimize if spec.optimize is None else spec.optimize
         # The writer of briefs may be outside the routing pool: it never takes a step.
         summarizer = None
@@ -588,6 +592,7 @@ def run_task(
         disagreement=report.as_dict() if report is not None else None,
         uncertain=uncertain,
         review=review,
+        usage_by_worker=usage_by_worker(ledger, known_catalog),
     )
     data = result.model_dump(mode="json", exclude={"diff"})
     trajectory.write_file("result.json", json.dumps(data, indent=2) + "\n")
@@ -604,6 +609,18 @@ def run_task(
     say(f"{result.status}" + (f" ({result.stop_reason})" if result.stop_reason else ""))
     db.close()
     return result
+
+
+def usage_by_worker(ledger: Ledger, catalog: Any) -> dict[str, dict[str, Any]]:
+    """The ledger's tokens per worker, each marked local or not by the catalog's rule (SPEC
+    §15). A worker the catalog does not know counts as not local."""
+    from stepswitch.ledger import by_worker
+
+    local = {(s.endpoint, s.model): s.local for s in catalog.specs()} if catalog else {}
+    return {
+        f"{endpoint}/{model}": {**counts, "local": bool(local.get((endpoint, model), False))}
+        for (endpoint, model), counts in by_worker(ledger.rows).items()
+    }
 
 
 def _run_candidate(shared: _Shared, run: _Run) -> None:

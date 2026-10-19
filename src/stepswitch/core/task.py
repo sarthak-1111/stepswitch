@@ -78,6 +78,9 @@ class TaskSpec(BaseModel):
     # `claude-code`, `pi`, `oh-my-pi`, `opencode`, `kimi-code` or `acp`. None runs the built-in
     # agent.
     harness: str | None = None
+    # Run the harness without the user's or the enclosing project's customizations
+    # (instruction files, skills, plugins, hooks, memory). The bench sets it (ADR 0034).
+    isolated: bool = False
     worker: str | None = None
     # Route only among these workers (ids or names); empty means every configured worker.
     workers: list[str] = Field(default_factory=list)
@@ -148,3 +151,7 @@ class TaskResult(BaseModel):
     disagreement: dict[str, Any] | None = None
     uncertain: bool = False
     review: dict[str, Any] | None = None
+    # Phase 11 (ADR 0034): tokens per worker (`endpoint/model`) from the ledger: calls, input
+    # (cached included), cached_input, output, and whether the worker is local (its endpoint
+    # is local and does not forward to a hosted service, SPEC §15).
+    usage_by_worker: dict[str, dict[str, Any]] = Field(default_factory=dict)
