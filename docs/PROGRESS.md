@@ -4,6 +4,53 @@ Newest phase first. Each phase records what was done, what research changed, ope
 actions that only the maintainer can take. Phase checks: `uv run python scripts/phase_check.py N`
 (one phase) or `--upto N` (phases 0 to N).
 
+## Phase 8: Proxy and external harness adapters
+
+Status: done on 2026-10-19. `scripts/phase_check.py 8` passes 6 of 6 checks, the live run among
+them. `uv run pytest -q` with the CPU models present: 1825 passed, 8 skipped (among them the
+tests that need a configured local model server). `ssw prove --quick --phase 8` (702 s):
+seventeen claims passing and C-016 pending CI. No claims are assigned to this phase.
+
+### Done
+
+- **`ssw proxy`** (ADR 0004, ADR 0029) answers the chat-completions, responses and messages
+  formats on one local port, with a token per run.
+  - It routes each request as a step of the caller's task and switches workers only at a new
+    user turn.
+  - Bound tasks, route-only decisions (`POST /stepswitch/v1/route`) and budget refusals (429)
+    keep a harness inside the task's budget.
+  - Inbound credential headers are neither logged nor forwarded.
+- **Harness adapters**: Claude Code, Pi, Oh My Pi, OpenCode, Kimi Code and generic ACP agents.
+  - Each run gets its own proxy, token and state directory, and a minimal environment holding
+    none of the user's keys. Each harness's egress switches are set.
+  - Pi and Oh My Pi get small extensions (`adapters/pi`, `adapters/omp`) on a shared core.
+  - The ACP client is the project's own.
+- **`ssw run --harness <name>`** runs a task in an external harness. Its steps, ledger and
+  gates appear like a built-in run's.
+- **Contract tests** run every adapter against its fixtures. Line-protocol transcripts are
+  parsed and also replayed through the subprocess path, and ACP sessions run against a strict
+  mock agent.
+- **A live run.** `ssw run --harness claude-code` (Claude Code 2.1.296 on Windows, one local
+  model behind the proxy) fixed the toy repository's bug and passed the gates. The run is
+  recorded as the `recorded-live` contract fixture, with its paths replaced.
+- **Fixes the live runs led to.**
+  - The harness's Bash tool is a POSIX shell on Windows too, so the model types the
+    interpreter path with forward slashes. The allow rule held it with backslashes, so the
+    test command was refused. The prompt and the rules now use forward slashes, and the rules
+    allow both spellings.
+  - With a prompt that only said the tests would be checked afterwards, the model ran a bare
+    `pytest`, which the rule refused and which would have run outside the project's
+    environment. The prompt now asks for the test command exactly as written, and the next
+    live run ran it.
+
+### Open issues
+
+- The other adapters' fixtures come from documentation and source. Pi, Oh My Pi, OpenCode,
+  Kimi Code and a generic ACP agent are not installed on this machine, so none has a live
+  recording yet.
+- The prompt wording that got the test command run was checked in single live runs, not
+  measured over many.
+
 ## Phase 7: Learning router, fork and replay
 
 Status: done on 2026-10-19. `scripts/phase_check.py 7` passes 5 of 5 checks. `uv run pytest -q`
@@ -695,6 +742,6 @@ Details are in the SPEC change table and the ADRs. The main points:
    Node 22.12 or later (the current LTS line is recommended) before Phase 4. The Ollama release
    that was researched is 0.40.5; older installs may lack routes the research relies on.
 
-## Next: Phase 8
+## Next: Phase 9
 
-`ssw proxy` and the external harness adapters (SPEC §23). No claims are assigned to it.
+The slow lane and zero egress (SPEC §23). Claim due: C-006.
