@@ -1,0 +1,205 @@
+{
+  "claim": "C-014",
+  "text": "Replays recorded runs deterministically.",
+  "scope": "Recorded runs of deterministic (fake) workers with recorded tool outputs.",
+  "thresholds": {
+    "identical_diffs": true,
+    "identical_gate_results": true
+  },
+  "command": "uv run ssw prove --claim C-014",
+  "mode": "quick",
+  "source_digest": "4e82712ac35836ac43548d09034d9a8ab9016794e8193e3e6c4b96a1328b5d80",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-19T08:48:12+00:00",
+  "sections": {
+    "replays": {
+      "recorded": "2026-10-19T08:48:12+00:00",
+      "runs": 7,
+      "reproduced": 7,
+      "covered": {
+        "failover": true,
+        "handoff_brief": true,
+        "time_budget_stop": true,
+        "best_of_n": true,
+        "gate_runs": 7
+      },
+      "rows": [
+        {
+          "run": "calc-fix",
+          "status": "done",
+          "stop_reason": null,
+          "best_of": 1,
+          "failovers": 0,
+          "handoffs": 0,
+          "diffs": {
+            "diff.patch": 13
+          },
+          "gate_runs": 1,
+          "model_calls": {
+            "recorded": 11,
+            "from_recording": 11,
+            "live": 0
+          },
+          "models_asked": 0,
+          "tools_run_again": 4,
+          "identical_diffs": true,
+          "identical_gate_results": true,
+          "replayed_status": "done",
+          "departures": []
+        },
+        {
+          "run": "failover",
+          "status": "done",
+          "stop_reason": null,
+          "best_of": 1,
+          "failovers": 1,
+          "handoffs": 0,
+          "diffs": {
+            "diff.patch": 13
+          },
+          "gate_runs": 1,
+          "model_calls": {
+            "recorded": 12,
+            "from_recording": 12,
+            "live": 0
+          },
+          "models_asked": 0,
+          "tools_run_again": 4,
+          "identical_diffs": true,
+          "identical_gate_results": true,
+          "replayed_status": "done",
+          "departures": []
+        },
+        {
+          "run": "relay",
+          "status": "done",
+          "stop_reason": null,
+          "best_of": 1,
+          "failovers": 0,
+          "handoffs": 1,
+          "diffs": {
+            "diff.patch": 13
+          },
+          "gate_runs": 1,
+          "model_calls": {
+            "recorded": 13,
+            "from_recording": 13,
+            "live": 0
+          },
+          "models_asked": 0,
+          "tools_run_again": 4,
+          "identical_diffs": true,
+          "identical_gate_results": true,
+          "replayed_status": "done",
+          "departures": []
+        },
+        {
+          "run": "time-budget",
+          "status": "stopped",
+          "stop_reason": "budget_wall_seconds",
+          "best_of": 1,
+          "failovers": 0,
+          "handoffs": 0,
+          "diffs": {
+            "diff.patch": 13
+          },
+          "gate_runs": 0,
+          "model_calls": {
+            "recorded": 5,
+            "from_recording": 5,
+            "live": 0
+          },
+          "models_asked": 0,
+          "tools_run_again": 2,
+          "identical_diffs": true,
+          "identical_gate_results": true,
+          "replayed_status": "stopped",
+          "departures": []
+        },
+        {
+          "run": "best-of-2",
+          "status": "done",
+          "stop_reason": null,
+          "best_of": 2,
+          "failovers": 0,
+          "handoffs": 0,
+          "diffs": {
+            "candidate-0.patch": 23,
+            "candidate-1.patch": 24,
+            "diff.patch": 23
+          },
+          "gate_runs": 2,
+          "model_calls": {
+            "recorded": 15,
+            "from_recording": 15,
+            "live": 0
+          },
+          "models_asked": 0,
+          "tools_run_again": 6,
+          "identical_diffs": true,
+          "identical_gate_results": true,
+          "replayed_status": "done",
+          "departures": []
+        },
+        {
+          "run": "science",
+          "status": "done",
+          "stop_reason": null,
+          "best_of": 1,
+          "failovers": 0,
+          "handoffs": 0,
+          "diffs": {
+            "diff.patch": 13
+          },
+          "gate_runs": 1,
+          "model_calls": {
+            "recorded": 5,
+            "from_recording": 5,
+            "live": 0
+          },
+          "models_asked": 0,
+          "tools_run_again": 1,
+          "identical_diffs": true,
+          "identical_gate_results": true,
+          "replayed_status": "done",
+          "departures": []
+        },
+        {
+          "run": "cli",
+          "status": "done",
+          "stop_reason": null,
+          "best_of": 1,
+          "failovers": 0,
+          "handoffs": 0,
+          "diffs": {
+            "diff.patch": 13
+          },
+          "gate_runs": 1,
+          "model_calls": {
+            "recorded": 8,
+            "from_recording": 8,
+            "live": 0
+          },
+          "models_asked": 0,
+          "tools_run_again": 2,
+          "identical_diffs": true,
+          "identical_gate_results": true,
+          "replayed_status": "done",
+          "departures": [],
+          "requests_while_recording": 8
+        }
+      ],
+      "problems": []
+    }
+  }
+}

@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "mode": "quick",
-  "source_digest": "4a9c0ac68351b3695deb9a5a842c39429f6d2beb37edb3fd9c7b9ca5d584f539",
-  "created": "2026-10-19T08:34:22+00:00",
-  "duration_s": 614.51,
+  "source_digest": "4e82712ac35836ac43548d09034d9a8ab9016794e8193e3e6c4b96a1328b5d80",
+  "created": "2026-10-19T08:52:08+00:00",
+  "duration_s": 752.45,
   "platform": {
     "os": "windows",
     "machine": "amd64",
@@ -15,7 +15,7 @@
     "image_version": null
   },
   "selection": {
-    "phase": 6,
+    "phase": 7,
     "claims": [],
     "skip": []
   },
@@ -123,6 +123,22 @@
       "parts": [],
       "notes": {}
     },
+    "C-014": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c014_replay.py::test_replay_reproduces_diffs_and_gate_results": "passed"
+      },
+      "parts": [],
+      "notes": {}
+    },
+    "C-015": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c015_learning_router.py::test_bandit_regret_below_random_and_fixed_policies": "passed"
+      },
+      "parts": [],
+      "notes": {}
+    },
     "C-016": {
       "status": "pending",
       "tests": {
@@ -160,7 +176,7 @@
   },
   "summary": {
     "pending": 1,
-    "passing": 15,
+    "passing": 17,
     "failing": 0
   }
 }

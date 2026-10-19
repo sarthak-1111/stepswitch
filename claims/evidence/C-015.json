@@ -1,0 +1,294 @@
+{
+  "claim": "C-015",
+  "text": "The router learns which worker suits which task.",
+  "scope": "The learning router's simulation harness with synthetic workers (SPEC \u00a710).",
+  "thresholds": {
+    "beats_random": true,
+    "beats_fixed": true,
+    "regret_vs_random_max": 0.25,
+    "learning_ratio_max": 0.65,
+    "worlds": 30,
+    "rounds": 4000
+  },
+  "command": "uv run ssw prove --claim C-015",
+  "mode": "quick",
+  "source_digest": "4e82712ac35836ac43548d09034d9a8ab9016794e8193e3e6c4b96a1328b5d80",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-19T08:48:25+00:00",
+  "sections": {
+    "simulation": {
+      "recorded": "2026-10-19T08:48:25+00:00",
+      "worlds": 30,
+      "rounds": 4000,
+      "workers": [
+        "sim/t0",
+        "sim/t1",
+        "sim/t2",
+        "sim/t3"
+      ],
+      "contexts": 180,
+      "mean_total_regret": {
+        "thompson": 117.767,
+        "static": 194.3327,
+        "fixed": 167.0379,
+        "random": 670.0541
+      },
+      "regret_per_task_by_quarter": {
+        "thompson": [
+          0.045,
+          0.0285,
+          0.0237,
+          0.0205
+        ],
+        "static": [
+          0.0484,
+          0.0484,
+          0.0485,
+          0.049
+        ],
+        "fixed": [
+          0.0415,
+          0.0415,
+          0.042,
+          0.0421
+        ],
+        "random": [
+          0.1671,
+          0.168,
+          0.1674,
+          0.1676
+        ]
+      },
+      "regret_vs_random": 0.1758,
+      "learning_ratio": 0.4556,
+      "worlds_won": {
+        "static": 18,
+        "fixed": 15,
+        "random": 30
+      },
+      "per_world": [
+        {
+          "world": 0,
+          "thompson": 247.7132,
+          "static": 506.004,
+          "fixed": 448.0109,
+          "random": 575.3835
+        },
+        {
+          "world": 1,
+          "thompson": 184.8768,
+          "static": 140.734,
+          "fixed": 140.734,
+          "random": 365.7912
+        },
+        {
+          "world": 2,
+          "thompson": 175.4418,
+          "static": 236.8444,
+          "fixed": 170.62,
+          "random": 348.7245
+        },
+        {
+          "world": 3,
+          "thompson": 119.3151,
+          "static": 236.186,
+          "fixed": 236.186,
+          "random": 696.6395
+        },
+        {
+          "world": 4,
+          "thompson": 120.0595,
+          "static": 86.9458,
+          "fixed": 86.9458,
+          "random": 805.2814
+        },
+        {
+          "world": 5,
+          "thompson": 111.5424,
+          "static": 291.928,
+          "fixed": 61.4197,
+          "random": 602.7203
+        },
+        {
+          "world": 6,
+          "thompson": 128.7569,
+          "static": 44.8236,
+          "fixed": 96.7964,
+          "random": 672.3803
+        },
+        {
+          "world": 7,
+          "thompson": 84.8494,
+          "static": 34.6794,
+          "fixed": 34.6794,
+          "random": 975.553
+        },
+        {
+          "world": 8,
+          "thompson": 81.5218,
+          "static": 259.3704,
+          "fixed": 259.3704,
+          "random": 712.7035
+        },
+        {
+          "world": 9,
+          "thompson": 42.2875,
+          "static": 24.2049,
+          "fixed": 24.2049,
+          "random": 807.6965
+        },
+        {
+          "world": 10,
+          "thompson": 196.7858,
+          "static": 352.2284,
+          "fixed": 350.348,
+          "random": 500.9967
+        },
+        {
+          "world": 11,
+          "thompson": 103.7611,
+          "static": 144.6673,
+          "fixed": 144.6673,
+          "random": 372.0293
+        },
+        {
+          "world": 12,
+          "thompson": 116.5312,
+          "static": 246.9566,
+          "fixed": 246.9566,
+          "random": 901.5354
+        },
+        {
+          "world": 13,
+          "thompson": 75.7996,
+          "static": 396.7499,
+          "fixed": 80.304,
+          "random": 447.9641
+        },
+        {
+          "world": 14,
+          "thompson": 89.1646,
+          "static": 87.1033,
+          "fixed": 87.1033,
+          "random": 816.1555
+        },
+        {
+          "world": 15,
+          "thompson": 63.9871,
+          "static": 90.5386,
+          "fixed": 90.5386,
+          "random": 955.6948
+        },
+        {
+          "world": 16,
+          "thompson": 116.5476,
+          "static": 427.7496,
+          "fixed": 427.7496,
+          "random": 920.6977
+        },
+        {
+          "world": 17,
+          "thompson": 89.7507,
+          "static": 61.2448,
+          "fixed": 61.2448,
+          "random": 1041.9696
+        },
+        {
+          "world": 18,
+          "thompson": 58.4985,
+          "static": 236.5238,
+          "fixed": 293.126,
+          "random": 922.6864
+        },
+        {
+          "world": 19,
+          "thompson": 98.0991,
+          "static": 86.6765,
+          "fixed": 86.6765,
+          "random": 496.1607
+        },
+        {
+          "world": 20,
+          "thompson": 157.5521,
+          "static": 532.5784,
+          "fixed": 532.5784,
+          "random": 689.4042
+        },
+        {
+          "world": 21,
+          "thompson": 200.7446,
+          "static": 263.3654,
+          "fixed": 139.8182,
+          "random": 343.8125
+        },
+        {
+          "world": 22,
+          "thompson": 173.2769,
+          "static": 9.9366,
+          "fixed": 9.9366,
+          "random": 689.106
+        },
+        {
+          "world": 23,
+          "thompson": 152.6135,
+          "static": 118.7283,
+          "fixed": 118.7283,
+          "random": 538.2513
+        },
+        {
+          "world": 24,
+          "thompson": 77.6501,
+          "static": 105.6141,
+          "fixed": 105.6141,
+          "random": 445.2173
+        },
+        {
+          "world": 25,
+          "thompson": 138.2172,
+          "static": 300.9035,
+          "fixed": 300.9035,
+          "random": 729.7441
+        },
+        {
+          "world": 26,
+          "thompson": 132.1922,
+          "static": 201.7495,
+          "fixed": 132.555,
+          "random": 428.3237
+        },
+        {
+          "world": 27,
+          "thompson": 93.9117,
+          "static": 260.0884,
+          "fixed": 198.4613,
+          "random": 544.1384
+        },
+        {
+          "world": 28,
+          "thompson": 51.6027,
+          "static": 0.0,
+          "fixed": 0.0,
+          "random": 894.226
+        },
+        {
+          "world": 29,
+          "thompson": 49.9587,
+          "static": 44.8589,
+          "fixed": 44.8589,
+          "random": 860.6362
+        }
+      ],
+      "problems": []
+    }
+  }
+}

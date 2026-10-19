@@ -295,7 +295,7 @@ claims:
       - tests/claims/test_c014_replay.py::test_replay_reproduces_diffs_and_gate_results
     thresholds: {identical_diffs: true, identical_gate_results: true}
     evidence: [claims/evidence/C-014.json]
-    status: pending
+    status: passing
 
   - id: C-015
     text: "The router learns which worker suits which task."
@@ -311,7 +311,7 @@ claims:
       {beats_random: true, beats_fixed: true, regret_vs_random_max: 0.25,
        learning_ratio_max: 0.65, worlds: 30, rounds: 4000}
     evidence: [claims/evidence/C-015.json]
-    status: pending
+    status: passing
 
   - id: C-016
     text: "Runs on macOS, Linux and Windows."

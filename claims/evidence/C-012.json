@@ -7,7 +7,7 @@
   },
   "command": "uv run ssw bench run --suite <suite> --workers <pool>,best-of-n --router-pool <pool> --best-of 2 ... (each run's run.json); uv run ssw prove --claim C-012",
   "mode": "quick",
-  "source_digest": "4a9c0ac68351b3695deb9a5a842c39429f6d2beb37edb3fd9c7b9ca5d584f539",
+  "source_digest": "4e82712ac35836ac43548d09034d9a8ab9016794e8193e3e6c4b96a1328b5d80",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -19,10 +19,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-19T08:29:10+00:00",
+  "updated": "2026-10-19T08:45:03+00:00",
   "sections": {
     "comparison": {
-      "recorded": "2026-10-19T08:29:10+00:00",
+      "recorded": "2026-10-19T08:45:03+00:00",
       "confidence": 0.95,
       "suites": {
         "mini-general": {
