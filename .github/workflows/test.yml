@@ -1,0 +1,29 @@
+# The unit tests on each supported Python (ADR 0002: requires-python >= 3.11, CI from 3.11 to
+# 3.15; SPEC §24: uv installs 3.15 by default, so every dependency must install there). The
+# claim tests run in the prove workflow, on the development Python of .python-version.
+# Actions are pinned to commit SHAs (tags verified 2026-10-19).
+name: test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: unit tests (Python ${{ matrix.python }})
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13", "3.14", "3.15"]
+    runs-on: ubuntu-24.04
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - run: uv sync --locked --python ${{ matrix.python }}
+      - run: uv run --no-sync pytest tests/unit -q

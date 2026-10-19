@@ -186,7 +186,8 @@ def test_doctor_warns_when_the_profile_cannot_be_recorded(
     runner.invoke(app, ["-C", str(tmp_path), "init", "--no-detect"])
 
     def conflict(*_: object) -> None:
-        raise tomllib.TOMLDecodeError("Cannot declare ('profile',) twice")
+        # (msg, doc, pos): Python 3.14 deprecates free-form arguments; older versions take any.
+        raise tomllib.TOMLDecodeError("Cannot declare ('profile',) twice", "", 0)
 
     monkeypatch.setattr(doctor, "collect", lambda **_: _fake_report([]))
     monkeypatch.setattr(doctor, "write_profile", conflict)
