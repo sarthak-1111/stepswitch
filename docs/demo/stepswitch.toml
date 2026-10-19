@@ -11,9 +11,9 @@ to = { model = "qwen3-4b-instruct-2507" }
 [[policy.rules]]
 name = "large-model-works"
 when = { step_type = ["navigate", "read", "edit", "run", "triage"] }
-to = { model = "qwen2.5:32b" }
+to = { model = "gpt-oss:120b" }
 
 [[policy.rules]]
 name = "another-family-reviews"
 when = { step_type = ["review"] }
-to = { model = "gpt-oss:120b" }
+to = { model = "qwen2.5:32b" }
