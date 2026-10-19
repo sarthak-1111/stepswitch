@@ -35,7 +35,7 @@ from typing import Any
 from ruamel.yaml import YAML
 
 ROOT = Path(__file__).resolve().parents[1]
-MAX_PHASE = 8
+MAX_PHASE = 9
 PHASE_TITLES = {
     0: "Research and design",
     1: "Foundation and compatibility core",
@@ -46,6 +46,7 @@ PHASE_TITLES = {
     6: "Best-of-N, disagreement, cross-family review",
     7: "Learning router, fork and replay",
     8: "Proxy and external harness adapters",
+    9: "Slow lane and zero-egress",
 }
 SY = Path(sys.executable).with_name("ssw.exe" if os.name == "nt" else "ssw")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -1436,6 +1437,232 @@ def _p8_live() -> tuple[bool, str]:
         if meta.get("source") == "recorded" and run.get("status") == "done":
             live.append(f"{meta_file.parent.name} {meta.get('version')}")
     return bool(live), ("live runs: " + ", ".join(live)) if live else "no recorded live run"
+
+
+# --------------------------------------------------------------------------------------------
+# Phase 9: slow lane and zero-egress
+# --------------------------------------------------------------------------------------------
+
+SLOW_ENGINES = {"airllm", "ktransformers"}
+JOB_COMMANDS = ["submit", "list", "show", "run", "cancel"]
+JOB_FUNCTIONS = ("submit", "claim", "finish", "cancel", "requeue_stale", "run_queue")
+JOB_ROUTES = [("GET", "/api/jobs"), ("GET", "/api/jobs/{}")]
+# Kinds the redactor must recognise (ADR 0031): keys, tokens and credentials in URLs and headers.
+REDACTED_KINDS = {
+    "private-key",
+    "api-key",
+    "repo-token",
+    "package-token",
+    "cloud-key-id",
+    "jwt",
+    "bearer",
+    "basic",
+    "url-password",
+}
+# Commands run while offline get the offline switches of these tools (stepswitch.context.proc).
+OFFLINE_SWITCHES = {"UV_OFFLINE", "PIP_NO_INDEX", "HF_HUB_OFFLINE", "npm_config_offline"}
+# Where the per-path deny list is applied, per harness (ADR 0031).
+DENY_HOOKS = {
+    "built-in tools": ("src/stepswitch/workers/tools.py", "DenyList.from_config(config)"),
+    "acp": ("src/stepswitch/workers/acp.py", "DenyList(settings.deny_paths)"),
+    "claude-code": ("src/stepswitch/workers/claude_code.py", "deny_rules(settings.deny_paths)"),
+    "opencode": ("src/stepswitch/workers/opencode.py", "deny_rules(tuple(settings.deny_paths))"),
+    "pi": ("adapters/pi/index.js", "guardDeniedPaths(pi, process.env)"),
+    "oh-my-pi": ("adapters/omp/index.js", "guardDeniedPaths(pi, process.env)"),
+}
+
+
+def api_routes() -> tuple[set[tuple[str, str]] | None, str]:
+    try:
+        app = importlib.import_module("stepswitch.api.app").create_app()
+    except Exception as exc:  # noqa: BLE001 - report any import or factory failure
+        return None, f"create_app(): {exc}"
+    present = {
+        (method, re.sub(r"\{[^}]+\}", "{}", getattr(route, "path", "")))
+        for route in getattr(app, "routes", [])
+        for method in (getattr(route, "methods", None) or set())
+    }
+    return present, ""
+
+
+def untested_or_run(patterns: tuple[str, ...], *targets: str) -> tuple[bool, str]:
+    untested = tests_matching(*patterns)
+    if untested:
+        return False, "no tests matching: " + ", ".join(untested)
+    return pytest_run(*targets)
+
+
+@check(9, "slow lane: AirLLM and KTransformers backends for pin-only SL-tier workers")
+def _p9_slow_engines() -> tuple[bool, str]:
+    try:
+        manager = importlib.import_module("stepswitch.serve.manager")
+        base = importlib.import_module("stepswitch.workers.base")
+    except ImportError as exc:
+        return False, str(exc)
+    engines = {getattr(cls, "name", None) for cls in getattr(manager, "PYTHON_ENGINES", ())}
+    missing = sorted(SLOW_ENGINES - engines)
+    tier = getattr(base, "SLOW_TIER", None)
+    problems = combine(
+        (not missing, "engines missing from the server manager: " + ", ".join(missing)),
+        (tier == "sl", "no slow-lane tier (SLOW_TIER) in stepswitch.workers.base"),
+        (tier in getattr(base, "LEVEL_BY_TIER", {}), "the SL tier has no escalation level"),
+        (has_module("stepswitch.serve.airllm_server"), "the AirLLM server shim is missing"),
+    )
+    if not problems[0]:
+        return problems
+    return untested_or_run(
+        ("serve_airllm", "serve_ktransformers"),
+        "tests/unit/test_serve_airllm.py",
+        "tests/unit/test_serve_ktransformers.py",
+    )
+
+
+@check(9, "asynchronous jobs: `ssw jobs`, `ssw run --slow-review`, review comments, /api/jobs")
+def _p9_jobs() -> tuple[bool, str]:
+    try:
+        jobs = importlib.import_module("stepswitch.core.jobs")
+    except ImportError as exc:
+        return False, f"stepswitch.core.jobs: {exc}"
+    missing = [name for name in JOB_FUNCTIONS if not callable(getattr(jobs, name, None))]
+    routes, error = api_routes()
+    absent = [f"{m} {p}" for m, p in JOB_ROUTES if routes is None or (m, p) not in routes]
+    problems = combine(
+        (not missing, "stepswitch.core.jobs lacks: " + ", ".join(missing)),
+        (routes is not None, error),
+        (routes is None or not absent, "routes missing: " + ", ".join(absent)),
+        help_check(["jobs"], JOB_COMMANDS),
+        help_check(["jobs", "submit"], ["--worker", "--task", "--json"]),
+        help_check(["run"], ["--slow-review"]),
+    )
+    if not problems[0]:
+        return problems
+    return untested_or_run(("jobs",), "tests/unit/test_jobs.py")
+
+
+@check(9, "offline mode: per-task enforcement, offline child commands, forwarding endpoints")
+def _p9_offline() -> tuple[bool, str]:
+    try:
+        proc = importlib.import_module("stepswitch.context.proc")
+        forwarding = importlib.import_module("stepswitch.compat.forwarding")
+    except ImportError as exc:
+        return False, str(exc)
+    switches = sorted(OFFLINE_SWITCHES - set(getattr(proc, "OFFLINE_ENV", {})))
+    helpers = [
+        name
+        for name in ("static_reason", "offline_refusal", "llama_swap_forwarding")
+        if not callable(getattr(forwarding, name, None))
+    ]
+    problems = combine(
+        (not switches, "offline switches missing: " + ", ".join(switches)),
+        (not helpers, "stepswitch.compat.forwarding lacks: " + ", ".join(helpers)),
+        help_check(["run"], ["--offline"]),
+    )
+    if not problems[0]:
+        return problems
+    return untested_or_run(
+        ("offline_mode", "forwarding", "context_offline"),
+        "tests/unit/test_offline_mode.py",
+        "tests/unit/test_forwarding.py",
+        "tests/unit/test_context_offline.py",
+    )
+
+
+@check(9, "audit: every connection (with bytes) and every spawned process; `ssw audit`")
+def _p9_audit() -> tuple[bool, str]:
+    try:
+        net = importlib.import_module("stepswitch.net")
+        state = importlib.import_module("stepswitch.state")
+    except ImportError as exc:
+        return False, str(exc)
+    schema = " ".join(getattr(state, "MIGRATIONS", ()))
+    fields = set(getattr(getattr(net, "AuditRow", None), "__dataclass_fields__", {}))
+    problems = combine(
+        ("process_audit" in schema, "no process_audit table in the state schema"),
+        ({"bytes_out", "bytes_in"} <= fields, "AuditRow does not record bytes in and out"),
+        (callable(getattr(net, "audit_processes", None)), "stepswitch.net.audit_processes missing"),
+        help_check(["audit"], ["--processes", "--task", "--blocked", "--json"]),
+    )
+    if not problems[0]:
+        return problems
+    return untested_or_run(("audit",), "tests/unit/test_audit.py")
+
+
+@check(9, "redaction: secrets are masked in requests to non-local endpoints")
+def _p9_redaction() -> tuple[bool, str]:
+    try:
+        redact = importlib.import_module("stepswitch.redact")
+    except ImportError as exc:
+        return False, f"stepswitch.redact: {exc}"
+    kinds = {pattern[0] for pattern in getattr(redact, "PATTERNS", ())}
+    missing = sorted(REDACTED_KINDS - kinds)
+    problems = combine(
+        (not missing, "secret kinds not recognised: " + ", ".join(missing)),
+        (getattr(redact, "MODES", ()) == ("remote", "all", "off"), "redaction modes changed"),
+    )
+    if not problems[0]:
+        return problems
+    return untested_or_run(("redact",), "tests/unit/test_redact.py")
+
+
+@check(9, "privacy deny lists reach every harness: built-in tools, ACP, Claude Code, OpenCode, Pi")
+def _p9_deny_lists() -> tuple[bool, str]:
+    missing = [
+        f"{name} ({rel})" for name, (rel, marker) in DENY_HOOKS.items() if marker not in read(rel)
+    ]
+    if missing:
+        return False, "no deny-list hook in: " + ", ".join(missing)
+    return untested_or_run(("deny_paths",), "tests/unit/test_deny_paths.py")
+
+
+@check(9, "`ssw prefetch` fetches what context services use, so offline runs download nothing")
+def _p9_prefetch() -> tuple[bool, str]:
+    try:
+        prefetch = importlib.import_module("stepswitch.prefetch")
+    except ImportError as exc:
+        return False, f"stepswitch.prefetch: {exc}"
+    services = set(getattr(prefetch, "SERVICES", ()))
+    wanted = {"tree-sitter", "tokenizers", "language servers", "search"}
+    problems = combine(
+        (wanted <= services, "services not covered: " + ", ".join(sorted(wanted - services))),
+        help_check(["prefetch"], ["--check", "--json"]),
+    )
+    if not problems[0]:
+        return problems
+    return untested_or_run(("prefetch",), "tests/unit/test_prefetch.py")
+
+
+RESEARCH_P9_TOPICS = ("AirLLM", "KTransformers", "llama-swap", "deny rules", "Secret patterns")
+
+
+@check(9, "ADRs 0030 and 0031, the Phase 9 research notes and the jobs API are written down")
+def _p9_docs() -> tuple[bool, str]:
+    decisions = ROOT / "docs" / "decisions"
+    adrs = [n for n in ("0030", "0031") if not any(decisions.glob(f"{n}-*.md"))]
+    research = section(read("docs/RESEARCH.md"), "Verified during Phase 9")
+    topics = [topic for topic in RESEARCH_P9_TOPICS if topic not in research]
+    api = read("docs/API.md")
+    return combine(
+        (not adrs, "ADRs missing: " + ", ".join(adrs)),
+        (bool(research), "docs/RESEARCH.md has no `## Verified during Phase 9` section"),
+        (not research or not topics, "the Phase 9 research notes lack: " + ", ".join(topics)),
+        ("/api/jobs" in api, "docs/API.md does not document /api/jobs"),
+    )
+
+
+@check(9, "CI runs the offline claim under OS-level network isolation on Linux")
+def _p9_ci_isolation() -> tuple[bool, str]:
+    workflow = read(".github/workflows/prove.yml")
+    egress = read("tests/claims/egress.py")
+    return combine(
+        (bool(workflow), ".github/workflows/prove.yml missing"),
+        ("ubuntu-24.04" in workflow, "no pinned Linux runner"),
+        (
+            "kernel.apparmor_restrict_unprivileged_userns=0" in workflow,
+            "the Linux job does not allow unprivileged network namespaces",
+        ),
+        ("C-006" in workflow, "the workflow does not name C-006 next to its isolation step"),
+        ("unshare" in egress and "--net" in egress, "tests/claims/egress.py does not isolate"),
+    )
 
 
 # --------------------------------------------------------------------------------------------
