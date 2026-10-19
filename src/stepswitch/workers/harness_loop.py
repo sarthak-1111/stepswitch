@@ -416,9 +416,12 @@ class HarnessLoop:
             lines.append("Acceptance checks:\n" + "\n".join(f"- {cmd}" for cmd in spec.acceptance))
         test = self.settings.test_command
         if test:
+            # "Exactly as written": a harness allows this command by prefix, and a shortened
+            # one (a bare `pytest`) would also run outside the project's environment.
             lines.append(
-                "When you are done, Stepswitch checks the change by running the project's"
-                f" tests: `{shell_command(test)}`."
+                "Run the project's tests with this command, exactly as written:"
+                f" `{shell_command(test)}`. When you are done, Stepswitch runs it to check"
+                " the change."
             )
         return "\n\n".join(lines)
 
