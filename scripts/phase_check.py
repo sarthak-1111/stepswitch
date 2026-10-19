@@ -35,7 +35,7 @@ from typing import Any
 from ruamel.yaml import YAML
 
 ROOT = Path(__file__).resolve().parents[1]
-MAX_PHASE = 7
+MAX_PHASE = 8
 PHASE_TITLES = {
     0: "Research and design",
     1: "Foundation and compatibility core",
@@ -45,6 +45,7 @@ PHASE_TITLES = {
     5: "Token and cache optimization",
     6: "Best-of-N, disagreement, cross-family review",
     7: "Learning router, fork and replay",
+    8: "Proxy and external harness adapters",
 }
 SY = Path(sys.executable).with_name("ssw.exe" if os.name == "nt" else "ssw")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -1309,6 +1310,132 @@ def _p7_replay() -> tuple[bool, str]:
 @check(7, "CLI: `ssw router stats` shows what the router learned; `--export` writes aggregates")
 def _p7_router_cli() -> tuple[bool, str]:
     return help_check(["router", "stats"], ["--export"])
+
+
+# --------------------------------------------------------------------------------------------
+# Phase 8: proxy and external harness adapters
+# --------------------------------------------------------------------------------------------
+
+# Inbound routes of ADR 0004 item 2 (the responses WebSocket mode is deferred there).
+PROXY_ROUTES = {
+    "/v1/chat/completions",
+    "/v1/completions",
+    "/v1/responses",
+    "/v1/messages",
+    "/v1/messages/count_tokens",
+    "/v1beta/models/{model}:generateContent",
+    "/v1beta/models/{model}:streamGenerateContent",
+    "/api/chat",
+    "/api/generate",
+    "/api/tags",
+    "/api/show",
+    "/v1/models",
+}
+# SPEC §12 items 3 to 7: one adapter per harness, plus the generic ACP client.
+HARNESS_ADAPTERS = {"claude-code", "pi", "oh-my-pi", "opencode", "kimi-code", "acp"}
+# Adapters of TypeScript harnesses that ship an extension package (CLAUDE.md, Stack).
+TS_ADAPTERS = ("pi", "oh-my-pi")
+FIXTURES = ROOT / "tests" / "fixtures" / "harness"
+
+
+@check(8, "`ssw proxy` serves every inbound format of ADR 0004 on loopback with a local token")
+def _p8_proxy() -> tuple[bool, str]:
+    try:
+        module = importlib.import_module("stepswitch.proxy.app")
+    except ImportError as exc:
+        return False, f"stepswitch.proxy.app: {exc}"
+    routes = set(getattr(module, "INBOUND_ROUTES", ()))
+    missing = sorted(PROXY_ROUTES - routes)
+    cli = (ROOT / "src" / "stepswitch" / "cli.py").read_text(encoding="utf-8")
+    untested = tests_matching("proxy")
+    return combine(
+        (callable(getattr(module, "create_proxy_app", None)), "create_proxy_app() missing"),
+        (not missing, "routes missing: " + ", ".join(missing)),
+        (getattr(module, "HOST", None) == "127.0.0.1", "the proxy does not bind to 127.0.0.1"),
+        (getattr(module, "DEFAULT_PORT", None) == 7778, "the default port is not 7778"),
+        ('_not_yet("proxy"' not in cli, "`ssw proxy` is still a stub"),
+        help_check(["proxy"], ["--port"]),
+        (not untested, "no tests matching: " + ", ".join(untested)),
+    )
+
+
+@check(8, "proxy: models switch only at a new user turn; each request is a recorded step")
+def _p8_proxy_turns() -> tuple[bool, str]:
+    try:
+        module = importlib.import_module("stepswitch.proxy.sessions")
+    except ImportError as exc:
+        return False, f"stepswitch.proxy.sessions: {exc}"
+    missing = [n for n in ("SessionStore", "user_turn", "session_key") if not hasattr(module, n)]
+    if missing:
+        return False, "missing: " + ", ".join(missing)
+    untested = tests_matching("proxy_sessions")
+    if untested:
+        return False, "no tests matching: " + ", ".join(untested)
+    return pytest_run("tests/unit/test_proxy_sessions.py")
+
+
+@check(8, "harness adapters with the SPEC §12 interface, one per harness and a generic ACP client")
+def _p8_adapters() -> tuple[bool, str]:
+    try:
+        module = importlib.import_module("stepswitch.workers.harness")
+    except ImportError as exc:
+        return False, f"stepswitch.workers.harness: {exc}"
+    adapters = getattr(module, "ADAPTERS", {})
+    missing = sorted(HARNESS_ADAPTERS - set(adapters))
+    interface = [
+        f"{cls}.{name}"
+        for cls, names in (
+            ("HarnessAdapter", ("start",)),
+            ("RunHandle", ("events", "cancel", "result")),
+        )
+        for name in names
+        if not hasattr(getattr(module, cls, None), name)
+    ]
+    no_offline = sorted(
+        name for name, adapter in adapters.items() if not getattr(adapter, "offline_env", None)
+    )
+    packages = [
+        name for name in TS_ADAPTERS if not (ROOT / "adapters" / name / "package.json").is_file()
+    ]
+    return combine(
+        (not missing, "adapters missing: " + ", ".join(missing)),
+        (not interface, "interface lacks: " + ", ".join(interface)),
+        (not no_offline, "adapters without offline egress switches: " + ", ".join(no_offline)),
+        (not packages, "TypeScript adapter packages missing: " + ", ".join(packages)),
+    )
+
+
+@check(8, "contract tests with recorded fixtures for every adapter")
+def _p8_contracts() -> tuple[bool, str]:
+    problems = []
+    for name in sorted(HARNESS_ADAPTERS):
+        meta_file = FIXTURES / name / "fixture.json"
+        if not meta_file.is_file():
+            problems.append(f"{name}: no fixture.json")
+            continue
+        meta = json.loads(meta_file.read_text(encoding="utf-8"))
+        if meta.get("source") not in {"recorded", "documented"}:
+            problems.append(f"{name}: source is {meta.get('source')!r}")
+        if not DATE_RE.match(str(meta.get("checked", ""))):
+            problems.append(f"{name}: no checked date")
+        if not any((FIXTURES / name).glob("*.jsonl")):
+            problems.append(f"{name}: no recorded transcript (*.jsonl)")
+    if tests_matching("harness_contract"):
+        problems.append("no tests matching: harness_contract")
+    if problems:
+        return False, "; ".join(problems)
+    return pytest_run("tests/unit/test_harness_contract.py")
+
+
+@check(8, "a live end-to-end run through `ssw proxy` with an installed harness")
+def _p8_live() -> tuple[bool, str]:
+    live = []
+    for meta_file in sorted(FIXTURES.glob("*/fixture.json")):
+        meta = json.loads(meta_file.read_text(encoding="utf-8"))
+        run = meta.get("live") or {}
+        if meta.get("source") == "recorded" and run.get("status") == "done":
+            live.append(f"{meta_file.parent.name} {meta.get('version')}")
+    return bool(live), ("live runs: " + ", ".join(live)) if live else "no recorded live run"
 
 
 # --------------------------------------------------------------------------------------------
