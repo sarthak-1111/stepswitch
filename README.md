@@ -3,13 +3,120 @@
 An open-source orchestrator for coding agents that picks a model and a harness for each task,
 and for each step inside a task.
 
-Status: early development. The command line, model setup, the compatibility layer and the
-claims framework are being built; tasks cannot run yet.
+![A task in the terminal: each step line names the model that ran it, and the task's token count grows step by step](docs/assets/demo.gif)
 
-- Product spec: [docs/SPEC.md](docs/SPEC.md)
-- Progress and open issues: [docs/PROGRESS.md](docs/PROGRESS.md)
-- Design decisions: [docs/decisions/](docs/decisions/)
-- Claims registry: [claims/claims.yaml](claims/claims.yaml)
+Each claim in the [Claims](#claims) section has a test you can run, and the section lists only
+the claims whose tests pass. Don't trust us, run `ssw prove`.
+
+## Quickstart
+
+<!-- quickstart:start -->
+A CPU is enough. The tiny tier runs on llama.cpp, which `ssw models pull` installs for you.
+
+Install with the installer attached to each release. On macOS or Linux:
+
+```sh
+sh install.sh
+```
+
+On Windows, in PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+Each installer downloads uv if it is missing and checks the download's checksum before running
+it. It then installs Stepswitch with `uv tool install`. If you already have uv,
+`uv tool install stepswitch` does the same.
+
+Then, in a git repository:
+
+```sh
+ssw init                     # writes stepswitch.toml, detects the hardware, picks a profile
+ssw models pull --tier cpu   # the tiny tier's models and the llama.cpp build they run on
+ssw run "Fix the bug in add() in calc.py so that the tests pass."
+```
+
+`ssw run` works in a git worktree of its own. It runs your project's tests with your project's
+`.venv` (or the interpreter you configure) and leaves the change on the branch
+`stepswitch/<task>`; `--apply` applies it to your working tree. `ssw dash` opens the dashboard.
+<!-- quickstart:end -->
+
+## Run it on your own repository
+
+Stepswitch talks to model servers over HTTP. `ssw models serve` starts a local engine for a
+model from the registry. Servers you run yourself, and hosted endpoints, go in
+`.stepswitch/local.toml`, which is gitignored; `stepswitch.toml` holds the project's policy and
+is committed. [examples/](examples/) has both files for common setups. `ssw doctor` checks the
+setup, and `ssw probe` tests how a model handles tool calls before you rely on it.
+
+| Command | What it does |
+|---|---|
+| `ssw run "<task>"` | Runs a task: routing, the agent loop, the gates and a review |
+| `ssw run --best-of <n>` | Runs candidates on several model families and compares the passing ones |
+| `ssw run --track science` | Adds golden numerical cases with tolerances and protected constants |
+| `ssw dash` | Opens the dashboard and the local task API |
+| `ssw replay <task>` | Replays a recorded run, or forks it at a step onto another worker |
+| `ssw proxy` | Serves the models to external harnesses through one local endpoint |
+| `ssw jobs` | Queues slow-lane reviews for models too large for interactive use |
+| `ssw audit` | Shows each network connection and child process of a task |
+| `ssw bench run` | Runs a bench suite and writes a leaderboard |
+| `ssw prove` | Runs the claim tests; `--render-readme` writes the claims section of this README |
+
+## Compatibility
+
+The [compatibility matrix](docs/COMPATIBILITY.md) lists what has been verified, model by model
+and engine by engine, from the probe results in [probes/](probes/).
+
+## How it works
+
+<!-- how-it-works:start -->
+- **Workers and the ladder.** A worker is a model behind a harness. Workers sit on tiers, from
+  tiny local models up to large local or remote ones.
+- **Routing per step.** Each step of a task (plan, navigate, read, edit, run, triage, review,
+  summarize) goes to the worker with the highest expected value for the task's features, given
+  cost, latency and what the router has learned from earlier tasks. Failing gates move the
+  task up the ladder.
+- **One compatibility layer.** Requests go through one internal representation that speaks
+  the chat-completions, responses, messages and generate-content formats and the engines'
+  native formats. Models without native tool calls use a fallback tool protocol.
+- **Verification.** Changes are made in a git worktree and must pass the track's gates:
+  format, lint, type check, impacted tests and the full suite. A reviewer from another model
+  family checks the change when one is available.
+- **Accounting and egress.** Each model call goes into a ledger of tokens, time and cost. Each
+  network connection goes through one egress layer, which `ssw audit` reports and offline mode
+  closes to remote hosts.
+
+The [architecture](docs/ARCHITECTURE.md) and the [design decisions](docs/decisions/) have the
+details.
+<!-- how-it-works:end -->
+
+## Features
+
+| Feature | Where |
+|---|---|
+| A model and a harness per task and per step, with an escalation ladder | `ssw run`, `[[policy.rules]]` |
+| Local engines, and hosted endpoints in the common API formats | `ssw models serve`, `.stepswitch/local.toml` |
+| Tool calls for models without native support | the fallback tool protocol |
+| Gates for format, lint, types and tests; numerical gates for science code | `ssw run --track science` |
+| Candidates across model families, with disagreement review | `ssw run --best-of <n>` |
+| Token and cache optimization, with handoffs between models | `[context]` |
+| A router that learns which worker suits which task | `ssw router stats` |
+| Replay and fork of recorded runs | `ssw replay` |
+| External harnesses through a local proxy | `ssw proxy`, `ssw run --harness` |
+| A slow lane for very large models, as asynchronous jobs | `ssw jobs` |
+| Offline mode, egress audit and redaction | `ssw run --offline`, `ssw audit` |
+| A dashboard and a local task API | `ssw dash`, [the task API](docs/API.md) |
+| Public claims with tests anyone can run | `ssw prove` |
+
+## Roadmap
+
+Stepswitch is built in phases (SPEC §23), and [the progress log](docs/PROGRESS.md) records the
+results and open issues of each one. Next:
+
+- the first release on the package index, with the installers attached;
+- CI that runs `ssw prove --quick` on macOS, Linux and Windows (C-016);
+- more harness adapters and engine adapters, and more models in the compatibility matrix.
 
 ## Claims
 
@@ -36,3 +143,12 @@ generated by `ssw prove --render-readme` and lists only claims whose tests curre
 - **C-019** <!-- claim:C-019 -->Token accounting matches what model servers report.<!-- /claim --> ([evidence](claims/evidence/C-019.json); largest difference from the server counters <!-- num:C-019:sections.accounting.max_relative_error_percent -->0.00<!-- /num --> %)
 - **C-020** <!-- claim:C-020 -->Stops at the budget you set.<!-- /claim --> ([evidence](claims/evidence/C-020.json))
 <!-- claims:end -->
+
+## Contributing
+
+[CONTRIBUTING.md](CONTRIBUTING.md) explains how to set up, test and send a change: adding a
+model, a bench task, an API codec or an engine adapter. Report vulnerabilities privately as
+[SECURITY.md](SECURITY.md) describes. Everyone taking part follows the
+[code of conduct](CODE_OF_CONDUCT.md). The docs site's pages are in [docs/site/](docs/site/).
+
+Stepswitch is released under the [MIT license](LICENSE).
