@@ -19,7 +19,7 @@ from stepswitch import net, redact
 from stepswitch.compat import forwarding
 from stepswitch.compat.codecs import get_codec
 from stepswitch.compat.codecs.base import Codec, CodecOptions, HttpCall
-from stepswitch.compat.errors import ModelError, backoff_delay
+from stepswitch.compat.errors import ModelError, backoff_delay, tool_call_unparsed
 from stepswitch.compat.framing import iter_lines, parse_ndjson, parse_sse
 from stepswitch.compat.ir import (
     ConversionReport,
@@ -228,7 +228,7 @@ class ModelClient:
                     result = self._label_reasoning(codec.decode_response(body), request)
                     return Completion(result, report, time.perf_counter() - started, attempt + 1)
                 except ModelError as exc:
-                    if not exc.retryable or attempt >= self._max_retries:
+                    if not exc.retryable or attempt >= self._max_retries or tool_call_unparsed(exc):
                         raise
                     self._sleep(backoff_delay(attempt, exc.retry_after))
                     attempt += 1
@@ -276,7 +276,12 @@ class ModelClient:
                             "connection", f"cannot reach {self.endpoint.name}: {exc}"
                         ) from exc
                 except ModelError as exc:
-                    if produced or not exc.retryable or attempt >= self._max_retries:
+                    if (
+                        produced
+                        or not exc.retryable
+                        or attempt >= self._max_retries
+                        or tool_call_unparsed(exc)
+                    ):
                         raise
                     self._sleep(backoff_delay(attempt, exc.retry_after))
                     attempt += 1

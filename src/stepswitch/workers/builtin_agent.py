@@ -52,8 +52,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol, cast
 
-from stepswitch.compat.client import Completion
-from stepswitch.compat.errors import ModelError
+from stepswitch.compat.client import Completion, ModelClient
+from stepswitch.compat.errors import ModelError, tool_call_unparsed
 from stepswitch.compat.ir import (
     Message,
     Request,
@@ -362,6 +362,9 @@ class AgentLoop:
     last_call: tuple[str, str, str] | None = None  # name, arguments, result of the last call
     last_worker: str | None = None
     failovers: int = 0
+    # Steps asked again through the fallback tool protocol after the engine could not parse
+    # the tool call the model generated (ADR 0035).
+    tool_fallbacks: int = 0
     compactions: int = 0
     relayed: bool = False
     registry: PrefixRegistry = field(default_factory=PrefixRegistry)
@@ -595,7 +598,7 @@ class AgentLoop:
             self.step += 1
             started = self.clock()
             try:
-                completion = self._model(worker, "step").complete(request)
+                completion = self._complete(worker, request)
             except Exception as exc:  # noqa: BLE001 - any failure takes this worker out
                 kind = exc.kind if isinstance(exc, ModelError) else type(exc).__name__
                 if kind == "too_large":
@@ -634,6 +637,32 @@ class AgentLoop:
                 self.work_families.add(spec.family_key)
                 self.work_steps[spec.id] = self.work_steps.get(spec.id, 0) + 1
             return completion, spec.id
+
+    def _complete(self, worker: Worker, request: Request) -> Completion:
+        """One step's answer from `worker`. When the engine could not parse the tool call the
+        model generated, the same worker is asked again through the fallback tool protocol: the
+        tools are described in the prompt and Stepswitch parses the reply itself, constrained to
+        JSON where the endpoint can (SPEC §4.4, ADR 0035). A second failure fails the step over
+        to another worker as any model error does."""
+        model = self._model(worker, "step")
+        try:
+            return model.complete(request)
+        except ModelError as exc:
+            if not isinstance(model, ModelClient) or worker.spec.tool_protocol != "native":
+                raise
+            if not (tool_call_unparsed(exc) and request.tools):
+                raise
+            from stepswitch.compat.toolcall.fallback import FallbackModel
+
+            self.tool_fallbacks += 1
+            self.trajectory.emit(
+                "tool_fallback",
+                step=self.step,
+                worker=worker.spec.id,
+                message=str(exc)[:500],
+            )
+            self.echo(f"  {worker.spec.id}: asking again through the fallback tool protocol")
+            return FallbackModel(model).complete(request)
 
     def _model(self, worker: Worker, kind: str) -> StepModelLike:
         """The model that answers `worker`: in a replay, the recording (until the fork)."""

@@ -4014,3 +4014,21 @@ and https://code.claude.com/docs/en/memory.
     also reported.
   - Input as the ledger counts it (cached tokens included) is `inputTokens +
     cacheCreationInputTokens + cacheReadInputTokens`.
+
+### Engine tool-call parse failures on Ollama (0.34.4, observed 2026-10-20)
+
+- **What happened.** In the first Phase 11 comparison run, 5 of the router's 42 task runs ended
+  on `model_error`, all the same way:
+  1. Ollama answered an edit step of gpt-oss:120b with HTTP 500, `error parsing tool call:
+     raw='{"path":…,"edits":[…]}'` or `raw='{"patch":"*** Begin Patch…"}'`. The model had
+     answered, but the server could not parse the tool call it generated. The client's two
+     retries of the same request failed the same way.
+  2. The agent failed over to qwen2.5:32b, which Ollama stopped with `prediction aborted, token
+     repeat limit reached`.
+  3. With both workers out, the task failed.
+- **The fallback tool protocol avoids the engine's parser.** The same edit request was sent
+  three times to gpt-oss:120b through `FallbackModel`, with the agent's own tool specs. Each
+  time the reply was a valid `edit` action with `path` and `edits`, in 2.5 to 3.4 s. On Ollama
+  that protocol sends a `format` JSON Schema, so the reply is constrained to JSON.
+- Ollama reports these failures as a plain 500. Only the message tells them apart from other
+  server errors.

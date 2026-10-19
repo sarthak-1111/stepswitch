@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any, Literal
@@ -26,6 +27,13 @@ ErrorKind = Literal[
 RETRYABLE: frozenset[str] = frozenset(
     {"rate_limit", "overloaded", "server", "timeout", "connection"}
 )
+
+# An engine's report that it could not parse the tool call a model generated. The model
+# answered, but its call was malformed, and the same request tends to fail the same way, so
+# it is not retried as it was sent; the built-in agent asks again through the fallback tool
+# protocol, which Stepswitch parses itself (ADR 0035). Observed on Ollama 0.34.4 with
+# gpt-oss: HTTP 500 "error parsing tool call: raw='...'" (docs/RESEARCH.md, Phase 11).
+TOOL_CALL_UNPARSED_RE = re.compile(r"error parsing tool call", re.IGNORECASE)
 
 STATUS_KINDS: dict[int, ErrorKind] = {
     400: "bad_request",
@@ -73,6 +81,11 @@ class ModelError(Exception):
 
     def __repr__(self) -> str:
         return f"ModelError({self.kind!r}, {self.message!r}, status={self.status})"
+
+
+def tool_call_unparsed(exc: BaseException) -> bool:
+    """Whether `exc` is an engine's report that it could not parse a model's tool call."""
+    return isinstance(exc, ModelError) and bool(TOOL_CALL_UNPARSED_RE.search(exc.message))
 
 
 def kind_for_status(status: int) -> ErrorKind:
