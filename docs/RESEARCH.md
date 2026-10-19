@@ -3382,6 +3382,32 @@ Sources: https://code.claude.com/docs/en/headless and, on the same site, `cli-re
     workflow, compaction, auxiliary);
   - `CLAUDE_CODE_MAX_CONTEXT_TOKENS` (unknown model names otherwise get 200K).
 
+### Claude Code live through `ssw proxy` (2.1.296 on Windows, checked 2026-10-19)
+
+Three runs of `ssw run --harness claude-code` on the calc-bug toy repository, with one local
+model (gpt-oss:120b on Ollama) behind the proxy. All three ended `done` and the gates passed.
+The third run is the contract fixture `tests/fixtures/harness/claude-code/recorded-live.jsonl`.
+
+- **Isolation held.** The `init` event reported `apiKeySource: none`, analytics and product
+  feedback disabled, no MCP servers, the slot name as the model, and memory paths inside the
+  run's own config directory.
+- **Thinking counts.** Besides the documented messages, the stream carries one
+  `system`/`thinking_tokens` event per thinking delta (an estimated running count): 767 to 895
+  lines in these runs. The adapter keeps them as log events.
+- **The Bash tool is a POSIX shell on Windows**, so the model types Windows paths with forward
+  slashes. In the first run the allow rule held the interpreter path with backslashes, so the
+  test command was refused: a `system`/`permission_denied` event, with the reason that the
+  session has no approval surface. The harness then tells the model not to retry anything that
+  needs approval. The rule and the prompt now spell the command with forward slashes.
+- **Wording matters.** In the second run the prompt only said that Stepswitch would run the
+  tests afterwards, and the model ran a bare `pytest -q`, which the rule refused. In the third
+  run the prompt asked for the command exactly as written, and the model ran it (3 passed).
+  These are single runs, not a measured rate.
+- The harness prints `[claude-code:unrecognized_model]` to stderr for the slot name. The
+  `result` event's `total_cost_usd` comes from the harness's own price table and means
+  nothing for local models. Its `modelUsage` reports the context window that
+  `CLAUDE_CODE_MAX_CONTEXT_TOKENS` set.
+
 ### Pi (checked 2026-10-19)
 
 Sources: https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/docs/json.md

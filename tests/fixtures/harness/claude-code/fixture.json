@@ -1,14 +1,49 @@
 {
   "harness": "claude-code",
-  "source": "documented",
+  "source": "recorded",
   "checked": "2026-10-19",
   "version": "2.1.296",
-  "note": "Documented transcripts follow the headless docs and the stream-json shapes in docs/RESEARCH.md; a recorded live run through ssw proxy is added by the Phase 8 live check.",
+  "note": "recorded-live is a live run of `ssw run --harness claude-code` through ssw proxy on the calc-bug toy repository, with one local model behind the proxy; paths are replaced by /work and the interpreter by `python`. The documented transcripts follow the headless docs and the stream-json shapes in docs/RESEARCH.md.",
+  "live": {
+    "status": "done",
+    "checked": "2026-10-19",
+    "model": "gpt-oss:120b on a local Ollama server",
+    "steps": 7,
+    "wall_seconds": 52,
+    "test_command": "allowed and run by the harness (3 passed)"
+  },
   "sources": [
     "https://code.claude.com/docs/en/headless",
     "https://code.claude.com/docs/en/cli-reference"
   ],
   "cases": {
+    "recorded-live": {
+      "source": "recorded",
+      "expect": {
+        "status": "done",
+        "stop_reason": null,
+        "summary": "Implemented the correct addition logic in **calc.py**:\n\n- Updated `add()` to return `a + b` instead of `a - b`.\n- Ran the test suite (`pytest -q --tb=short`) and confirmed all tests now pass:\n\n```\n3 passed in 0.02s\n```\n\nThe bug is resolved.",
+        "session_id": "1752f866-e48c-4198-add1-dc5a43d07f6c",
+        "turns": 7,
+        "tool_calls": 6,
+        "version": "2.1.296",
+        "usage": {
+          "input_tokens": 27924,
+          "output_tokens": 1260,
+          "cached_input_tokens": 76254,
+          "cache_write_tokens": 0
+        },
+        "events": {
+          "log": 895,
+          "result": 1,
+          "start": 1,
+          "text": 1,
+          "thinking": 7,
+          "tool_call": 6,
+          "tool_result": 6
+        }
+      }
+    },
     "documented-success": {
       "source": "documented",
       "expect": {
@@ -19,8 +54,20 @@
         "turns": 3,
         "tool_calls": 1,
         "version": "2.1.296",
-        "usage": {"input_tokens": 4000, "output_tokens": 65, "cached_input_tokens": 1500, "cache_write_tokens": 0},
-        "events": {"start": 1, "text": 3, "tool_call": 1, "tool_result": 1, "compaction": 1, "result": 1},
+        "usage": {
+          "input_tokens": 4000,
+          "output_tokens": 65,
+          "cached_input_tokens": 1500,
+          "cache_write_tokens": 0
+        },
+        "events": {
+          "start": 1,
+          "text": 3,
+          "tool_call": 1,
+          "tool_result": 1,
+          "compaction": 1,
+          "result": 1
+        },
         "detail_contains": "1 tool call(s) denied: Bash"
       }
     },
@@ -33,7 +80,12 @@
         "turns": 1,
         "tool_calls": 1,
         "detail_contains": "Reached maximum number of turns (1)",
-        "events": {"start": 1, "tool_call": 1, "tool_result": 1, "result": 1}
+        "events": {
+          "start": 1,
+          "tool_call": 1,
+          "tool_result": 1,
+          "result": 1
+        }
       }
     }
   }
