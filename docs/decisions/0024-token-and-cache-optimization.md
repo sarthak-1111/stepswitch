@@ -82,9 +82,14 @@ Research corrected three SPEC assumptions (docs/RESEARCH.md, "SPEC corrections")
    references and tail, plus an optional T0 summary. The raw output stays readable as
    `@output/<n>`.
 9. **Role budgets (TK10).**
-   - Output caps and effort: plan 1,200 tokens at high effort; navigate, read and run 2,048 at
-     low; edit and triage 2,048 at medium; review 600 at medium; summaries 300 at low; text
-     600 at low.
+   - Output caps and effort: plan 1,200 tokens at high effort; every work step (navigate,
+     read, edit, run, triage) 2,048 at the edit step's effort, medium; review 600 at medium;
+     summaries 300 at low; text 600 at low.
+   - One effort for all the work steps of a transcript. The local reasoning model's chat
+     template writes the effort into the first system block (docs/RESEARCH.md, Phase 5), so a
+     step with another effort shares no cached prefix with the step before it. A first version
+     gave navigate, read and run low effort, and the bench measured more uncached tokens than
+     the baseline.
    - Work-step caps stay at Phase 2's 2,048, because a step type is a prediction. A "read"
      step that turns into an edit must not be cut off.
    - Effort hints go only to models marked `reasoning`.
@@ -107,6 +112,15 @@ Research corrected three SPEC assumptions (docs/RESEARCH.md, "SPEC corrections")
       output also broke paths and dates apart (`docs / SPEC. md`).
     - The mini suites read almost no prose, so no bench can show a gain yet. The setting stays
       off until a suite with documentation reads exists.
+14. **A text answer after a tested change finishes.**
+    - An optimized run takes a text answer as the end of the work when the tests passed after
+      the worker's last change. The gates run, as after `finish`, instead of a nudge to call
+      `finish`.
+    - A nudge is a user message in the middle of the transcript. The same template shows an
+      assistant turn's reasoning only after the last user message, so each nudge changes how
+      every earlier turn is rendered, and the server's cached prefix ends before the first of
+      them.
+    - Without passing tests after a change, the Phase 2 nudge stays.
 
 ## Consequences
 
@@ -118,3 +132,9 @@ Research corrected three SPEC assumptions (docs/RESEARCH.md, "SPEC corrections")
   against Phase 2 behaviour with one flag.
 - Briefs and prefixes depend on tokenizer files. Without them, counts are flagged estimates,
   and C-010 rejects estimated counts.
+- Measured on the mini suites (two seeds, the same router pool; docs/PROGRESS.md, Phase 5):
+  - The first round, before decisions 9 (one effort) and 14, used fewer tokens than the
+    baseline but more uncached ones.
+  - The second round used 21.3% fewer tokens and 18.7% fewer uncached tokens. Only the
+    uncached reduction's 95% interval lies above 0, so C-011 counts uncached tokens
+    (ADR 0028).

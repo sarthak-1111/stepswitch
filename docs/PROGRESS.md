@@ -4,6 +4,122 @@ Newest phase first. Each phase records what was done, what research changed, ope
 actions that only the maintainer can take. Phase checks: `uv run python scripts/phase_check.py N`
 (one phase) or `--upto N` (phases 0 to N).
 
+## Phase 5: Token and cache optimization
+
+Status: done on 2026-10-19. `scripts/phase_check.py 5` passes 9 of 9 checks (`--upto 5`: 43 of 44, the one failure
+being C-016). `uv run pytest -q` with the CPU models present and the dashboard built:
+1693 passed, 6 skipped. `ssw prove --quick --phase 5` (595 s): thirteen claims passing,
+C-003, C-010 and C-011 among them for the first time, and C-016 pending CI.
+
+### Done
+
+- **Cache-aware switching** (SPEC §7.2, ADR 0024).
+  - A prefix registry per server predicts how much of the next prompt that server has cached.
+    The cached tokens each server reports calibrate its prediction, and
+    `ssw calibrate --cache` seeds it.
+  - A switch costs the uncached context the new server has to read. Staying costs something
+    too: the current server has to read the tool results it has not seen yet.
+  - Above 24,000 uncached tokens a switch sends a HANDOFF brief instead of the transcript. The
+    new worker's chance of success after a brief uses the learned share of the gap that a brief
+    recovers.
+  - C-003: a property test over 4,000 random scenarios. Of these, 2,597 were cost-model
+    decisions: 455 switches (51 of them with a brief) and 2,142 stays. Each one switched
+    exactly when the expected gain exceeded the cost plus the margin. The other scenarios were
+    forced switches (1,127) or held steps (276), and they followed their own rules.
+- **HANDOFF v0.1 briefs** (SPEC §9; `spec/handoff-v0.1.md` and its JSON Schema).
+  - The agent collects the facts from its work log: task, files, commands, the failing test and
+    the plan. A local level-0 model adds what was done, the decisions and the open questions,
+    under a JSON schema. Without that model the facts alone make the brief.
+  - Each brief is validated against the schema and trimmed to at most 1,500 tokens, counted
+    with the receiving model's tokenizer. Local paths are rewritten, and every brief is
+    recorded in the run's `handoffs.jsonl`.
+  - Briefs also replace the older turns when a transcript reaches 60% of its budget
+    (compaction).
+  - C-010: 28 briefs from the bench relay runs (17 general, 11 science). All are valid; the
+    largest has 1,213 tokens, counted with the receiving model's tokenizer file.
+- **Token techniques in the agent loop** (SPEC §13): TK1 to TK4, TK6 to TK8, TK10 and TK11.
+  Phase 2 already shipped TK5, TK9 and TK12.
+  - Stable prefix; tree-sitter repository map; read dedup; distillation of long tool outputs,
+    with the whole output still readable as `@output/<id>`.
+  - Pruning of superseded results in batches, and compaction; briefs on switches and failovers;
+    a review answer under a JSON schema; output caps and reasoning effort per role.
+  - Prose compression is optional and off by default. `extras/llmlingua-server/` is a
+    reference compression server that runs on the CPU.
+  - One switch turns all of them off: `ssw run --no-optimize`, `[context] optimize` or
+    `ssw bench run --baseline`. With it off, the agent behaves like the Phase 2 agent.
+- **Bench and calibration commands.**
+  - `ssw bench run --baseline` runs the Phase 2 configuration. `--relay FIRST,SECOND` adds a
+    contestant that hands every task from one worker to the other, with a brief, at a fixed
+    step.
+  - `ssw bench calibrate` learns per-model success rates and the handoff recovery from bench
+    results. For this machine it stored a recovery of 0.53 from the 28 relay handoffs.
+  - `ssw models pull --tokenizers` fetches tokenizer files, pinned by revision and sha256.
+- **C-011, two bench rounds.** Both suites (mini-general with 15 tasks, mini-science with 6),
+  two seeds, and the same router pool (the local reasoning model and the 32B model) as the
+  baseline.
+  - Round 1 (commit 7cb9ba4) used fewer tokens than the baseline but more uncached ones: on
+    mini-general 1,616,419 tokens against 1,831,708, but 557,962 uncached against 347,371.
+  - The cause was the reasoning model's chat template (docs/RESEARCH.md). The template writes
+    the reasoning effort into the first system block, and it renders reasoning only after the
+    last user message. Changing the effort between steps, and nudges in the middle of a
+    transcript, both broke the server's prompt cache. ADR 0024 decisions 9 and 14 fix this.
+  - Round 2 (commit bc39881):
+
+    | Suite | Passed (baseline, optimized) | Fewer tokens (95% interval) | Fewer uncached tokens (95% interval) |
+    |---|---|---|---|
+    | mini-general | 28/30, 29/30 | 20.4% (−27.3% to 52.0%) | 16.5% (−3.2% to 33.0%) |
+    | mini-science | 12/12, 12/12 | 24.9% (14.0% to 34.0%) | 24.1% (14.7% to 32.9%) |
+    | Both | 40/42, 41/42 | 21.3% (−13.6% to 47.8%) | 18.7% (3.9% to 30.9%) |
+
+  - Only the uncached reduction's interval over both suites lies above 0, so C-011 now counts
+    uncached tokens, the second step of an order fixed before the round (ADR 0028).
+- **A missing path stands for the only file of its name.** The prove run found the CPU model
+  without native tool calls (C-005) asking for `src/calc.py` eight times. Each answer said
+  "Did you mean: calc.py?", and the run stopped as stuck. A `read`, or an anchored `edit`, of a
+  path that does not exist now goes to the one file in the repository with that file name, if
+  there is exactly one, and the answer says so. Whole-file writes still create the path that
+  was asked for. On the rerun the model asked for `src/calc.py` again, read and edited
+  `calc.py` through it, and finished in six steps with the tests passing.
+
+### What changed against the spec
+
+- ADR 0024 records the Phase 5 decisions:
+  - one switch for every technique;
+  - a cost for staying as well as for switching;
+  - the brief threshold of 24,000 uncached tokens;
+  - one reasoning effort for all work steps of a transcript;
+  - a text answer after a tested change finishes the work, with no nudge;
+  - prose compression off by default.
+- ADR 0028: C-011 counts uncached tokens. Its text and README number changed with it.
+- Research corrected three SPEC assumptions (docs/RESEARCH.md):
+  - Ollama has no tokenize route, so counts use tokenizer files fetched in advance.
+  - tiktoken and the tree-sitter language pack download files on first use, so pinned
+    tokenizer files and grammar wheels replace them.
+  - The default LLMLingua model is a 7B GPU model; the reference server uses the small
+    LLMLingua-2 checkpoint on the CPU, out of process.
+- The router never switches by choice on the mini suites, so the briefs for C-010 come from
+  the relay contestant.
+
+### Open issues
+
+- **C-011 per suite.** The uncached reduction is significant over both suites and on
+  mini-science, but mini-general's own interval still includes 0 (−3.2% to 33.0%). The
+  reduction in all tokens is not significant (−13.6% to 47.8%). More seeds would narrow both.
+- **Prose compression** has no bench evidence: the mini suites read almost no prose. It stays
+  off until a suite with documentation reads exists.
+- **The date in the first system block.** The reasoning model's template also writes the
+  current date into the first block, so a transcript that runs past midnight loses its cached
+  prefix once.
+- **C-005 is one run of a tiny model.** The CPU model without native tool calls passes 3 of 30
+  mini-general runs in the bench. The claim test is one run on the toy task, so it can still
+  fail by chance.
+- **Node on this machine** (unchanged): building the dashboard needs Node 22.12 or later.
+
+### Waiting on the maintainer
+
+1. C-016 (Phase 1, unchanged): add a remote and let the `prove` workflow run on the three
+   hosted platforms.
+
 ## Phase 4: Dashboard and task API
 
 Status: done on 2026-10-16. `scripts/phase_check.py 4` passes 5 of 5 checks (`--upto 4`:
@@ -453,10 +569,7 @@ Details are in the SPEC change table and the ADRs. The main points:
    Node 22.12 or later (the current LTS line is recommended) before Phase 4. The Ollama release
    that was researched is 0.40.5; older installs may lack routes the research relies on.
 
-## Next: Phase 5 (after the maintainer confirms)
+## Next: Phase 6
 
-Token and cache optimization (SPEC §23): TK1 to TK12, HANDOFF v0.1 briefs, and cache-aware
-switching with calibration. Claims due: C-003, C-010 and C-011. The Phase 3 bench gives the
-baseline that C-011 compares against. It also showed two things for this phase to fix: the
-router moved a step to another model only after a server error, never by choice, and one
-server shared by a model's router and worker roles caps the context of agent turns.
+Best-of-N across model families, the disagreement signal and cross-family review (SPEC §23).
+Claims due: C-012 and C-013.

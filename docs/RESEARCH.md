@@ -3151,6 +3151,27 @@ A one-line diff was reviewed through the Ollama native format (`format` set to t
 
 Both answers parsed (`parse_review`), and the codec reported no losses.
 
+### The reasoning model's chat template and the prompt cache (live, checked 2026-10-19)
+
+The chat template that the local Ollama server (0.34.4) applies to `gpt-oss:120b` (MXFP4,
+116.8B parameters) was read from `POST /api/show` (`template`). Two of its rules decide what
+a server can keep in its prompt cache between the steps of one transcript:
+
+- **The effort is part of the first block.** The first system block carries the current date
+  and a reasoning line taken from the request's think level (`Reasoning: <level>`, medium when
+  the request sets no level). A step sent with another effort than the step before it
+  therefore shares no prefix with it, so every token is computed again. The date changes the
+  block at midnight too.
+- **Reasoning is shown only after the last user message.** An assistant turn's thinking is
+  rendered only for turns after the last user message; earlier turns are rendered without it.
+  A user message added in the middle of a transcript (a nudge) therefore changes how every
+  earlier assistant turn is rendered. The cached prefix ends before the first of them.
+
+ADR 0024 decisions 9 (one effort for every work step of a transcript) and 14 (a text answer
+after a tested change finishes, with no nudge) follow from these rules. In the first Phase 5
+bench round, before both, the optimized runs used more uncached tokens than the baseline
+(docs/PROGRESS.md, Phase 5).
+
 ### LLMLingua-2 for the reference compression server (source, checked 2026-10-19)
 
 `extras/llmlingua-server` (TK11) was written against llmlingua 0.2.2 and the `main` source of
