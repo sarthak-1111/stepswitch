@@ -720,7 +720,9 @@ class AgentLoop:
             response_blob=self.trajectory.blob(response.model_dump_json()),
         )
         self.echo(
-            f"[{self.step}] {step_type:9} {spec.id}" + (f" -> {', '.join(calls)}" if calls else "")
+            f"[{self.step}] {step_type:9} {spec.id}"
+            + (f" -> {', '.join(calls)}" if calls else "")
+            + f"  ({self.budget.tokens:,} tokens)"  # the task's running total
         )
 
     def _account_aux(

@@ -175,6 +175,17 @@ def test_happy_path_plans_works_verifies_reviews_and_summarizes(tmp_path: Path) 
     assert loop.messages[-1].role == "tool"  # the finish call got its result
 
 
+def test_each_step_line_shows_the_worker_and_the_running_token_total(tmp_path: Path) -> None:
+    loop = make_loop(tmp_path, [worker("a/m", "t2", fixer_script())], StubGates([True]))
+    lines: list[str] = []
+    loop.echo = lines.append
+    loop.run()
+    shown = [line for line in lines if line.startswith("[")]
+    assert shown[0] == "[1] plan      a/m  (120 tokens)"
+    assert shown[1] == "[2] navigate  a/m -> grep  (240 tokens)"
+    assert shown[-1].endswith(f"({loop.budget.tokens:,} tokens)")
+
+
 def test_rules_switch_endpoints_between_steps_with_reason_and_cost(tmp_path: Path) -> None:
     rules = parse_rules(
         [
