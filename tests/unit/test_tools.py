@@ -432,10 +432,17 @@ def test_test_tool_finds_a_test_file_named_without_its_directory(root: Path) -> 
     box = T.Toolbox(root, test_command=[sys.executable, str(runner), "-q"])
     done = box.execute("test", {"selector": "test_calc.py::test_add -k test_x.py"})
     assert done.data["argv"][3:] == ["tests/test_calc.py::test_add", "-k", "test_x.py"]
-    assert done.text.startswith("note: test_calc.py is tests/test_calc.py")
+    assert done.text.startswith(
+        "[test_calc.py does not exist: the tests ran tests/test_calc.py,"
+        " the only file of that name]"
+    )
     ambiguous = box.execute("test", {"selector": "test_dup.py"})
     assert ambiguous.data["argv"][3:] == ["test_dup.py"]
-    assert "candidates: other/tests/test_dup.py, tests/test_dup.py" in ambiguous.text
+    assert "Did you mean: other/tests/test_dup.py, tests/test_dup.py?" in ambiguous.text
+    config = SimpleNamespace(privacy=SimpleNamespace(deny_paths=["other/**"]))
+    denied = T.Toolbox(root, config=config, test_command=[sys.executable, str(runner), "-q"])
+    hidden = denied.execute("test", {"selector": "test_dup.py"})  # the deny list hides one
+    assert hidden.data["argv"][3:] == ["tests/test_dup.py"]
 
 
 # -- helpers -------------------------------------------------------------------------------

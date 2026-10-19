@@ -1081,7 +1081,7 @@ class Toolbox:
         if result.timed_out:
             status = f"timed out after {self.test_timeout:g} s"
         head = f"tests {status} (exit {result.exit_code}, {result.duration_s:.1f} s)"
-        lines = [f"note: {note}" for note in notes] + [head + (f": {shown}" if shown else "")]
+        lines = [*notes, head + (f": {shown}" if shown else "")]
         if summary.failing:
             lines.append("failing:")
             lines += [f"  {test_id}" for test_id in summary.failing[:30]]
@@ -1104,13 +1104,12 @@ class Toolbox:
         return ToolOutput("\n".join(lines), data=data)
 
     def _test_paths(self, extra: list[str]) -> tuple[list[str], list[str]]:
-        """The selector with test files as paths from the root: a `.py` file that does not
-        exist as given (`test_calc.py` for `tests/test_calc.py`) becomes the one file of the
-        repository with that name, keeping any `::test` part. Small models often drop the
-        directory. Returns the arguments and a note for each rewrite or ambiguous name."""
+        """The selector's test files as paths from the root. A `.py` file that does not exist as
+        given (`test_calc.py` for `tests/test_calc.py`) becomes the one file of the repository
+        with that name, keeping any `::test` part, as `read` and `edit` do (`_only_named`).
+        Returns the arguments and a note for each rewrite or ambiguous name."""
         resolved: list[str] = []
         notes: list[str] = []
-        by_name: dict[str, list[str]] | None = None
         for i, token in enumerate(extra):
             path, sep, node = token.partition("::")
             option_value = i > 0 and extra[i - 1] in {"-k", "-m"}
@@ -1120,21 +1119,17 @@ class Toolbox:
             if (self.root / path).exists():
                 resolved.append(token)
                 continue
-            if by_name is None:
-                by_name = {}
-                for rel, _ in iter_files(
-                    self.root, matcher=IgnoreMatcher(self.root), max_bytes=None
-                ):
-                    by_name.setdefault(rel.rsplit("/", 1)[-1], []).append(rel)
-            found = by_name.get(Path(path).name, [])
+            name = path.rsplit("/", 1)[-1]
+            found = self._named(name, 2)
             if len(found) == 1:
                 resolved.append(found[0] + sep + node)
-                notes.append(f"{path} is {found[0]} (paths are from the repository root)")
+                notes.append(
+                    f"[{path} does not exist: the tests ran {found[0]}, the only file of that name]"
+                )
                 continue
             resolved.append(token)
             if found:
-                shown = ", ".join(found[:10])
-                notes.append(f"{path} is not a path from the repository root; candidates: {shown}")
+                notes.append(f"[{path} does not exist.{self._suggest(name)}]")
         return resolved, notes
 
     # -- finish ------------------------------------------------------------------------------
