@@ -224,6 +224,43 @@ def cmd_doctor(
         raise typer.Exit(1)
 
 
+@app.command("prefetch")
+def cmd_prefetch(
+    ctx: typer.Context,
+    check: Annotated[
+        bool, typer.Option("--check", help="Only report what is present; download nothing.")
+    ] = False,
+    json_out: Annotated[bool, typer.Option("--json", help="Print the report as JSON.")] = False,
+) -> None:
+    """Fetch what context services use offline (tokenizer files), so nothing downloads during
+    a task, and report what each service has.
+
+    Exits with status 1 when something is missing or a download failed.
+    """
+    from stepswitch import prefetch
+
+    state = _state(ctx)
+    echo = (lambda _msg: None) if json_out else typer.echo
+    with _user_errors():
+        if check:
+            items = prefetch.check(state.config, state.config.models_dir())
+        else:
+            items = prefetch.prefetch(
+                state.config, state.config.models_dir(), egress=state.egress(), echo=echo
+            )
+    if json_out:
+        _print_json({"ready": prefetch.ready(items), "items": [i.as_dict() for i in items]})
+    else:
+        for service in prefetch.SERVICES:
+            rows = [i for i in items if i.service == service]
+            if rows:
+                typer.echo(f"{service}:")
+                for item in rows:
+                    typer.echo(f"  {item.status:<10} {item.name}  {item.detail}".rstrip())
+    if not prefetch.ready(items):
+        raise typer.Exit(1)
+
+
 @models_app.command("list")
 def models_list(
     ctx: typer.Context,
