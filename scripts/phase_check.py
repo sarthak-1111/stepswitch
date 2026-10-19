@@ -35,7 +35,7 @@ from typing import Any
 from ruamel.yaml import YAML
 
 ROOT = Path(__file__).resolve().parents[1]
-MAX_PHASE = 6
+MAX_PHASE = 7
 PHASE_TITLES = {
     0: "Research and design",
     1: "Foundation and compatibility core",
@@ -44,6 +44,7 @@ PHASE_TITLES = {
     4: "Dashboard and task API",
     5: "Token and cache optimization",
     6: "Best-of-N, disagreement, cross-family review",
+    7: "Learning router, fork and replay",
 }
 SY = Path(sys.executable).with_name("ssw.exe" if os.name == "nt" else "ssw")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -1235,6 +1236,79 @@ def _p6_bench_runs() -> tuple[bool, str]:
             found.add(str(data.get("suite")))
     missing = [suite for suite in SUITES if suite not in found]
     return not missing, ("missing runs: " + ", ".join(missing)) if missing else "ok"
+
+
+# --------------------------------------------------------------------------------------------
+# Phase 7: learning router, fork and replay
+# --------------------------------------------------------------------------------------------
+
+# Policies the simulation harness compares (SPEC §10; claim C-015).
+SIMULATION_POLICIES = {"thompson", "random", "fixed"}
+
+
+@check(7, "learning router: contextual Thompson sampling with the SPEC §10 reward")
+def _p7_learning() -> tuple[bool, str]:
+    try:
+        module = importlib.import_module("stepswitch.router.learning")
+    except ImportError as exc:
+        return False, f"stepswitch.router.learning: {exc}"
+    missing = [
+        name
+        for name in ("Bandit", "LearningSettings", "reward", "context_keys")
+        if not hasattr(module, name)
+    ]
+    if missing:
+        return False, "missing: " + ", ".join(missing)
+    settings = module.LearningSettings()
+    best = module.reward(True, 0.0, 0, settings)
+    worst = module.reward(False, 10**9, 10**12, settings)
+    expected_worst = -(settings.lambda_time + settings.mu_tokens)
+    untested = tests_matching("learning_router")
+    return combine(
+        (best == 1.0, f"reward of a free success is {best}, not 1"),
+        (
+            abs(worst - expected_worst) < 1e-9,
+            f"reward of a costly failure is {worst}, not -(lambda + mu) = {expected_worst}",
+        ),
+        (not untested, "no tests matching: " + ", ".join(untested)),
+    )
+
+
+@check(7, "simulation harness with synthetic workers: Thompson sampling, random and fixed")
+def _p7_simulation() -> tuple[bool, str]:
+    try:
+        module = importlib.import_module("stepswitch.router.simulate")
+    except ImportError as exc:
+        return False, f"stepswitch.router.simulate: {exc}"
+    policies = set(getattr(module, "POLICIES", ()))
+    untested = tests_matching("simulate")
+    return combine(
+        (callable(getattr(module, "simulate", None)), "simulate() missing"),
+        (SIMULATION_POLICIES <= policies, f"POLICIES is {sorted(policies)}"),
+        (not untested, "no tests matching: " + ", ".join(untested)),
+    )
+
+
+@check(7, "trajectories record every model answer; `ssw replay` replays and forks runs")
+def _p7_replay() -> tuple[bool, str]:
+    try:
+        module = importlib.import_module("stepswitch.trajectory.replay")
+    except ImportError as exc:
+        return False, f"stepswitch.trajectory.replay: {exc}"
+    missing = [n for n in ("load_recording", "replay_run") if not hasattr(module, n)]
+    cli = (ROOT / "src" / "stepswitch" / "cli.py").read_text(encoding="utf-8")
+    untested = tests_matching("replay")
+    return combine(
+        (not missing, "missing: " + ", ".join(missing)),
+        ('_not_yet("replay"' not in cli, "`ssw replay` is still a stub"),
+        help_check(["replay"], ["--from-step", "--worker"]),
+        (not untested, "no tests matching: " + ", ".join(untested)),
+    )
+
+
+@check(7, "CLI: `ssw router stats` shows what the router learned; `--export` writes aggregates")
+def _p7_router_cli() -> tuple[bool, str]:
+    return help_check(["router", "stats"], ["--export"])
 
 
 # --------------------------------------------------------------------------------------------

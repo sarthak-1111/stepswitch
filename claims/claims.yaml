@@ -307,7 +307,9 @@ claims:
     phase: 7
     tests:
       - tests/claims/test_c015_learning_router.py::test_bandit_regret_below_random_and_fixed_policies
-    thresholds: {beats_random: true, beats_fixed: true}
+    thresholds:
+      {beats_random: true, beats_fixed: true, regret_vs_random_max: 0.25,
+       learning_ratio_max: 0.65, worlds: 30, rounds: 4000}
     evidence: [claims/evidence/C-015.json]
     status: pending
 
