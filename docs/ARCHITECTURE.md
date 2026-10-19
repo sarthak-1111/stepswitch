@@ -209,13 +209,28 @@ Interface (SPEC §12): `start(task, worktree, endpoint, settings) -> RunHandle`,
   (hash-anchored), `run(cmd)`, `test(selector)`, `search(semantic)`, exposed as `TOOL_NAMES`.
   Step-level routing lives here.
 - **Fake workers**: deterministic scripted workers for CI, the bench and replay tests.
-- **External harnesses** run as subprocesses pointed at `ssw proxy`, so the router can still
-  choose a model per request. Harnesses that speak the Agent Client Protocol are driven by one
-  generic ACP client (ACP v1 over stdio, stable methods only, model choice through a session
-  config option when offered); others get small adapters whose generated config is passed
-  through environment variables or an isolated config directory. A harness with an in-process
-  routing hook (Pi's virtual models) calls the router directly. In offline mode every adapter
-  sets its harness's own egress switches (SPEC §12).
+- **External harnesses** (`ssw run --harness NAME`, ADR 0029) run as subprocesses pointed at a
+  proxy of their own, so the router still chooses a model per request.
+  - **Proxy per run.** `workers.harness_loop.HarnessLoop` replaces the built-in agent's loop
+    for the candidate. It serves a `ProxyService` bound to the task (`attach`) on a free
+    loopback port with a fresh token, starts the harness in the worktree, and records its
+    events and raw transcript. When the harness ends, it runs the gates, sends the harness back
+    with failure reports or review issues, and escalates.
+  - **Helper agent.** The candidate's built-in agent stays as a helper for text steps (review,
+    best-of-N's test writing). Step numbers are shared with the proxy's steps.
+  - **Adapters** (`workers.harness`, one interface: `start` → `RunHandle` with `events`,
+    `cancel` and `result`):
+    - `claude_code`, `pi` and `omp` parse a JSON-lines stream on stdout.
+    - `opencode`, `kimi_code` and the generic `acp` adapter drive Agent Client Protocol agents
+      through Stepswitch's own ACP client (`workers.acp`: v1 over stdio, stable methods only,
+      model choice through a session config option when offered).
+  - **Environment and config.** Every harness gets `minimal_env` (none of the user's keys) and
+    its own egress switches. Generated config lives in a per-run state directory and reaches
+    the harness through its variables or flags. User files are never edited.
+  - **In-process routing.** Pi's routed virtual model (`adapters/pi`) asks the proxy's router
+    before every request (`POST /stepswitch/v1/route`). Oh My Pi's `before_subagent_spawn`
+    hook (`adapters/omp`) gives each subagent the slot of its role. Both extensions share
+    `adapters/core`.
 
 ## 8. Context services (`stepswitch.context`)
 
@@ -308,6 +323,18 @@ ledger, and makes all upstream calls through `stepswitch.net`. It switches model
 user turn, never inside an open tool-call loop or while the session depends on state held by the
 current endpoint, and it keeps its own response store so stateful responses-format features work
 against stateless backends.
+
+A proxy can also be *bound* to a caller's task (`ProxyService.attach`, ADR 0029). This is how a
+harness run's proxy works:
+
+- **Records.** Every request becomes a step of that task: the task's trajectory, ledger and
+  budget, routed with its features, rung, pin and learned priors.
+- **Budget.** Once the task's budget trips, requests are refused with 429.
+- **Route-only.** `POST /stepswitch/v1/route` makes a routing decision without a request and
+  reserves it for the worker it names, so the harness's next request is that step. Pi's routed
+  virtual model uses it.
+
+Routes, model names and configuration are listed in docs/API.md ("Proxy API").
 
 ## 12. Task API and dashboard
 

@@ -3267,3 +3267,255 @@ one-line diff of `add()` each:
 - The reasoning model puts its reasoning in its own field; the answer text is bare JSON.
 - `review.parse` read all four answers, with the confidence 1.0 for an approval and 0.25 for one
   high-severity issue.
+
+## Verified during Phase 8
+
+These are the wire shapes and switches of the harnesses that `ssw run --harness` drives (ADR
+0029), read in each harness's documentation and source on 2026-10-19. Only Claude Code is
+installed on the development machine. The other adapters' contract fixtures are built from the
+shapes below (`source: "documented"` in `tests/fixtures/harness/*/fixture.json`).
+
+### Agent Client Protocol (schema 1.26.0, checked 2026-10-19)
+
+Sources: https://raw.githubusercontent.com/agentclientprotocol/agent-client-protocol/main/schema/v1/schema.json,
+`schema.unstable.json` and `CHANGELOG.md` beside it, and the v1 protocol docs (initialization,
+session setup, config options, prompt turn, tool calls, file system, transports, cancellation).
+
+- **Versions.** schema-v1.26.0 was released 2026-10-16 (1.25.0 on 2026-10-09).
+  `protocolVersion` is still the integer `1`. A v2 draft exists (schema-v2.0.0-alpha.9); it is
+  tracked, not used.
+- **Transport.** Newline-delimited JSON-RPC 2.0 over the agent's stdio, UTF-8, with no embedded
+  newlines. The agent may log to stderr.
+- **`initialize`.** Only `protocolVersion` is required in the request and in the answer.
+  - Client capabilities include `fs.readTextFile`, `fs.writeTextFile` and `terminal`.
+  - The answer carries `agentCapabilities` (`loadSession`, `promptCapabilities`,
+    `mcpCapabilities`, `sessionCapabilities`), `agentInfo` and `authMethods`.
+- **`session/new`.** It requires `cwd` (absolute) and `mcpServers`. The result requires
+  `sessionId` and may carry `modes` and `configOptions`.
+  - A config option is `{id, name, category, type: "select", currentValue, options}`. Its
+    category is `mode`, `model`, `model_config`, `thought_level` or a custom `_…`, and its
+    options may be grouped.
+  - `session/set_config_option` (`{sessionId, configId, value}`) answers with the complete
+    option list.
+  - `models` and `session/set_model` are not in the stable schema.
+- **`session/prompt`.** The request is `{sessionId, prompt: [{type: "text", text}]}`.
+  - The answer is a `stopReason`: `end_turn`, `max_tokens`, `max_turn_requests`, `refusal` or
+    `cancelled`.
+  - Token usage on the result exists only in the unstable schema.
+- **`session/update`.** These notifications are discriminated by `update.sessionUpdate`:
+  - `agent_message_chunk`, `agent_thought_chunk`, `user_message_chunk`;
+  - `tool_call` (requires `toolCallId` and `title`; carries `kind`, `status`, `rawInput` and
+    `locations`) and `tool_call_update` (requires only `toolCallId`);
+  - `usage_update` (`used` and `size` of the context window, optional `cost`; there is no
+    input/output split);
+  - `plan`, `config_option_update`, `current_mode_update`, `available_commands_update`,
+    `session_info_update`, `notice`, `compaction_update`, `compaction_summary_chunk`.
+- **`session/request_permission`.** This is a request from the agent to the client.
+  - It carries `toolCall` and `options`, with option kinds `allow_once`, `allow_always`,
+    `reject_once` and `reject_always`.
+  - The answer is `{outcome: {outcome: "selected", optionId}}` or
+    `{outcome: {outcome: "cancelled"}}`.
+  - `session/cancel` is a notification. After it, the client must answer every pending
+    permission request with `cancelled`, and the agent ends the prompt with `cancelled`.
+- **File system.** `fs/read_text_file` (`path`, optional 1-based `line` and `limit`) answers
+  `{content}`. `fs/write_text_file` creates a missing file and answers `{}`.
+- **Python SDK.** Its current release requires an older Python than the newest supported one,
+  so Stepswitch implements the client side itself (ADR 0029).
+
+### Claude Code headless runs (checked 2026-10-19)
+
+Sources: https://code.claude.com/docs/en/headless and, on the same site, `cli-reference`,
+`permission-modes`, `permissions`, `env-vars`, `fast-mode`, `data-usage`, `network-config` and
+`agent-sdk/typescript`.
+
+- **Output.** `claude -p "<prompt>" --output-format stream-json --verbose` writes NDJSON, in
+  this order:
+  - `system`/`init` (`session_id`, `model`, `tools`, `permissionMode`, `claude_code_version`, …);
+  - `assistant` and `user` messages in the messages format;
+  - other `system` events: `api_retry`, `permission_denied`, and `compact_boundary` with
+    `compact_metadata: {trigger, pre_tokens}`;
+  - a last `result`.
+- **The `result` line.**
+  - On success it has `subtype: "success"`, `result` (the final text), `num_turns`, `usage`,
+    `modelUsage` and `permission_denials`.
+  - The error subtypes (`error_max_turns`, `error_during_execution`, `error_max_budget_usd`,
+    `error_max_structured_output_retries`) carry `errors` and no `result`.
+  - Exit codes are 0 on success, non-zero on failure and 143 on SIGTERM.
+  - The docs don't say whether `--verbose` is still required with stream-json. The adapter
+    always passes it.
+- **Prompt.** The prompt is positional. Print mode reads stdin, but every documented example
+  pairs stdin with a positional prompt. A stdin-only text prompt is documented only for
+  `--input-format stream-json`. The tool-list flags are variadic, so the prompt goes right
+  after `-p`.
+- **Permission modes.** `--permission-mode` takes `default`, `acceptEdits`, `plan`, `auto`,
+  `dontAsk` or `bypassPermissions`.
+  - With no mode given, a `-p` run that doesn't fetch feature flags (a third-party endpoint, or
+    telemetry off) starts in `auto` (v2.1.285 and later), so always pass one.
+  - Without a permission host, calls that would prompt are denied.
+  - Bypass mode is refused as root outside a recognised sandbox.
+- **Allow rules.**
+  - `Bash(npm run test *)` matches the prefix as written, and a trailing ` *` also matches the
+    bare command: `Bash(ls *)` matches `ls` but not `lsof`.
+  - `Bash(ls:*)` equals `Bash(ls *)`.
+  - Compound commands are split on `&&`, `||`, `;`, `|`, `|&`, `&` and newlines, and every part
+    must match an allow rule.
+- **Config and history.** `CLAUDE_CONFIG_DIR` relocates the settings directory and
+  `~/.claude.json`. `CLAUDE_CODE_SKIP_PROMPT_HISTORY` keeps sessions out of `--resume` and
+  `--continue`, so the adapter doesn't set it.
+- **Egress.** `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, with any non-empty value, turns off:
+  - auto-updates, telemetry and error reporting;
+  - feedback commands and release notes;
+  - availability checks, including the fast-mode check;
+  - plugin source re-runs and feature-flag fetching.
+
+  It doesn't cover three things:
+  - the web-fetch domain preflight, which is a settings key;
+  - the official marketplace auto-install (`CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL`);
+  - gateway model discovery, which has its own opt-in.
+
+  `DISABLE_TELEMETRY` and `DISABLE_ERROR_REPORTING` each opt out with any non-empty value.
+- **Variables the adapter sets** (see also the Phase 0 notes above):
+  - `ANTHROPIC_BASE_URL`, and `ANTHROPIC_AUTH_TOKEN` (sent as a bearer token);
+  - `ANTHROPIC_MODEL` and the `ANTHROPIC_DEFAULT_*_MODEL` pins;
+  - `ANTHROPIC_CUSTOM_HEADERS`;
+  - `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, which adds a request-class header (main, subagent,
+    workflow, compaction, auxiliary);
+  - `CLAUDE_CODE_MAX_CONTEXT_TOKENS` (unknown model names otherwise get 200K).
+
+### Pi (checked 2026-10-19)
+
+Sources: https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/docs/json.md
+and, in the same folder, `models.md`, `custom-provider.md`, `extensions.md`, `virtual-models.md`,
+`packages.md`, `cli.md` and `environment-variables.md`; source `src/core/extensions/types.ts`,
+`src/core/virtual-models.ts` and `src/core/model-registry.ts`.
+
+- **Output.** `pi --mode json "<prompt>"` writes strict JSONL on stdout; split it on LF only.
+  - A `session` header comes first (`version` 3, `id`, `cwd`).
+  - Then `agent_start`, `turn_start`, `message_start`, `message_update` (with `usage`),
+    `message_end`, `turn_end`, `agent_end` and `agent_settled {aborted}`.
+  - Also `tool_execution_start`/`_end`, `compaction_start`/`_end` and
+    `auto_retry_start`/`_end`.
+- **The answer.** It is the last assistant `message_end`: `content`, `model`, `usage`
+  (`input`, `output`, `cacheRead`, `cacheWrite`), `stopReason` (`stop`, `length`, `toolUse`,
+  `error`, `aborted`) and `errorMessage`. JSON mode exits 0 even when the answer failed, so the
+  stop reason decides the outcome.
+- **`models.json`.** It lives in the agent dir (`~/.pi/agent`, or `PI_CODING_AGENT_DIR`). Each
+  `providers.<name>` has:
+  - `baseUrl`;
+  - `api` (`openai-completions` is the chat-completions format);
+  - `apiKey`: a literal, `$NAME`, `${NAME}` or `!command`;
+  - `models`: `id`, `name`, `contextWindow` (default 128000) and `maxTokens` (default 16384).
+- **Egress.** `--no-session`, `--offline` / `PI_OFFLINE=1`, `PI_SKIP_VERSION_CHECK` and
+  `PI_TELEMETRY=0`.
+- **Extensions.** An extension is a default-exported factory `(pi) => void | Promise<void>`.
+- **Virtual models.** `pi.registerVirtualModel({provider, id, name, thinkingLevels?,
+  contextWindow?, maxTokens?, route(request, ctx)})` registers one.
+  - `route` runs before every request. Its `request` is `{model, thinkingLevel, reason:
+    "user" | "continuation" | "retry" | "direct", previous?, failed?: {model, thinkingLevel?,
+    message}, state?, messages, signal?}`.
+  - It returns `{model, thinkingLevel, state?}`, looking models up with
+    `ctx.modelRegistry.find(provider, id)`.
+  - A virtual model's `id` may not equal a physical model's `id` in the same provider.
+- **Loading.** `-e <path>` loads an extension module without a build step (through jiti) and is
+  repeatable. `--no-extensions` turns off discovered, configured and built-in extensions, but
+  explicit `-e` paths still load.
+- **Packages.** Add `"pi": {"extensions": [...]}` to `package.json` and the keyword
+  `pi-package`. List the host's packages in `peerDependencies` with `"*"`, never in
+  `dependencies`.
+
+### Oh My Pi (checked 2026-10-19)
+
+Sources: https://raw.githubusercontent.com/can1357/oh-my-pi/main/docs/cli-reference.md and, in
+the same folder, `models.md`, `settings.md`, `config-usage.md`, `environment-variables.md`,
+`extensions.md`, `extension-loading.md` and `approval-mode.md`; source
+`packages/coding-agent/src/modes/print-mode.ts`,
+`packages/coding-agent/src/extensibility/extensions/types.ts` and
+`packages/coding-agent/src/commands/acp.ts`.
+
+- **Output.** `omp -p --mode json "<prompt>"` writes Pi's event stream with a `session` header,
+  except that `message_update` carries no `usage`. The answer is the last assistant
+  `message_end`, with usage as in Pi. The process exits non-zero when the stop reason is
+  `error` or `aborted`.
+- **`models.yml`** (in `~/.omp/agent/`). Each `providers.<name>` has `baseUrl`, `api`, and either
+  `apiKey` (read as an environment variable name first, else as a literal) or `auth: none`.
+- **`config.yml` `modelRoles`.** It maps roles (`default`, `smol`, `slow`, `plan`, `commit`,
+  `tiny`, `memory`, `task`, `advisor`) to `provider/model[:thinking]` selectors.
+  `PI_CODING_AGENT_DIR` overrides the agent directory for the default profile only.
+- **Approval modes.**
+  - Tools declare a tier: `read`, `write` or `exec`. Undeclared tools count as `exec`.
+  - `write` auto-approves `read` and `write` and asks for `exec`.
+  - `yolo`, the schema default, approves everything.
+  - Without an interactive UI, a call that still needs a prompt fails (fails closed).
+- **Extensions.** They have the same factory shape as Pi's, and Bun imports the modules. There
+  is no `registerVirtualModel`.
+- **`before_subagent_spawn`.** `pi.on("before_subagent_spawn", (event, ctx) => result)` fires
+  in the parent once per child, before the child's model is resolved.
+  - `event` is `{agent, invocationKind, modelRole?, patterns, spawnKey?}`.
+  - `result` is `{model?: string | string[], block?, reason?, note?}`.
+  - The last returned `model` wins.
+- **`--trusted-extension <absolute path>`.** It is an exact allowlist:
+  - it turns off ambient discovery;
+  - it cannot be combined with `-e`;
+  - a load failure aborts startup.
+
+  `omp acp` accepts the same launch flags.
+
+### OpenCode (v1.19.3, checked 2026-10-19)
+
+Sources: https://github.com/anomalyco/opencode/blob/v1.19.3/packages/opencode/src/config/parse.ts
+and, in the same tree, `config.ts`, `src/cli/cmd/run.ts`, `src/acp/config-option.ts` and
+`packages/core/src/v1/config/permission.ts`; the docs pages `cli.mdx`, `config.mdx`,
+`providers.mdx`, `permissions.mdx` and `acp.mdx`.
+
+- **ACP.** `opencode acp` speaks ACP on stdio. Its config options are `model` (category
+  `model`), `effort` (`thought_level`) and `mode`, and it sends `usage_update`.
+- **`OPENCODE_CONFIG_CONTENT`.** This is inline JSON.
+  - It overrides the global, custom and project config; managed config still overrides it.
+  - It skips global config seeding.
+  - Unknown keys are ignored, not rejected. A wrong type on a known key is an error.
+  - OpenCode writes `$schema` back into on-disk config files that lack it; inline config avoids
+    that.
+- **Custom chat-completions provider.**
+  - `provider.<name>` is `{npm: "@ai-sdk/openai-compatible", options: {baseURL, apiKey:
+    "{env:NAME}"}, models: {<id>: {name, limit: {context, output}}}}`.
+  - `model` and `small_model` are `provider/model` selectors.
+- **`permission`.** It is either an action (`ask`, `allow`, `deny`) or a map per tool (`read`,
+  `edit`, `bash`, `external_directory`, …). In a pattern map the last matching rule wins.
+  `webfetch` and `websearch` take an action only.
+- **Sharing and updates.** `share` is `manual`, `auto` or `disabled`. `autoupdate: false` turns
+  off update checks.
+- **Environment switches.** `OPENCODE_DISABLE_AUTOUPDATE`, `OPENCODE_DISABLE_MODELS_FETCH`, and
+  a switch that stops OpenCode reading another harness's config directory.
+
+### Kimi Code (checked 2026-10-19)
+
+Sources: https://raw.githubusercontent.com/MoonshotAI/kimi-code/main/docs/en/reference/kimi-acp.md,
+`kimi-command.md`, `docs/en/configuration/env-vars.md`, `config-files.md` and `providers.md`;
+source under https://github.com/MoonshotAI/kimi-code/blob/main/packages/agent-core-v2/src/
+(`app/kosongConfig/envOverlay.ts`, `app/bootstrap/bootstrap.ts`, `human/llm-kimi/trait.ts`,
+`llm-adapter/provider/provider-definition.ts`) and `packages/acp-server/src/`.
+
+- **ACP.** Kimi Code is the current TypeScript CLI, and `kimi acp` speaks ACP on stdio.
+  - `loadSession` is true.
+  - `configOptions` cover model, thinking and mode.
+  - It uses `fs/*` and `terminal/*` only when the client advertises them.
+- **Model variables.** `kimi acp` boots the same engine as `kimi -p`, so it reads the
+  `KIMI_MODEL_*` overlay:
+  - `KIMI_MODEL_NAME` and `KIMI_MODEL_API_KEY` (required);
+  - `KIMI_MODEL_BASE_URL`: always set it, since it otherwise falls back to the vendor's URL;
+  - `KIMI_MODEL_PROVIDER_TYPE`;
+  - `KIMI_MODEL_MAX_CONTEXT_SIZE` (default 262144);
+  - `KIMI_MODEL_MAX_COMPLETION_TOKENS`.
+- **The default provider type `kimi`.** It sends chat-completions requests:
+  `POST {base}/chat/completions` with a bearer key, `stream: true` and
+  `stream_options.include_usage`.
+  - It adds fields of its own: `thinking`, `prompt_cache_key` and `max_completion_tokens`. The
+    last defaults to the context size minus the tokens used, so the adapter caps it.
+  - In print mode it also sends device headers to the base URL: platform, version, host name,
+    device model, OS version and a persistent device ID.
+  - The other provider types are named after vendors, so they are set in local config only.
+- **Isolation.** `KIMI_CODE_HOME` isolates config, sessions and the device ID.
+- **Egress.** The switches are `KIMI_DISABLE_TELEMETRY=1`, `KIMI_CODE_NO_AUTO_UPDATE=1` (no
+  update preflight at all) and `KIMI_DISABLE_CRON=1`. The web tools are auto-allowed, and only
+  `config.toml` turns them off (`[tools] disabled = ["WebSearch", "FetchURL"]`, with
+  `telemetry = false`).

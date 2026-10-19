@@ -464,3 +464,146 @@ Each event carries an `id`; a client that reconnects with `Last-Event-ID` contin
 sent after 15 quiet seconds to keep the connection open, and the stream starts with
 `retry: 2000` and the current state of the tasks that have not ended. The server reads new rows
 twice a second, so tasks started by `ssw run` in a terminal appear too.
+
+# Proxy API (`ssw proxy`)
+
+`ssw proxy` is one local endpoint that external harnesses use as their model server (SPEC §12
+item 2, ADR 0004, ADR 0029). Each request is decoded from the caller's API format, routed to a
+worker by the router, re-encoded for that worker's endpoint, and answered in the caller's format,
+streamed or not. `ssw run --harness <name>` starts a proxy of its own for each harness run (see
+[Harness runs](#harness-runs)).
+
+## Access
+
+- The proxy listens on `127.0.0.1` only. The default port is 7778 (`--port`); 7777 is the
+  dashboard's.
+- Every route except `HEAD /` (the health check) needs the local token. The token is created on
+  first start in `.stepswitch/proxy/token`, which is gitignored; `ssw proxy --show-token`
+  prints it. It is accepted wherever each format usually carries a key: `Authorization:
+  Bearer <token>`, `x-api-key`, `x-goog-api-key`, or the `key` query parameter. A wrong or
+  missing token gets `401`.
+- Requests whose `Host` is not the proxy's own address get `403`, and so do posts from a web
+  page of another origin.
+- Inbound credential headers are never logged, stored or forwarded. Upstream calls carry the
+  configured endpoint's own key and go through `stepswitch.net`. In offline mode remote
+  endpoints are refused (`--offline`, `--allow-remote`).
+
+## Routes
+
+| Format | Routes |
+|---|---|
+| chat-completions | `POST /v1/chat/completions`, `POST /v1/completions` (text) |
+| responses | `POST /v1/responses` (HTTP and SSE; stored responses and `previous_response_id` are kept by the proxy) |
+| messages | `POST /v1/messages`, `POST /v1/messages/count_tokens` (an estimate from the tokenizer service) |
+| generate-content | `POST /v1beta/models/{model}:generateContent`, `POST /v1beta/models/{model}:streamGenerateContent` |
+| Ollama-native | `POST /api/chat`, `POST /api/generate`, `GET /api/tags`, `POST /api/show` |
+| listing | `GET /v1/models`: the slots, then every worker ID; a worker with a known context window also has `context_window` |
+| Stepswitch | `POST /stepswitch/v1/route` (below) |
+
+Errors use the caller's error shape. Common statuses:
+
+- `400`: a malformed request.
+- `401`: a wrong or missing token.
+- `429` (`quota`): a bound task's budget is spent.
+- `503` (`overloaded`): no worker can take the request.
+- `500`, `502` or `504`: an upstream failed, could not be reached or timed out.
+
+An upstream that fails before the first byte reaches the caller is replaced by another worker.
+After the first byte, the failure is an error event in the stream.
+
+## Model names
+
+The `model` of a request is a hint, not an address:
+
+- **Slots.** `ssw:auto` lets the router decide. `ssw:plan`, `ssw:edit`, `ssw:fast`,
+  `ssw:review` and `ssw:summarize` name the step type the router routes as. Each slot also has a
+  dash form (`ssw-auto`, `ssw-plan`, …) for harnesses whose model selectors read `:` as a
+  thinking level.
+- **Pins.** A worker ID (`<endpoint>/<model>`), a model name or a registry ID pins the request
+  to that worker.
+- **Aliases.** `[proxy.aliases]` maps other names, such as a harness's own model names, to a
+  slot or a worker.
+- **Anything else** is routed as `ssw:auto`, and the decision records that.
+
+With `ssw:auto`, a harness's request-class header refines the step type. Compaction requests
+are summaries, auxiliary ones (titles, short side questions) are short text, and the rest are
+edit steps when the request offers tools and text steps when it doesn't.
+
+## Sessions and switching
+
+- **Session key.** Requests carrying the same `x-stepswitch-session` value belong to one task.
+  Without the header, the key is a hash of the system prompt and the first user turn.
+- **Steps.** Every request is a step of its task. Each one gets a decision event and a step
+  event in the task's trajectory, and a ledger row, so proxied runs show up in `ssw ledger`,
+  the trajectory viewer and the dashboard like built-in runs.
+- **Switching.** The worker changes only at a new user turn, never while a tool-call loop is
+  open. Inside a turn, a request stays on the conversation's worker unless that worker can't
+  take it, for example when the transcript no longer fits its window or it failed.
+
+## `POST /stepswitch/v1/route`
+
+This asks the router which worker takes the next request, without sending one. Pi's routed
+virtual model calls it before every request.
+
+```json
+{"model": "ssw-auto", "reason": "user", "previous": "local/coder:32b", "failed": null,
+ "transcript_tokens": 20000, "tools": true}
+```
+
+| Field | Meaning |
+|---|---|
+| `model` | A slot, worker or alias, as in a request (default `ssw:auto`). |
+| `reason` | `user` starts a new turn and lets the router switch. Any other value (`continuation`, `retry`, `direct`) continues the turn. |
+| `previous` | The worker of the previous request in this turn, kept unless it can't take the next one. |
+| `failed` | A worker that just failed. It is left out of this decision. |
+| `transcript_tokens` | The size of the transcript, so the chosen worker's window fits it. |
+| `tools` | Whether the request will offer tools (default true). |
+
+The answer:
+
+```json
+{"worker": "b/large", "context": 131072, "step": 4, "step_type": "edit", "reason": "…"}
+```
+
+The decision is recorded and reserved for the named worker. The next request of the task that
+names that worker is this step, not a new decision. A spent budget answers `429`, and no
+usable worker answers `503`.
+
+## Configuration
+
+```toml
+[proxy]
+aliases = { "my-harness-default" = "ssw:auto", "big" = "local/coder:32b" }
+min_level = 1              # heavy steps start on the first rung at or above it (default 1)
+heartbeat_seconds = 5.0    # keep-alive interval while an upstream is quiet
+
+[harness.claude-code]      # one table per harness: claude-code, pi, oh-my-pi, opencode, kimi-code, acp
+command = ["claude"]       # default: the harness's command from PATH
+permission = "edits"       # or "all" (sandboxed runs only)
+max_turns = 60
+timeout_seconds = 1800
+args = []                  # extra arguments
+env = { }                  # extra variables; names that look like credentials are refused
+slots = { plan = "ssw:plan" }   # harness role -> proxy model name
+keep_state = false         # keep the run's generated config and harness state
+```
+
+## Harness runs
+
+`ssw run --harness <name> "<task>"` runs the task in an external harness instead of the
+built-in agent (ADR 0029). For each run:
+
+1. **Proxy.** A proxy bound to the task is served on a free loopback port with a fresh token.
+   Every request is a step of the task, whatever its session header says.
+2. **Start.** The harness starts in the task's worktree with a minimal environment (none of the
+   user's keys), its egress switches off, and generated config in a per-run state directory.
+   It gets the proxy's address and token through its own variables. Generic ACP agents read
+   `STEPSWITCH_PROXY_URL`, `STEPSWITCH_PROXY_TOKEN`, `STEPSWITCH_SESSION`, `STEPSWITCH_MODEL`
+   and `STEPSWITCH_CONTEXT_TOKENS`.
+3. **Gates.** When the harness ends, the gates run. On failure the harness is sent back with
+   the report, continuing its session where it can. Passing changes get the cross-family
+   review. The run escalates like a built-in one.
+4. **Budget.** Once the task's budget runs out, the proxy refuses further requests and the
+   harness is cancelled.
+
+Harness runs are not replayable, because their tool calls run inside the harness.
