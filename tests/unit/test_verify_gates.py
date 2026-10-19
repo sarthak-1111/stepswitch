@@ -744,6 +744,9 @@ def test_changed_files_come_from_git(repo: Path, fake: Path, tmp_path: Path) -> 
     git(repo, "commit", "-q", "-m", "base")
     (repo / "b.py").unlink()
     write(repo, {"a.py": "x = 2\n", "new.py": "", "ignored.py": "", ".stepswitch/state.py": ""})
+    # generated files (bytecode, tool caches) are not changes, as in a worktree's diff
+    write(repo, {"__pycache__/a.cpython-312.pyc": "", "pkg/__pycache__/m.pyc": "", "x.pyc": ""})
+    write(repo, {".pytest_cache/v/cache/lastfailed": "{}"})
     assert commands.changed_files(repo, "HEAD") == ["a.py", "b.py", "new.py"]
     assert commands.changed_files(repo, None) == ["a.py", "b.py", "new.py"]
     assert commands.changed_files(repo, "no-such-revision") is None

@@ -287,14 +287,18 @@ def blob_in_worktree(repo: Path, rel: str) -> str | None:
 def changed_files(repo: Path, base: str | None) -> list[str] | None:
     """Files that differ from `base` (HEAD when None) in the working tree, plus untracked ones.
 
-    Relative POSIX paths inside `repo`, Stepswitch's own `.stepswitch/` left out. None when git
-    cannot tell (no git, not a checkout, unknown revision, no commits yet).
+    Relative POSIX paths inside `repo`, Stepswitch's own `.stepswitch/` left out, and so are
+    untracked generated files (bytecode, tool caches: `worktree.GENERATED_PATTERNS`), which a
+    diff leaves out too. None when git cannot tell (no git, not a checkout, unknown revision,
+    no commits yet).
     """
+    from stepswitch.worktree import EXCLUDE_GENERATED
+
     commit = resolve_commit(repo, base or "HEAD")
     if commit is None:
         return None
     diff = git(repo, "diff", "--name-only", "-z", "--no-renames", "--relative", commit, "--")
-    untracked = git(repo, "ls-files", "--others", "--exclude-standard", "-z")
+    untracked = git(repo, "ls-files", "--others", "--exclude-standard", *EXCLUDE_GENERATED, "-z")
     if diff is None or untracked is None or diff.returncode or untracked.returncode:
         return None
     names = (diff.stdout + untracked.stdout).decode("utf-8", "replace").split("\0")

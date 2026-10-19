@@ -1024,6 +1024,13 @@ class Toolbox:
             raise ToolError(f"`{token}` was not found on PATH (no shell builtins: use programs)")
         return found
 
+    def _fresh_bytecode(self) -> None:
+        """Drop cached bytecode older than its source, as the gates do: an edit that keeps a
+        file's size within the second of the last compile would otherwise run the old code."""
+        from stepswitch.verify.commands import purge_stale_bytecode
+
+        purge_stale_bytecode(self.root)
+
     def _tool_run(self, args: dict[str, Any]) -> ToolOutput:
         if not self.allow_run:
             raise ToolError("run is disabled for this task; use test, read and grep instead")
@@ -1035,6 +1042,7 @@ class Toolbox:
         command = command.strip()
         if not command:
             raise ToolError("run: `command` is empty")
+        self._fresh_bytecode()
         requested = float(args.get("timeout") or self.run_timeout)
         timeout = min(max(requested, 1.0), self.run_timeout)
         env = self._child_env()
@@ -1084,6 +1092,7 @@ class Toolbox:
             raise ToolError(f"test: cannot split the selector ({exc})") from exc
         env = self._child_env()
         argv = [self._program(self.test_command[0], env), *self.test_command[1:], *extra]
+        self._fresh_bytecode()
         result = proc.run_capture(argv, cwd=self.root, env=env, timeout=self.test_timeout)
         if result.error is not None:
             raise ToolError(f"test: could not start {self.test_command[0]}: {result.error}")

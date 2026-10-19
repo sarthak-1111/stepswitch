@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -370,6 +371,45 @@ def test_test_tool_summarizes_a_real_pytest_run(root: Path) -> None:
     assert done.data["counts"] == {"passed": 1, "failed": 1, "errors": 0, "skipped": 0}
     assert done.data["ok"] is False and done.data["runner"] == "pytest"
     assert any("assert -1 == 3" in row for row in done.text.split("\n"))
+
+
+def test_test_and_run_tools_ignore_stale_bytecode(
+    root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A same-size edit within the second of the last compile must not run the old code."""
+    import os
+
+    monkeypatch.delenv("PYTHONDONTWRITEBYTECODE", raising=False)
+    monkeypatch.delenv("PYTHONPYCACHEPREFIX", raising=False)
+    module = root / "value.py"
+    tests = root / "tests"
+    tests.mkdir()
+    (tests / "test_value.py").write_text(
+        "import sys\nsys.path.insert(0, '.')\nimport value\n\n\n"
+        "def test_value():\n    assert value.VALUE == 1.5\n",
+        encoding="utf-8",
+    )
+    command = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
+    box = T.Toolbox(root, test_command=command)
+    probe = [sys.executable, "-c", "import value; print(value.VALUE)"]
+    second = int(time.time()) - 100
+
+    def compile_then_edit(old: str, new: str) -> None:
+        module.write_text(old, encoding="utf-8")
+        os.utime(module, (second + 0.1, second + 0.1))
+        subprocess.run([*probe], cwd=root, capture_output=True, check=True)  # caches it
+        (cached,) = (root / "__pycache__").glob("value.*.pyc")
+        os.utime(cached, (second + 0.5, second + 0.5))  # as if cached within that second
+        module.write_text(new, encoding="utf-8")  # same size, edited in the same second
+        os.utime(module, (second + 0.9, second + 0.9))
+
+    compile_then_edit("VALUE = 1.0\n", "VALUE = 1.5\n")
+    stale = subprocess.run(probe, cwd=root, capture_output=True, text=True, check=True)
+    assert stale.stdout.strip() == "1.0"  # CPython itself reuses the stale cache
+    compile_then_edit("VALUE = 1.0\n", "VALUE = 1.5\n")
+    assert box.execute("test", {}).data["ok"] is True  # the tests run the code on disk
+    compile_then_edit("VALUE = 1.5\n", "VALUE = 2.5\n")
+    assert "2.5" in box.execute("run", {"command": probe}).text
 
 
 def test_test_tool_passes_the_selector(root: Path) -> None:
