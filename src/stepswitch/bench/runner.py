@@ -38,7 +38,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from stepswitch import __version__, paths
 from stepswitch.bench import fakes, workspace
@@ -106,6 +106,9 @@ class BenchOptions:
     relay_step: int = 6
     # Candidates of the `best-of-n` contestant.
     best_of: int = 2
+    # The learning router (ADR 0026): off by default, so a run's routing does not depend on
+    # what earlier tasks taught the project's state database.
+    learning: Literal["on", "frozen", "off"] = "off"
 
 
 def _now() -> str:
@@ -305,6 +308,7 @@ def run_one(
         relay=relay,
         relay_step=options.relay_step,
         best_of=best_of,
+        learning=options.learning,
     )
     catalog = fakes.catalog_for(contestant.fake, task) if contestant.fake else None
     row: dict[str, Any] = {
@@ -434,6 +438,8 @@ def run_bench(
         manifest["relay"] = {"workers": list(options.relay or []), "step": options.relay_step}
     if any(c.name == BEST_OF_N for c in contestants):
         manifest["best_of"] = options.best_of
+    if options.learning != "off":
+        manifest["learning"] = options.learning
     manifest_path = out_dir / MANIFEST_FILE
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
     results = out_dir / RESULTS_FILE

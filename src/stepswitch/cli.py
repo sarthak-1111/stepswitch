@@ -37,9 +37,11 @@ bench_app = typer.Typer(
     help="Run benchmark suites and report the leaderboard.", no_args_is_help=True
 )
 policy_app = typer.Typer(help="Show or edit the project policy.", no_args_is_help=True)
+router_app = typer.Typer(help="What the learning router has learned.", no_args_is_help=True)
 app.add_typer(models_app, name="models")
 app.add_typer(bench_app, name="bench")
 app.add_typer(policy_app, name="policy")
+app.add_typer(router_app, name="router")
 
 DEBUG_ENV = "STEPSWITCH_DEBUG"
 
@@ -822,6 +824,62 @@ def policy_edit(ctx: typer.Context) -> None:
     typer.echo(f"{path} is valid.")
 
 
+@router_app.command("stats")
+def router_stats(
+    ctx: typer.Context,
+    worker: Annotated[str | None, typer.Option("--worker", help="Only this worker id.")] = None,
+    level: Annotated[
+        str | None,
+        typer.Option("--level", help="Only this context level: all, track, band, difficulty."),
+    ] = None,
+    export: Annotated[
+        Path | None,
+        typer.Option(
+            "--export",
+            help="Write anonymized aggregates (models, coarse contexts, rates) to this file.",
+        ),
+    ] = None,
+    json_out: Annotated[bool, typer.Option("--json", help="Print rows as JSON.")] = False,
+) -> None:
+    """Show the learning router's statistics (SPEC §10). Nothing leaves this machine unless
+    you pass --export and share the file yourself."""
+    from stepswitch.router import calibration, learning
+    from stepswitch.state import open_project_state
+
+    state = _state(ctx)
+    with _user_errors():
+        db = open_project_state(state.root)
+        try:
+            bandit = learning.Bandit.from_dict(calibration.load_param(db, learning.BANDIT_KEY))
+        finally:
+            db.close()
+        settings = learning.LearningSettings.from_config(state.config)
+    rows = [
+        row
+        for row in bandit.summary()
+        if (worker is None or row["worker"] == worker) and (level is None or row["level"] == level)
+    ]
+    if export is not None:
+        data = learning.export_aggregates(bandit, settings)
+        export.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        typer.echo(f"Wrote {len(data['rows'])} aggregate rows to {export}")
+        return
+    if json_out:
+        _print_json({"tasks": bandit.tasks, "settings": settings.as_dict(), "rows": rows})
+        return
+    typer.echo(f"Learning router: {settings.mode}; {bandit.tasks} tasks learned from")
+    if not rows:
+        typer.echo("No statistics yet.")
+        return
+    typer.echo(f"{'worker':32} {'level':10} {'tasks':>7} {'success':>8}  context")
+    for row in rows:
+        rate = "-" if row["success_rate"] is None else f"{row['success_rate']:.0%}"
+        typer.echo(
+            f"{row['worker'][:32]:32} {row['level']:10} {row['tasks']:7.1f} {rate:>8}"
+            f"  {row['context']}"
+        )
+
+
 @app.command("audit")
 def cmd_audit(
     ctx: typer.Context,
@@ -1175,6 +1233,13 @@ def bench_run(
             help="Candidates of the `best-of-n` contestant, from the pool's model families.",
         ),
     ] = 2,
+    learning: Annotated[
+        str,
+        typer.Option(
+            "--learning",
+            help="The learning router: off (default, reproducible), frozen or on.",
+        ),
+    ] = "off",
 ) -> None:
     """Run a benchmark suite: every contestant on every task, once per seed."""
     import shlex
@@ -1196,6 +1261,8 @@ def bench_run(
             raise ValueError("the `relay` contestant and --relay FIRST,SECOND go together")
         if relay_pair and baseline:
             raise ValueError("a relay hands over with a HANDOFF brief: it cannot run --baseline")
+        if learning not in ("off", "frozen", "on"):
+            raise ValueError("--learning must be off, frozen or on")
         pool = (
             [name.strip() for name in router_pool.split(",") if name.strip()]
             if router_pool
@@ -1217,6 +1284,7 @@ def bench_run(
             relay=relay_pair or None,
             relay_step=relay_step,
             best_of=best_of,
+            learning=learning,  # type: ignore[arg-type]  # checked above
             prices=(
                 {"input_per_million": price_in, "output_per_million": price_out}
                 if price_in is not None and price_out is not None
@@ -1235,6 +1303,7 @@ def bench_run(
         )
         if any(c.name == runner.BEST_OF_N for c in contestants):
             args += ["--best-of", str(best_of)]
+        args += ["--learning", learning] if learning != "off" else []
         args += ["--max-steps", str(max_steps)] if max_steps else []
         args += ["--budget-tokens", str(budget_tokens)] if budget_tokens else []
         args += ["--budget-seconds", str(budget_seconds)] if budget_seconds else []

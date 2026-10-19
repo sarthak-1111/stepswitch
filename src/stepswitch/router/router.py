@@ -96,6 +96,9 @@ class RouterState:
     # that wrote the change; SPEC §8.5).
     families: frozenset[str] | None = None
     avoid_families: frozenset[str] = frozenset()
+    # The learning router (SPEC §10, ADR 0026): one sampled task-level success per worker id,
+    # drawn at the start of the task, which replaces the static task-level prior.
+    learned: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -112,6 +115,8 @@ class Candidate:
     excluded: str | None = None
     # True when the escalation rung would exclude this worker but nothing else was eligible.
     relaxed: bool = False
+    # The learning router's sampled task-level success, when it set the prior.
+    learned: float | None = None
     # SPEC §7.2 terms for switching from the current worker to this one (`SwitchTerms`).
     switch: dict[str, Any] | None = None
 
@@ -304,7 +309,15 @@ def route(
         )
         estimates[spec.id] = est
         cand = candidates[spec.id]
-        cand.prior = prior(spec, step_type, features, base=state.base_rates.get(spec.id))
+        base = state.base_rates.get(spec.id)
+        cand.prior = prior(spec, step_type, features, base=base)
+        sampled = state.learned.get(spec.id)
+        if sampled is not None:
+            # The sample stands for the task-level (edit) prior; the step type's adjustment
+            # relative to it stays.
+            shift = cand.prior - prior(spec, "edit", features, base=base)
+            cand.learned = sampled
+            cand.prior = round(min(0.98, max(0.02, sampled + shift)), 4)
         cand.estimate = est.as_dict()
         cand.score = round((cand.prior + cand.bonus) * value_of_success - est.seconds, 3)
 

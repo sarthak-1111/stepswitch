@@ -246,6 +246,8 @@ class _Shared:
     opt: dict[str, Any]
     # Best-of-N: `planner(n)` plans n candidates (the first ones never change).
     planner: Callable[[int], list[Any]] | None = None
+    # The learning router's samples for this task (SPEC §10, ADR 0026).
+    learned: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -337,6 +339,8 @@ def run_task(
     report: Any = None
     failure: LoopOutcome | None = None
     optimize = True
+    learning_settings: Any = None
+    features_seen: Any = None
     try:
         if db.cancel_requested(task_id):
             raise _Cancelled
@@ -370,6 +374,7 @@ def run_task(
             clock=clock,
             cache_path=state_dir / "cache" / CLASSIFIER_CACHE,
         )
+        features_seen = features
         policy = track_policy(spec.track, workdir, config, features)
         policy_offline = offline or policy.offline
         task_egress = egress or net.default()
@@ -421,6 +426,7 @@ def run_task(
                 scrub=[],
             ),
         )
+        learning_settings, shared.learned = _learning_samples(shared)
         count = (
             1 if relay is not None else best_of_n.resolve_count(spec.best_of, features.difficulty)
         )
@@ -480,6 +486,8 @@ def run_task(
     diff = chosen.diff if chosen is not None else ""
     if diff:
         trajectory.write_file("diff.patch", diff)
+    if learning_settings is not None and learning_settings.learns:
+        _learn_from_outcomes(db, trajectory, learning_settings, features_seen, runs, outcome)
     agents = [run.agent for run in runs if run.agent is not None]
     records = [record for agent in agents for record in agent.handoffs]
     if count > 1 and records:
@@ -619,6 +627,7 @@ def _run_candidate(shared: _Shared, run: _Run) -> None:
             golden=list(shared.policy.golden),
             candidate=run.index,
             families=frozenset({plan.family}) if plan is not None else None,
+            learned=dict(shared.learned),
             **{
                 **shared.opt,
                 "scrub_paths": [
@@ -969,6 +978,86 @@ def _optimization(
         else None,
     )
     return out
+
+
+def _learning_samples(shared: _Shared) -> tuple[Any, dict[str, float]]:
+    """The learning router's settings and its samples for this task (empty unless it samples).
+
+    Each worker's cold start is the static edit prior, with the measured base rates when the
+    task is optimized; one Beta sample per worker comes from the task's seed (ADR 0026).
+    """
+    from stepswitch.router import calibration, learning
+    from stepswitch.router.policy import prior
+
+    settings = learning.LearningSettings.from_config(shared.config)
+    if shared.spec.learning is not None:
+        settings = dataclasses.replace(settings, mode=shared.spec.learning)
+    if not settings.samples:
+        return settings, {}
+    bandit = learning.Bandit.from_dict(calibration.load_param(shared.db, learning.BANDIT_KEY))
+    base_rates = shared.opt.get("base_rates") or {}
+    priors = {
+        spec.id: prior(spec, "edit", shared.features, base=base_rates.get(spec.id))
+        for spec in shared.catalog.specs()
+    }
+    keys = learning.context_keys(shared.features)
+    rng = learning.task_rng(shared.spec.seed, shared.task_id)
+    samples = bandit.sample(priors, keys, settings, rng)
+    shared.trajectory.emit(
+        "learning",
+        mode=settings.mode,
+        context=list(keys),
+        tasks=bandit.tasks,
+        samples=samples,
+        means={
+            worker: round(bandit.belief(worker, keys, p, settings).success, 4)
+            for worker, p in sorted(priors.items())
+        },
+    )
+    return settings, samples
+
+
+def _learn_from_outcomes(
+    db: StateDB,
+    trajectory: Trajectory,
+    settings: Any,
+    features: Any,
+    runs: list[_Run],
+    outcome: Any,
+) -> None:
+    """Credit the task's outcome to the workers that did its work (each candidate its own).
+
+    Cancelled tasks and tasks that ended in an error say nothing about the workers."""
+    from stepswitch.router import calibration, learning
+
+    if features is None or outcome.stop_reason in ("cancelled", "error"):
+        return
+    bandit = learning.Bandit.from_dict(calibration.load_param(db, learning.BANDIT_KEY))
+    keys = learning.context_keys(features)
+    updates = []
+    for run in runs:
+        agent = run.agent
+        shares = learning.work_shares(agent.work_steps) if agent is not None else {}
+        if not shares:
+            continue
+        status = outcome.status if run.index is None else run.status
+        success = status == "done"
+        bandit.update(shares, keys, success, agent.spent_seconds, agent.spent_tokens, settings)
+        updates.append(
+            {
+                "candidate": run.index,
+                "workers": shares,
+                "success": success,
+                "seconds": round(agent.spent_seconds, 3),
+                "tokens": agent.spent_tokens,
+                "reward": learning.reward(
+                    success, agent.spent_seconds, agent.spent_tokens, settings
+                ),
+            }
+        )
+    if updates:
+        calibration.save_param(db, learning.BANDIT_KEY, bandit.as_dict())
+        trajectory.emit("learning_update", context=list(keys), updates=updates)
 
 
 def _learn_from_handoffs(db: StateDB, records: list[dict[str, Any]], *, success: bool) -> None:

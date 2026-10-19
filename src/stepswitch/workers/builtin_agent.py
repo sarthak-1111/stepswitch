@@ -275,6 +275,8 @@ class AgentLoop:
     # only to workers of those families; its review goes to another family (SPEC §8.5).
     candidate: int | None = None
     families: frozenset[str] | None = None
+    # The learning router's sampled task-level success per worker (SPEC §10, ADR 0026).
+    learned: dict[str, float] = field(default_factory=dict)
 
     step: int = 0
     current: str | None = None
@@ -291,6 +293,11 @@ class AgentLoop:
     review_result: review_module.Review | None = None
     # Families of the workers that took work steps: the change's authors.
     work_families: set[str] = field(default_factory=set)
+    # Work steps per worker id, and the tokens and model time this agent spent (all calls):
+    # what the learning router credits a task's outcome to.
+    work_steps: dict[str, int] = field(default_factory=dict)
+    spent_tokens: int = 0
+    spent_seconds: float = 0.0
     context_caps: dict[str, int] = field(default_factory=dict)
     overflowed: bool = False
     last_call: tuple[str, str, str] | None = None  # name, arguments, result of the last call
@@ -444,6 +451,7 @@ class AgentLoop:
             avoid_families=(
                 frozenset(self._author_families()) if step_type == "review" else frozenset()
             ),
+            learned=dict(self.learned),
         )
         decision = route(
             self.features,
@@ -554,6 +562,7 @@ class AgentLoop:
             self.last_worker = spec.id
             if work:
                 self.work_families.add(spec.family_key)
+                self.work_steps[spec.id] = self.work_steps.get(spec.id, 0) + 1
             return completion, spec.id
 
     def _observe_cache(
@@ -607,6 +616,8 @@ class AgentLoop:
             )
         )
         self.budget.charge(tokens=fields["input_tokens"] + fields["output_tokens"], gpu_seconds=gpu)
+        self.spent_tokens += fields["input_tokens"] + fields["output_tokens"]
+        self.spent_seconds += wall
         if work:
             self.seen_tokens[spec.id] = prompt_tokens + estimate_tokens(reply_chars)
         if spec.endpoint not in self.endpoints:
@@ -667,6 +678,8 @@ class AgentLoop:
             )
         )
         self.budget.charge(tokens=fields["input_tokens"] + fields["output_tokens"], gpu_seconds=gpu)
+        self.spent_tokens += fields["input_tokens"] + fields["output_tokens"]
+        self.spent_seconds += wall
         if spec.endpoint not in self.endpoints:
             self.endpoints.append(spec.endpoint)
         # The summarizer's server now holds this prompt, not a work transcript.

@@ -97,6 +97,9 @@ class TaskSpec(BaseModel):
     # at work step `relay_step` (`ssw bench run --relay`).
     relay: list[str] = Field(default_factory=list)
     relay_step: int = 6
+    # The learning router (SPEC §10, ADR 0026): on, frozen or off; None follows
+    # `[router.learning]` (on by default). Bench runs set off, so their routing is reproducible.
+    learning: Literal["on", "frozen", "off"] | None = None
 
 
 def new_task_id() -> str:
