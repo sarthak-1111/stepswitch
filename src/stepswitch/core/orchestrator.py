@@ -608,6 +608,8 @@ def run_task(
 
 def _run_candidate(shared: _Shared, run: _Run) -> None:
     """Run the built-in agent for one candidate (or the only one) in its worktree."""
+    from stepswitch.context.proc import minimal_env
+    from stepswitch.verify import commands
     from stepswitch.workers.builtin_agent import AgentLoop, LoopOutcome
     from stepswitch.workers.tools import Toolbox
 
@@ -652,6 +654,8 @@ def _run_candidate(shared: _Shared, run: _Run) -> None:
         config=shared.config,
         offline=shared.offline,
         cache_dir=shared.state_dir / "cache" / "context",
+        # The agent's commands see the project's environment, as the gates do.
+        env=commands.project_overrides(shared.policy.python, workdir, base=minimal_env()),
     )
     run.toolbox = toolbox
     scrub = [(str(workdir), "."), (str(shared.root), "<project>"), (str(Path.home()), "~")]

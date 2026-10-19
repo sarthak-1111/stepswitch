@@ -4,6 +4,13 @@ Gates check the project, so every tool runs from the project's environment, not 
 The interpreter comes from configuration (`[tracks.<track>].python`, then `[science].python`
 for the science track), else the repository's `.venv`, else the interpreter running Stepswitch.
 
+A task's worktree (`<checkout>/.stepswitch/wt/<id>`) holds no `.venv`, because environments are
+never copied into it. For a worktree, the checkout it was made from is searched next: for the
+`.venv`, and for interpreter paths configured relative to the repository. When the
+interpreter's environment lives outside the working tree and the tree has a `src/` directory,
+that directory goes first on PYTHONPATH. Otherwise an editable install of the original
+checkout would import the checkout's code instead of the task's.
+
 `run` never raises: a program that cannot start gives exit code 127 and a timeout gives 124
 after the whole process tree is killed. Commands get no stdin and, apart from acceptance
 commands written by the user, no shell. Nothing here touches the network.
@@ -27,6 +34,8 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
+
+from stepswitch.paths import STATE_DIR_NAME
 
 NOT_STARTED = 127
 TIMED_OUT = 124
@@ -382,14 +391,30 @@ def venv_python(repo: Path) -> Path | None:
     return candidate if candidate.is_file() else None
 
 
-def resolve_interpreter(repo: Path, value: str) -> str:
-    """A configured interpreter: a path (relative to the repository) or a name on PATH."""
+def source_checkout(repo: Path) -> Path | None:
+    """The checkout a task worktree was made from, or None when `repo` is not a worktree:
+    worktrees live at `<checkout>/.stepswitch/wt/<id>` (stepswitch.worktree)."""
+    parent = Path(repo).absolute().parent
+    if parent.name == "wt" and parent.parent.name == STATE_DIR_NAME:
+        return parent.parent.parent
+    return None
+
+
+def resolve_interpreter(repo: Path, value: str, *, source: Path | None = None) -> str:
+    """A configured interpreter: a path (relative to the repository) or a name on PATH.
+
+    A relative path missing from `repo` resolves against `source` (the checkout a worktree
+    was made from) when it exists there.
+    """
     text = os.path.expandvars(value.strip())
     path = Path(text).expanduser()
     if path.is_absolute():
         return str(path)
     if len(path.parts) > 1 or text.startswith("."):
-        return str((repo / path).resolve())
+        candidate = (repo / path).resolve()
+        if not candidate.exists() and source is not None and (source / path).exists():
+            candidate = (source / path).resolve()
+        return str(candidate)
     return shutil.which(text) or text
 
 
@@ -408,30 +433,59 @@ def project_python(
     candidates: list[Any] = [track_settings(config, track).get("python")]
     if track == "science":
         candidates += [config_section(config, "science").get("python"), science_python]
+    source = source_checkout(repo)
     for value in candidates:
         if isinstance(value, str) and value.strip():
-            return resolve_interpreter(repo, value)
+            return resolve_interpreter(repo, value, source=source)
     venv = venv_python(repo)
+    if venv is None and source is not None:
+        venv = venv_python(source)
     return str(venv) if venv is not None else sys.executable
+
+
+def _within(path: str | Path, root: Path) -> bool:
+    """True when `path` lies under `root` (symlinks are not followed: a venv's python links
+    to its base interpreter)."""
+    if not Path(path).is_absolute():
+        return False
+    return Path(path).absolute().is_relative_to(Path(root).absolute())
+
+
+def project_overrides(
+    python: str, repo: Path | None = None, *, base: Mapping[str, str] | None = None
+) -> dict[str, str]:
+    """The variables project commands need on top of `base` (default: this process's
+    environment): the interpreter's venv first on PATH (with VIRTUAL_ENV), and for a working
+    tree `repo` with a `src/` directory and an interpreter outside it, that `src/` first on
+    PYTHONPATH (see the module docstring)."""
+    source = os.environ if base is None else base
+    found: dict[str, str] = {}
+    exe = Path(python)
+    venv = exe.parent.parent
+    if exe.is_absolute() and (venv / "pyvenv.cfg").is_file():
+        found["VIRTUAL_ENV"] = str(venv)
+        found["PATH"] = str(exe.parent) + os.pathsep + source.get("PATH", "")
+    if repo is not None and (Path(repo) / "src").is_dir() and not _within(python, Path(repo)):
+        paths = [str(Path(repo).absolute() / "src"), source.get("PYTHONPATH", "")]
+        found["PYTHONPATH"] = os.pathsep.join(part for part in paths if part)
+    return found
 
 
 def project_env(
     python: str,
     *,
+    repo: Path | None = None,
     extra: Mapping[str, str] | None = None,
     base: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
-    """The environment for project commands: the interpreter's venv first on PATH.
+    """The environment for project commands: `base` (default: this process's environment)
+    with `project_overrides` for the interpreter and the working tree `repo`.
 
     PYTHONIOENCODING is set to UTF-8 (unless already set) so captured output decodes the same
     way on every platform; nothing else about the process changes.
     """
     env = dict(os.environ if base is None else base)
-    exe = Path(python)
-    venv = exe.parent.parent
-    if exe.is_absolute() and (venv / "pyvenv.cfg").is_file():
-        env["VIRTUAL_ENV"] = str(venv)
-        env["PATH"] = str(exe.parent) + os.pathsep + env.get("PATH", "")
+    env.update(project_overrides(python, repo, base=env))
     env.setdefault("PYTHONIOENCODING", "utf-8")
     if extra:
         env.update(extra)

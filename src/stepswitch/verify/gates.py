@@ -333,7 +333,7 @@ class _Run:
     @property
     def env(self) -> dict[str, str]:
         if self._env is None:
-            self._env = commands.project_env(self.python)
+            self._env = commands.project_env(self.python, repo=self.repo)
         return self._env
 
     @property

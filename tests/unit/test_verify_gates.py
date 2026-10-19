@@ -802,6 +802,51 @@ def test_project_env_puts_the_venv_first(tmp_path: Path) -> None:
     assert plain["PYTHONIOENCODING"] == "latin-1" and plain["X"] == "1"
 
 
+def test_a_worktree_uses_the_environment_of_its_checkout(tmp_path: Path) -> None:
+    checkout = tmp_path / "project"
+    worktree = checkout / ".stepswitch" / "wt" / "4fe9ecc6"
+    worktree.mkdir(parents=True)
+    assert commands.source_checkout(worktree) == checkout
+    assert commands.source_checkout(checkout) is None
+    assert commands.source_checkout(tmp_path / "wt" / "x") is None
+    assert commands.project_python(worktree) == sys.executable  # neither has a .venv
+    venv = checkout / ".venv" / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+    write(venv.parent, {venv.name: ""})
+    assert commands.project_python(worktree) == str(venv)
+    relative = config(python="tools/py")
+    write(checkout / "tools", {"py": ""})
+    assert commands.project_python(worktree, relative) == str((checkout / "tools/py").resolve())
+    write(worktree / "tools", {"py": ""})  # the worktree's own copy wins
+    assert commands.project_python(worktree, relative) == str((worktree / "tools/py").resolve())
+    missing = config(python="bin/nowhere")
+    assert commands.project_python(worktree, missing) == str((worktree / "bin/nowhere").resolve())
+
+
+def test_project_env_puts_the_working_trees_src_first(tmp_path: Path) -> None:
+    bindir = "Scripts" if sys.platform == "win32" else "bin"
+    name = "python.exe" if sys.platform == "win32" else "python"
+    checkout = tmp_path / "project"
+    worktree = checkout / ".stepswitch" / "wt" / "4fe9ecc6"
+    write(checkout / ".venv", {"pyvenv.cfg": "home = x\n", f"{bindir}/{name}": ""})
+    python = str(checkout / ".venv" / bindir / name)
+    (worktree / "src").mkdir(parents=True)
+    src = str(worktree / "src")
+    env = commands.project_env(python, repo=worktree, base={"PATH": "p", "PYTHONPATH": "lib"})
+    assert env["PYTHONPATH"] == src + os.pathsep + "lib"
+    assert env["PATH"] == str(checkout / ".venv" / bindir) + os.pathsep + "p"
+    overrides = commands.project_overrides(python, worktree, base={"PATH": "p"})
+    assert overrides == {
+        "VIRTUAL_ENV": str(checkout / ".venv"),
+        "PATH": str(checkout / ".venv" / bindir) + os.pathsep + "p",
+        "PYTHONPATH": src,
+    }
+    # An interpreter inside the tree imports the tree's code already; no src/, nothing to do.
+    (checkout / "src").mkdir()
+    assert "PYTHONPATH" not in commands.project_env(python, repo=checkout, base={})
+    assert "PYTHONPATH" not in commands.project_env(python, repo=tmp_path, base={})
+    assert commands.project_overrides("python", worktree, base={}) == {"PYTHONPATH": src}
+
+
 def test_tool_commands_prefer_the_project_interpreter(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
