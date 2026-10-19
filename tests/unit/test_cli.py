@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
+import stepswitch.cli as cli_module
 from stepswitch import __version__
 from stepswitch.cli import app
 from tests.unit.bench_project import make_project
@@ -65,11 +66,10 @@ def test_phase_2_commands_exist_with_their_options(command: str, options: list[s
     assert all(option in result.output for option in options), result.output
 
 
-@pytest.mark.parametrize(("args", "phase"), [(["proxy"], 8)])
-def test_later_phase_commands_say_so_and_exit_2(args: list[str], phase: int) -> None:
-    result = runner.invoke(app, args)
-    assert result.exit_code == 2
-    assert f"Phase {phase}" in result.output
+def test_no_command_is_a_later_phase_stub() -> None:
+    # Phase 8 implemented the last stub (`ssw proxy`); `_not_yet` stays for future commands.
+    source = Path(cli_module.__file__).read_text(encoding="utf-8")
+    assert source.count("_not_yet(") == 1, "a command still says it arrives in a later phase"
 
 
 def test_bench_run_and_report_with_a_fake_contestant(tmp_path: Path) -> None:
