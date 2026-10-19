@@ -3247,3 +3247,23 @@ scratch projects (and pinned by `tests/unit/test_disagreement.py`):
 - `python -m pytest` run from a worktree puts that directory first on `sys.path` (the
   interpreter's `-m` rule, docs.python.org/3/using/cmdline.html), so the copied tests import
   the candidate's own modules.
+
+### The review schema on the local models (live, checked 2026-10-19)
+
+The cross-family review (SPEC §8.5, ADR 0025) asks for the `review.REVIEW_SCHEMA` answer as a
+strict `json_schema` response format. Checked live against the workstation's local Ollama
+endpoint over the native API, at temperature 0.2 and seed 0, with one correct and one wrong
+one-line diff of `add()` each:
+
+| Model | Diff | Answer | Schema check | Seconds | Prompt / output tokens |
+|---|---|---|---|---|---|
+| gpt-oss:120b (effort medium) | correct | `approve: true`, no issues | conforms | 1.9 | 260 / 84 |
+| gpt-oss:120b (effort medium) | wrong | `approve: false`, one `high` issue at `calc.py` line 2 | conforms | 2.2 | 260 / 145 |
+| qwen2.5:32b | correct | `approve: true`, no issues | conforms | 20.0 (model load) | 199 / 11 |
+| qwen2.5:32b | wrong | `approve: false`, one `high` issue at `calc.py` line 2 | conforms | 2.5 | 199 / 54 |
+
+- The native API's `format` field carries the schema, and no compatibility losses were
+  reported for either model, so the grammar-constrained path holds on both families.
+- The reasoning model puts its reasoning in its own field; the answer text is bare JSON.
+- `review.parse` read all four answers, with the confidence 1.0 for an approval and 0.25 for one
+  high-severity issue.
