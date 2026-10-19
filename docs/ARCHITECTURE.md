@@ -88,8 +88,14 @@ Pipeline (SPEC §7.1):
    cached by input hash. When no T0 model is available, a deterministic heuristic classifier
    (file types, keywords, diff size) answers with low confidence, so routing still works with no
    models installed at all.
-3. **Policy**: priors from registry roles and probe results (Phase 2); contextual Thompson
-   sampling over workers from Phase 7 (SPEC §10).
+3. **Policy**: priors from registry roles and probe results (Phase 2); from Phase 7 the
+   learning router (`router.learning`, ADR 0026) samples each worker's task-level success once
+   per task. The samples come from Beta posteriors per context, with backoff from coarse to fine
+   context levels, and they replace the static task-level prior in the per-step score. A
+   finished task updates the posteriors in proportion to each worker's work steps.
+   `[router.learning] mode` is on, frozen or off (benches run with it off). The statistics stay
+   in the project database; `ssw router stats --export` writes anonymized aggregates on request.
+   `router.simulate` is the synthetic harness behind C-015.
 4. **Cost model**: expected time and tokens per candidate, plus the cache-aware switch cost of
    SPEC §7.2 (ADR 0024):
    - A per-server prefix registry predicts how much of the prompt each server already holds.
@@ -276,8 +282,21 @@ Best-of-N, the disagreement signal and cross-family review (SPEC §8.3 to §8.5,
   hits, taken from server-reported usage; estimates are flagged as such. C-019 compares ledger
   totals with server-reported usage.
 - **Trajectories**: every step is a JSONL event (prompt hash, worker, tokens, cache hits, tool
-  calls, blob refs, diffs, gate results). `ssw replay <run> --from-step k --worker X` forks a new
-  run (SPEC §11).
+  calls, blob refs, diffs, gate results). Model answers, long tool outputs and compressions are
+  kept whole as blobs, and a `catalog` event records the workers and settings, so a run can be
+  replayed (ADR 0027).
+- **Replay** (`trajectory.replay`):
+  - `ssw replay <run>` (or `POST /api/runs/{id}/replay`) runs a task again from its recording:
+    worktrees start at the recorded base commits; the recorded features, samples, plans,
+    ladders and routing decisions are used; every model call is answered from the recording.
+  - Edits, commands and tests run again for their effects, but the transcript gets the recorded
+    results. The gates run for real.
+  - A replay clock adds the recorded time of what the recording answered, so time budgets end
+    where they ended.
+  - `--from-step k [--worker X]` forks at the routing decision for model call k; from there on
+    models answer live and tools run.
+  - The comparison (`replay.json`) reports identical diffs and gate results, and every
+    departure from the recording.
 
 ## 11. Proxy (`ssw proxy`)
 
