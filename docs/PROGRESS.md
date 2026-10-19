@@ -4,6 +4,129 @@ Newest phase first. Each phase records what was done, what research changed, ope
 actions that only the maintainer can take. Phase checks: `uv run python scripts/phase_check.py N`
 (one phase) or `--upto N` (phases 0 to N).
 
+## Phase 10: Launch polish
+
+Status: done on 2026-10-19. `scripts/phase_check.py 10` passes 8 of 8 checks.
+`uv run pytest -q` with the CPU models present: 2001 passed, 7 skipped (among them the tests
+that need a configured local model server). `ssw prove --quick --phase 10` (887 s): nineteen
+claims passing, C-017 among them for the first time, and C-016 pending CI.
+
+### Done
+
+- **README** follows the outline of SPEC §24:
+  - the pitch and the demo;
+  - "Don't trust us, run `ssw prove`";
+  - the quickstart with the installers;
+  - running on your own repository, with a command table;
+  - compatibility, how it works, features and the roadmap;
+  - the generated claims;
+  - how to contribute.
+
+  Its only numbers are the generated ones (C-018). It names no ADR or version numbers in
+  prose, since the integrity lint counts those digits too.
+- **Docs site** (ADR 0032): Sphinx, MyST-Parser and Furo, in `docs/site`, which ADR 0006 set
+  aside as public text.
+  - Pages splice in the files they show when Sphinx reads them: the README's quickstart,
+    how-it-works and claims sections; the task API; the science.toml reference; the
+    compatibility matrix; and the examples with their files. Relative links are rewritten.
+  - Those files joined `lint.public_docs`, and their unmarked absolutes were reworded.
+  - The build makes no network requests. The Phase 10 check builds the site with `-W` and
+    fails on any remote script, stylesheet, image, frame or font. The `docs` workflow builds
+    it in CI and uploads the HTML.
+- **Demo** (`docs/demo/demo.tape`, `scripts/record_demo.py`):
+  - VHS v0.12.1 in its container image, pinned by digest.
+  - Stepswitch is installed from a wheel with install.sh, and the toy project has its own
+    `.venv`.
+  - The demo policy pins planning and summaries to the tiny tier, the work to a large model and
+    the review to a model of another family. Its only endpoint is the host's Ollama.
+  - Each step line now ends with the task's running token count.
+  - The recording: the tiny tier planned and summarized, gpt-oss:120b did the work and
+    qwen2.5:32b reviewed. The task ended `done` after 13 steps and 3 switches, and the GIF is
+    275 KB. A first recording with the two large models' roles swapped stalled on a model
+    error (the server's repeat limit), and the tiny model did the work instead. So the policy
+    gives the work to gpt-oss:120b.
+- **Installers** (ADR 0033):
+  - `install.sh` (POSIX sh) and `install.ps1` (PowerShell 5.1) pin uv 0.13.1 and check what
+    they download: uv's installer script, or for Windows uv's release archive.
+  - They run `uv tool install stepswitch==0.1.0` (`STEPSWITCH_PACKAGE` overrides it) and
+    `ssw prefetch`, and print the bin directory if it is not on PATH.
+  - Neither edits a shell profile or the user's environment. A real `install.ps1` install
+    succeeded on this Windows machine.
+- **`ssw models pull` installs the engine** its GGUF files need: the pinned llama.cpp build,
+  with consent. It reports the install's seconds in its JSON.
+- **Release workflow**: a `vX.Y.Z` tag runs three jobs.
+  - build: check the tag against the package and installer versions, build the dashboard,
+    then the sdist and the wheel built from it, and write the release notes with git-cliff;
+  - publish: trusted publishing, with attestations;
+  - release: `gh release create` with the packages and the installers.
+  - Every action is pinned to a commit, and gh's telemetry is off.
+- **Test matrix**: the `test` workflow runs the unit tests on Python 3.11 to 3.15, as ADR 0002
+  promised. On this machine the unit tests pass on Python 3.15.0rc3 (1699 passed, 6
+  skipped).
+- **Examples**: five configurations (CPU laptop, Ollama workstation, remote endpoint, science
+  project, slow lane). The real configuration loader validates each one in a test.
+- **Community files**: MIT license, contributing guide, security policy (private
+  vulnerability reporting), Contributor Covenant 3.0, issue forms and a pull request template.
+- **C-017** (ADR 0033): the scripted quickstart in `python:3.12-slim` with 8 CPUs, 8 GB of
+  memory and no GPU.
+  - The run took 3.12 of the 5 minutes allowed. Installing took 28 s, `ssw init` 0.4 s,
+    the llama.cpp install 2.9 s and the first task 156 s.
+  - The task ended `done` after 9 steps, with the impacted and full test gates passing.
+  - The model files are mounted read-only from the host, so their download is excluded,
+    as the claim's scope says.
+- **Fixes the C-017 measurement led to.** The first three timed runs took 5.28, 5.40 and 5.83
+  minutes, for reasons other than the CPU:
+  - llama.cpp counts the host's physical cores and ignores the container's CPU limit. The
+    adapter now passes `--threads` for the cores the process may use.
+  - A task's worktree has no `.venv`, so the gates and the agent's `test` tool ran the
+    project's tests with Stepswitch's own interpreter. Under `uv tool install` that
+    interpreter has no pytest, so the tests were skipped while the model kept retrying them.
+    Worktrees now use the environment of their checkout, with the worktree's `src/` first on
+    PYTHONPATH, and the agent's commands get the gates' environment.
+  - The model named `test_calc.py` for `tests/test_calc.py` and repeated the call four times.
+    The `test` tool now resolves a test file named without its directory, as `read` and
+    `edit` already did.
+
+### Research
+
+- MkDocs 2.0 is a pre-release rewrite with no plugin API, and Material for MkDocs is in
+  maintenance until 2027-05-05. Zensical is still 0.0.x, and its default theme loads fonts
+  from a CDN. Sphinx 9.1 needs Python 3.12, so the lock forks on 3.11.
+- uv's `install.ps1` checks no hash, and its `install.sh` skips the check without
+  `sha256sum`. Both installers therefore check what they download themselves.
+- The GitHub CLI sends telemetry by default from 2.91.0, CI included.
+- llama.cpp b11669 counts physical cores from sysfs for the whole machine.
+
+### Open issues
+
+- **C-016** needs the repository on a public host with CI. The prove workflow's three-OS run
+  produces its evidence.
+- The installers and the README's install lines point at "the installer attached to each
+  release". They get a URL when the repository has its public home, and so does a published
+  docs site.
+- In the C-017 container the cgroup's memory peak is within 1.2 MB of its 8 GB limit. The
+  cgroup also counts page cache, including the 4.8 GB of model files that llama.cpp maps, so
+  the peak shows that the limit was reached, not that the processes needed it. Resident memory
+  is not measured, so the headroom is unknown.
+- The README has no leaderboard image (SPEC §24): an image's numbers are outside the integrity
+  lint that C-018 relies on. The bench results and their leaderboards are in `bench/results/`.
+- The API tests can show one deprecation warning from the locked Starlette's test client,
+  which asks for `httpx2` in place of `httpx`. It affects only the tests.
+- The dashboard needs Node 22.12 or later to build. CI uses Node 24; this machine has 20.12, so
+  local packaging checks used an earlier build.
+
+### Waiting on the maintainer
+
+- Create the public repository, enable private vulnerability reporting, and push. Then let
+  the prove, test and docs workflows run, and record C-016.
+- On the package index:
+  - claim the `stepswitch` project;
+  - add the repository's release workflow as a trusted publisher, with the `pypi`
+    environment;
+  - give that environment required reviewers.
+- Tag `v0.1.0` after setting the package version (`scripts/release_check.py` checks it
+  against the tag and the installers).
+
 ## Phase 9: Slow lane and zero-egress
 
 Status: done on 2026-10-19. `scripts/phase_check.py 9` passes 10 of 10 checks. `uv run pytest -q`
@@ -789,7 +912,8 @@ Details are in the SPEC change table and the ADRs. The main points:
    Node 22.12 or later (the current LTS line is recommended) before Phase 4. The Ollama release
    that was researched is 0.40.5; older installs may lack routes the research relies on.
 
-## Next: Phase 10
+## Next
 
-Launch polish: the README, the docs site, the demo, the installers and the
-release workflow (SPEC §23). Claim due: C-017.
+All ten phases of SPEC §23 are done. What is left needs the maintainer (Phase 10, Waiting on
+the maintainer): a public repository with CI, whose prove workflow records C-016; the package
+index's trusted publisher; and the first tag.
