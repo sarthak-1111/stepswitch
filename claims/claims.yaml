@@ -167,7 +167,7 @@ claims:
       - tests/claims/test_c006_offline.py::test_audit_log_matches_observed_connections
     thresholds: {non_local_connections: 0, audit_mismatches: 0}
     evidence: [claims/evidence/C-006.json]
-    status: pending
+    status: passing
 
   - id: C-007
     text: "Sends no telemetry."

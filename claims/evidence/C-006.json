@@ -1,0 +1,921 @@
+{
+  "claim": "C-006",
+  "text": "In offline mode, makes no network connections except to local endpoints.",
+  "scope": "A full task flow with `--offline` (or privacy.mode = \"local\"). Local means 127.0.0.0/8, ::1 and Unix sockets. On Linux CI the flow runs under OS-level network isolation plus the in-process connection recorder; on macOS and Windows the evidence comes from the recorder only and says so (ADR 0011).",
+  "thresholds": {
+    "non_local_connections": 0,
+    "audit_mismatches": 0
+  },
+  "command": "uv run ssw prove --claim C-006",
+  "mode": "quick",
+  "source_digest": "b654df0ea59e191abdbf1e2491070c5298116fc98128043e16e3cd80d97be7a1",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-19T10:00:22+00:00",
+  "sections": {
+    "flow": {
+      "recorded": "2026-10-19T10:00:22+00:00",
+      "flow": [
+        {
+          "argv": [
+            "ssw",
+            "init",
+            "--no-detect",
+            "--json"
+          ],
+          "exit_code": 0,
+          "seconds": 0.91,
+          "stderr_tail": []
+        },
+        {
+          "argv": [
+            "ssw",
+            "run",
+            "Fix the bug in add() in calc.py so that the tests pass.",
+            "--offline",
+            "--json"
+          ],
+          "exit_code": 0,
+          "seconds": 5.71,
+          "stderr_tail": []
+        },
+        {
+          "argv": [
+            "ssw",
+            "audit",
+            "--json",
+            "--limit",
+            "1000",
+            "--task",
+            "t20261019-190016-2bff04"
+          ],
+          "exit_code": 0,
+          "seconds": 0.51,
+          "stderr_tail": []
+        },
+        {
+          "argv": [
+            "ssw",
+            "audit",
+            "--processes",
+            "--json",
+            "--limit",
+            "1000",
+            "--task",
+            "t20261019-190016-2bff04"
+          ],
+          "exit_code": 0,
+          "seconds": 0.45,
+          "stderr_tail": []
+        }
+      ],
+      "configuration": "calc-bug toy repository; endpoints: a scripted chat-completions model on 127.0.0.1 and a hosted one at https://models.example.org/v1; `ssw run --offline`",
+      "isolation": "none: in-process recorder only (no OS-level isolation on this platform)",
+      "recorder": "wrapped socket, name-lookup and process functions; audit hooks are unusable in this environment (importing with a hook installed fails: AttributeError: 'bytes' object has no attribute 'co_filename'); guard: non-local connects, sends and lookups refused",
+      "task": {
+        "status": "done",
+        "steps": 8,
+        "local_model_requests": 8,
+        "changed_files": [
+          "calc.py"
+        ]
+      },
+      "connections": [
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "connect",
+          "event": "socket.connect",
+          "family": 2,
+          "address": "('127.0.0.1', 50312)",
+          "host": "127.0.0.1",
+          "port": 50312,
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "connect",
+          "event": "socket.connect",
+          "family": 2,
+          "address": "('127.0.0.1', 50312)",
+          "host": "127.0.0.1",
+          "port": 50312,
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "connect",
+          "event": "socket.connect",
+          "family": 2,
+          "address": "('127.0.0.1', 50312)",
+          "host": "127.0.0.1",
+          "port": 50312,
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "connect",
+          "event": "socket.connect",
+          "family": 2,
+          "address": "('127.0.0.1', 50312)",
+          "host": "127.0.0.1",
+          "port": 50312,
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "connect",
+          "event": "socket.connect",
+          "family": 2,
+          "address": "('127.0.0.1', 50312)",
+          "host": "127.0.0.1",
+          "port": 50312,
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "connect",
+          "event": "socket.connect",
+          "family": 2,
+          "address": "('127.0.0.1', 50312)",
+          "host": "127.0.0.1",
+          "port": 50312,
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "connect",
+          "event": "socket.connect",
+          "family": 2,
+          "address": "('127.0.0.1', 50312)",
+          "host": "127.0.0.1",
+          "port": 50312,
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "connect",
+          "event": "socket.connect",
+          "family": 2,
+          "address": "('127.0.0.1', 50312)",
+          "host": "127.0.0.1",
+          "port": 50312,
+          "outbound": false
+        }
+      ],
+      "name_lookups": [
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "lookup",
+          "event": "socket.getaddrinfo",
+          "host": "127.0.0.1",
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "lookup",
+          "event": "socket.getaddrinfo",
+          "host": "127.0.0.1",
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "lookup",
+          "event": "socket.getaddrinfo",
+          "host": "127.0.0.1",
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "lookup",
+          "event": "socket.getaddrinfo",
+          "host": "127.0.0.1",
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "lookup",
+          "event": "socket.getaddrinfo",
+          "host": "127.0.0.1",
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "lookup",
+          "event": "socket.getaddrinfo",
+          "host": "127.0.0.1",
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "lookup",
+          "event": "socket.getaddrinfo",
+          "host": "127.0.0.1",
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "lookup",
+          "event": "socket.getaddrinfo",
+          "host": "127.0.0.1",
+          "outbound": false
+        }
+      ],
+      "processes": [
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "rev-parse"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "rev-parse"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "rev-parse"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "worktree"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            "-z"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "git",
+          "argv": [
+            "git",
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "<checkout>\\.venv\\Scripts\\python.exe",
+          "argv": [
+            "<checkout>\\.venv\\Scripts\\python.exe",
+            "-m",
+            "pytest",
+            "-q",
+            "--tb=short"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            "--end-of-options",
+            "7ac1ac319e7339ff0d198b7a20b2bec7db94dfa5^{commit}"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "diff",
+            "--name-only",
+            "-z",
+            "--no-renames",
+            "--relative"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "ls-files",
+            "--others",
+            "--exclude-standard",
+            "--exclude=__pycache__/",
+            "--exclude=*.pyc"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            "-z"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "<checkout>\\.venv\\Scripts\\python.exe",
+          "argv": [
+            "<checkout>\\.venv\\Scripts\\python.exe",
+            "-c",
+            "import json, sys\nout = {\"modules\": {}, \"python\": sys.version.split()[0]}\ntry:\n    import importlib.util\n    for name in sys.argv[1:]:\n        try:\n            out[\"modules\"][name] = importlib.util.find_spec(name) is not None\n        except Exception:\n            out[\"modules\"][name] = False\nexcept Exception:\n    pass\ntry:\n    import platform\n    out[\"implementation\"] = platform.python_implementation()\nexcept Exception:\n    pass\ntry:\n    import hashlib\n    import importlib.metadata as md\n    names = set()\n    for dist in md.distributions():\n        name = (dist.metadata[\"Name\"] or \"\").lower()\n        if name:\n            names.add(name + \"==\" + dist.version)\n    names = sorted(names)\n    out[\"packages\"] = len(names)\n    out[\"packages_sha256\"] = hashlib.sha256(\"\\n\".join(names).encode()).hexdigest()\n    versions = {}\n    for name in ('numpy', 'scipy', 'pandas'):\n        try:\n            versions[name] = md.version(name)\n        except Exception:\n            pass\n    out[\"versions\"] = versions\nexcept Exception:\n    pass\ntry:\n    import sysconfig\n    paths = sysconfig.get_paths()\n    out[\"site\"] = sorted({paths.get(\"purelib\", \"\"), paths.get(\"platlib\", \"\")} - {\"\"})\nexcept Exception:\n    pass\nprint(json.dumps(out))\n",
+            "ruff",
+            "mypy",
+            "pytest"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            "-z"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "<checkout>\\.venv\\Scripts\\python.exe",
+          "argv": [
+            "<checkout>\\.venv\\Scripts\\python.exe",
+            "-m",
+            "pytest",
+            "-q",
+            "--tb=short",
+            "tests/test_calc.py"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            "-z"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "<checkout>\\.venv\\Scripts\\python.exe",
+          "argv": [
+            "<checkout>\\.venv\\Scripts\\python.exe",
+            "-m",
+            "pytest",
+            "-q",
+            "--tb=short"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "rev-parse"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "read-tree"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "-c"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "ls-files"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "diff"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "read-tree"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "-c"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "ls-files"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "diff"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "read-tree"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "-c"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "ls-files"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "diff"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "read-tree"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "-c"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "ls-files"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "diff"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "read-tree"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "-c"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "ls-files"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "write-tree"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "rev-parse"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "-c"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "update-ref"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "reset"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "branch"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "worktree"
+          ],
+          "outbound": false
+        },
+        {
+          "command": "ssw run Fix the bug in add() in calc.py so that the tests pass. --offline --json",
+          "kind": "process",
+          "event": "subprocess.Popen",
+          "executable": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+          "argv": [
+            "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE",
+            "-c",
+            "core.hooksPath=<tmp>\\pytest-of-<user>\\pytest-816\\c0060\\project\\.stepswitch\\wt\\.nohooks",
+            "-c",
+            "core.longpaths=true",
+            "worktree"
+          ],
+          "outbound": false
+        }
+      ],
+      "non_local_connections": 0,
+      "refused_by_guard": 0,
+      "non_local_audit_rows": 0,
+      "outbound": []
+    },
+    "audit": {
+      "recorded": "2026-10-19T10:00:22+00:00",
+      "rule": "destinations (host, port) of the task's audit rows equal the destinations the `ssw run` process connected to, minus sockets it bound itself",
+      "observed": [
+        [
+          "127.0.0.1",
+          50312
+        ]
+      ],
+      "audited": [
+        [
+          "127.0.0.1",
+          50312
+        ]
+      ],
+      "audit_rows": 8,
+      "audit_purposes": [
+        "model"
+      ],
+      "missing_from_audit": [],
+      "audited_but_not_observed": [],
+      "audit_mismatches": 0,
+      "processes_logged": 25
+    }
+  }
+}

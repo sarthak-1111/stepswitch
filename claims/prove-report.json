@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "mode": "quick",
-  "source_digest": "3941eb6e3b9c6fb2b9c44b028d11e693523f14e4226a84c65758e47cb2612b6a",
-  "created": "2026-10-19T09:35:24+00:00",
-  "duration_s": 701.62,
+  "source_digest": "b654df0ea59e191abdbf1e2491070c5298116fc98128043e16e3cd80d97be7a1",
+  "created": "2026-10-19T10:07:34+00:00",
+  "duration_s": 687.35,
   "platform": {
     "os": "windows",
     "machine": "amd64",
@@ -15,7 +15,7 @@
     "image_version": null
   },
   "selection": {
-    "phase": 8,
+    "phase": 9,
     "claims": [],
     "skip": []
   },
@@ -64,6 +64,15 @@
         "fallback",
         "matrix"
       ],
+      "notes": {}
+    },
+    "C-006": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c006_offline.py::test_offline_flow_makes_only_local_connections": "passed",
+        "tests/claims/test_c006_offline.py::test_audit_log_matches_observed_connections": "passed"
+      },
+      "parts": [],
       "notes": {}
     },
     "C-007": {
@@ -176,7 +185,7 @@
   },
   "summary": {
     "pending": 1,
-    "passing": 17,
+    "passing": 18,
     "failing": 0
   }
 }

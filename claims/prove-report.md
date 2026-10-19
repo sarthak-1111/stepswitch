@@ -1,8 +1,8 @@
 # Prove report
 
 - Mode: quick
-- Created: 2026-10-19T09:35:24+00:00
-- Source digest: `3941eb6e3b9c6fb2b9c44b028d11e693523f14e4226a84c65758e47cb2612b6a`
+- Created: 2026-10-19T10:07:34+00:00
+- Source digest: `b654df0ea59e191abdbf1e2491070c5298116fc98128043e16e3cd80d97be7a1`
 - Platform: windows amd64, Python 3.12.15
 
 | Claim | Status | Tests |
@@ -12,6 +12,7 @@
 | C-003 | passing | test_switch_iff_gain_exceeds_cost_plus_margin: passed |
 | C-004 | passing | test_conformance_against_mock_servers: passed, test_round_trip_preserves_messages_and_tool_calls: passed |
 | C-005 | passing | test_model_without_native_tools_completes_task_via_fallback: passed, test_probe_suite_passes_on_ci_model_set: passed, test_compatibility_matrix_generated_from_probe_results: passed |
+| C-006 | passing | test_offline_flow_makes_only_local_connections: passed, test_audit_log_matches_observed_connections: passed |
 | C-007 | passing | test_default_flow_opens_no_outbound_connections: passed |
 | C-008 | passing | test_mutations_above_tolerance_caught_below_not_flagged: passed |
 | C-009 | passing | test_protected_change_fails_without_allow_flag: passed, test_protected_change_passes_with_allow_flag: passed |
