@@ -3,7 +3,7 @@
 An open-source orchestrator for coding agents that picks a model and a harness for each task,
 and for each step inside a task.
 
-![A task in the terminal: each step line names the model that ran it, and the task's token count grows step by step](docs/assets/demo.gif)
+![A task in the terminal, played at twice the speed: each step line names the model that ran it, and the task's token count grows step by step](docs/assets/demo.gif)
 
 Each claim in the [Claims](#claims) section has a test you can run, and the section lists only
 the claims whose tests pass. Don't trust us, run `ssw prove`.
