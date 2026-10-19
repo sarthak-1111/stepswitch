@@ -90,8 +90,8 @@ Research checked on 2026-10-19 (docs/RESEARCH.md, "Verified during Phase 9") fou
      Its input is the task's instruction, acceptance commands and diff.
    - The task's trajectory gets one `slow_review` event with the verdict and the reviewer's
      family, then one `review_comment` event per issue. Event numbers continue where the task
-     stopped (`Trajectory.resume`), so the dashboard and `ssw show` list the comments with the
-     task.
+     stopped (`Trajectory.resume`). The task's events (`GET /api/tasks/{id}/events`) and the
+     dashboard show the comments with the task, and `ssw jobs show` lists them with the job.
    - An answer that does not parse becomes a review that is not approved, with one issue that
      says so. The raw text is kept.
 6. **Task jobs are whole tasks.** A task job runs `run_task` with the worker pinned and
