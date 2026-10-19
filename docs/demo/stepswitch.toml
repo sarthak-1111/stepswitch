@@ -1,0 +1,19 @@
+# The demo project's policy (docs/demo/demo.tape). Each kind of step is pinned to one model,
+# so the recording shows the switches: the tiny tier plans and summarizes, a large model works,
+# and a model of another family reviews.
+schema = 1
+
+[[policy.rules]]
+name = "tiny-model-plans-and-summarizes"
+when = { step_type = ["plan", "summarize", "write-text"] }
+to = { model = "qwen3-4b-instruct-2507" }
+
+[[policy.rules]]
+name = "large-model-works"
+when = { step_type = ["navigate", "read", "edit", "run", "triage"] }
+to = { model = "qwen2.5:32b" }
+
+[[policy.rules]]
+name = "another-family-reviews"
+when = { step_type = ["review"] }
+to = { model = "gpt-oss:120b" }
