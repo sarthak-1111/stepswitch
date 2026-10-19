@@ -355,6 +355,9 @@ def run_task(
     try:
         if db.cancel_requested(task_id):
             raise _Cancelled
+        if replay is not None and spec.harness:
+            # A harness's tool calls run inside the harness, so nothing was recorded to replay.
+            raise ValueError(f"runs in the {spec.harness} harness cannot be replayed")
         first = _acquire(pool, task_id, spec, replay, None)
         runs.append(_Run(None, None, first))
         workdir = Path(first.path)
@@ -646,7 +649,7 @@ def _run_candidate(shared: _Shared, run: _Run) -> None:
         # Recorded tool results name the recorded worktree.
         scrub.insert(0, (recorded_workdir, "."))
     try:
-        run.agent = AgentLoop(
+        agent: Any = AgentLoop(
             spec=task_spec,
             task_id=shared.task_id,
             workdir=workdir,
@@ -678,6 +681,24 @@ def _run_candidate(shared: _Shared, run: _Run) -> None:
             replay=replay,
             **{**shared.opt, "scrub_paths": scrub},
         )
+        if spec.harness:
+            from stepswitch.workers.harness_loop import HarnessLoop
+
+            # The built-in agent stays as the harness run's helper for text steps.
+            agent = HarnessLoop.wrap(
+                agent,
+                name=spec.harness,
+                root=shared.root,
+                db=shared.db,
+                config=shared.config,
+                state_dir=shared.state_dir,
+                rules=shared.rules,
+                test_command=shared.policy.test_command,
+                offline=shared.offline,
+                allow_remote=shared.allow_remote,
+                pin=shared.pinned.spec.id if shared.pinned is not None else None,
+            )
+        run.agent = agent
         run.outcome = run.agent.run()
         if run.agent.optimize and replay is None:
             _learn_from_handoffs(

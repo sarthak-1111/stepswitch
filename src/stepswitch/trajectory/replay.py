@@ -759,7 +759,12 @@ def prepare(
     """Load the recorded run `run` of the project at `root` and check that it can be replayed
     (or forked) as asked; raises `ReplayError` (`RunNotFound`) otherwise."""
     root = Path(root).resolve()
-    return Replay(load_recording(find_run(root, run), root), from_step, worker)
+    recording = load_recording(find_run(root, run), root)
+    harness = getattr(recording.task_spec(), "harness", None)
+    if harness:
+        # The harness ran its own tools, so the recording holds no tool results to replay.
+        raise ReplayError(f"runs in the {harness} harness cannot be replayed (ADR 0029)")
+    return Replay(recording, from_step, worker)
 
 
 def replay_run(

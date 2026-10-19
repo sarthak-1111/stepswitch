@@ -1024,6 +1024,14 @@ def cmd_run(
         str | None,
         typer.Option("--worker", help="Run every step on this worker (<endpoint>/<model>)."),
     ] = None,
+    harness: Annotated[
+        str | None,
+        typer.Option(
+            "--harness",
+            help="Run the task in an external harness through ssw proxy: claude-code, pi,"
+            " oh-my-pi, opencode, kimi-code or acp.",
+        ),
+    ] = None,
     allow_protected: Annotated[
         list[str] | None,
         typer.Option("--allow-protected", help="Allow changing this protected value (repeat)."),
@@ -1084,6 +1092,7 @@ def cmd_run(
             on_disagreement=on_disagreement,  # type: ignore[arg-type]
             probe_tests=probe_tests,
             offline=offline,
+            harness=harness,
             worker=worker,
             seed=seed,
             max_steps=max_steps,
@@ -1094,6 +1103,11 @@ def cmd_run(
             allow_remote=allow_remote,
             optimize=optimize,
         )
+    if harness is not None:
+        from stepswitch.workers.harness import adapters
+
+        if harness not in adapters():
+            _fail(f"unknown harness {harness!r} (harnesses: {', '.join(sorted(adapters()))})")
     result = _run_one(state, spec, json_out=json_out)
     _show_result(result, json_out=json_out)
     code = _exit_code(result.status)

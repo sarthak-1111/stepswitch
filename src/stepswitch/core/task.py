@@ -74,6 +74,10 @@ class TaskSpec(BaseModel):
     # With two or more passing candidates, ask a model for probe tests of the task as well.
     probe_tests: bool = True
     offline: bool = False
+    # Run the task in an external harness through `ssw proxy` (SPEC §12, ADR 0029):
+    # `claude-code`, `pi`, `oh-my-pi`, `opencode`, `kimi-code` or `acp`. None runs the built-in
+    # agent.
+    harness: str | None = None
     worker: str | None = None
     # Route only among these workers (ids or names); empty means every configured worker.
     workers: list[str] = Field(default_factory=list)
