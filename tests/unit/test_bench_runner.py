@@ -150,6 +150,14 @@ def test_a_crashing_run_is_a_failed_row(project: Path) -> None:
     assert row["error"] == "RuntimeError: engine went away"
 
 
+def test_a_results_directory_inside_the_work_area_is_refused(project: Path) -> None:
+    suite = load_suite("tiny", project)
+    out = project / ".stepswitch" / "bench" / "smoke"
+    with pytest.raises(ValueError, match="work area"):
+        runner.run_bench(suite, runner.parse_contestants("router"), root=project, out_dir=out)
+    assert not out.exists()
+
+
 def test_hardware_summary_has_counts_and_sizes_only() -> None:
     detected = {
         "cpu": {"model": "Acme Turbo 9000", "arch": "x86_64", "cores_logical": 16},

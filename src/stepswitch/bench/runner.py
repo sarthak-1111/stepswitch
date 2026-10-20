@@ -610,8 +610,11 @@ def run_bench(
 ) -> Path:
     """Run every contestant on every task with every seed; return the results directory."""
     options = options or BenchOptions()
-    out_dir.mkdir(parents=True, exist_ok=True)
     work = paths.state_dir(root) / "bench" / out_dir.name
+    if out_dir.resolve().is_relative_to(work.resolve()):
+        # The work area is deleted after the run and would take the results with it.
+        raise ValueError(f"the results directory {out_dir} is inside the bench work area {work}")
+    out_dir.mkdir(parents=True, exist_ok=True)
     manifest: dict[str, Any] = {
         "schema": 1,
         "suite": suite.name,
