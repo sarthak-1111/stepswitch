@@ -1095,14 +1095,25 @@ class Toolbox:
                 )
             if result.changed:
                 changed.append(result.path)
-        data = {
+        files = [
+            {
+                "path": r.path,
+                "created": r.created,
+                "changed": r.changed,
+                "added": r.added,
+                "removed": r.removed,
+                "total_lines": r.total_lines,
+            }
+            for r in results
+        ]
+        data: dict[str, Any] = {
             "patch": True,
-            "files": [
-                {"path": r.path, "created": r.created, "added": r.added, "removed": r.removed}
-                for r in results
-            ],
+            "files": files,
+            "changed": bool(changed),
             "diff": "\n".join(r.diff for r in results if r.changed),
         }
+        if len(files) == 1:
+            data.update(files[0])  # the shape of a one-file edit
         return ToolOutput("\n\n".join(rows), data=data, changed_files=changed)
 
     # -- run and test ------------------------------------------------------------------------

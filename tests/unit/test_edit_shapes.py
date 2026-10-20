@@ -378,6 +378,23 @@ def test_a_begin_patch_updates_and_adds_files(box: T.Toolbox, root: Path) -> Non
     assert "updated lines with fresh anchors" in done.text
 
 
+def test_a_patch_reports_what_it_changed_in_the_shape_of_an_edit(
+    box: T.Toolbox, root: Path
+) -> None:
+    both = edit(box, {"patch": UPDATE}).data
+    assert both["changed"] is True and "path" not in both
+    assert [(f["path"], f["changed"], f["created"]) for f in both["files"]] == [
+        ("pager.py", True, False),
+        ("pkg/notes.md", True, True),
+    ]
+    one = UPDATE.split("*** Add File")[0].replace("(number - 1)", "(number - 2)")
+    one = one.replace("-    start = number * per_page", "-    start = (number - 1) * per_page")
+    data = edit(box, {"patch": one + "*** End Patch\n"}).data
+    # the agent reads a one-file patch like a one-file edit (path, changed, added, removed)
+    assert data["path"] == "pager.py" and data["changed"] is True
+    assert data["added"] == 1 and data["removed"] == 1
+
+
 @pytest.mark.parametrize(
     "wrap",
     [

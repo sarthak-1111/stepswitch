@@ -80,6 +80,16 @@ class FileToolbox:
             data = {"tool": "read", "path": path, "start": start, "end": end}
             data.update(total_lines=len(lines), sha256=digest)
             return ToolOutput(f"{path} lines {start}-{end} of {len(lines)}\n{body}", data=data)
+        if name == "edit" and "patch" in args:
+            # The data of a two-file patch as tools.py reports it (ADR 0038).
+            self.files["calc.py"] += "\n# edited"
+            self.files["notes.md"] = "# Notes\n\nadded\n"
+            files = [
+                {"path": "calc.py", "created": False, "changed": True, "added": 1, "removed": 0},
+                {"path": "notes.md", "created": True, "changed": True, "added": 2, "removed": 0},
+            ]
+            data = {"tool": "edit", "patch": True, "files": files, "changed": True, "diff": ""}
+            return ToolOutput("edited 2 files", data=data, changed_files=["calc.py", "notes.md"])
         if name == "edit":
             path = args["path"]
             self.files[path] += "\n# edited"
@@ -465,6 +475,18 @@ def nudged(requests: Sequence[Request]) -> bool:
         for request in requests
         for message in request.messages
     )
+
+
+def test_a_text_answer_after_the_tests_pass_on_a_patch_finishes(tmp_path: Path) -> None:
+    # A patch reports each file it changed under `files` (ADR 0038); it is an edit all the same.
+    patch = Action(tool="edit", arguments={"patch": "*** Begin Patch\n*** End Patch"})
+    done = Action(text="Done: the tests pass.")
+    worker = scripted("a/m", "t2", sequence([read("calc.py"), patch, TEST, done, FINISH]))
+    loop = build(tmp_path, [worker], FileToolbox(SMALL))
+    assert loop.run().status == "done"
+    work = [r for r in worker.model.requests if r.tools]  # type: ignore[union-attr]
+    assert len(work) == 4 and not nudged(work)
+    assert any("edited calc.py (+1 -0), notes.md (+2 -0)" in line for line in loop.work_log)
 
 
 def test_a_text_answer_after_the_tests_pass_on_a_change_finishes(tmp_path: Path) -> None:

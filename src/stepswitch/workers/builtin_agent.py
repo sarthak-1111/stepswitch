@@ -1334,13 +1334,19 @@ class AgentLoop:
             )
             self._note_file(str(path), "read")
         elif tool == "edit":
-            if data.get("changed"):
-                entry = f"edited {path} (+{data.get('added', 0)} -{data.get('removed', 0)})"
-                self._note_file(str(path), "edited")
+            # One file, or each file of a patch (ADR 0038).
+            edited = [item for item in data.get("files") or [data] if item.get("changed")]
+            if edited:
+                entry = "edited " + ", ".join(
+                    f"{item.get('path')} (+{item.get('added', 0)} -{item.get('removed', 0)})"
+                    for item in edited
+                )
+                for item in edited:
+                    self._note_file(str(item.get("path")), "edited")
                 self.tested_after_edit = False
                 self.edits_made = True
             else:
-                entry = f"edit of {path} changed nothing"
+                entry = f"edit of {path or 'the patch'} changed nothing"
         elif tool == "test":
             counts = data.get("counts") or {}
             shown = ", ".join(f"{v} {k}" for k, v in counts.items() if v)
