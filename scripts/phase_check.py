@@ -1926,12 +1926,13 @@ def _p11_progress() -> tuple[bool, str]:
 DEV_SUITE = "bench/suites/dev.yaml"
 
 
-@check(12, "decision and research: ADRs 0037 to 0040, and the Ollama context finding")
+@check(12, "decision and research: ADRs 0037 to 0041, and the Ollama context finding")
 def _p12_decision() -> tuple[bool, str]:
     adr = read("docs/decisions/0037-launch-readiness.md")
     edits = read("docs/decisions/0038-edit-shapes.md")
     table = read("docs/decisions/0039-readme-results-table.md")
     uncached = read("docs/decisions/0040-c025-uncached-against-frontier.md")
+    withdrawn = read("docs/decisions/0041-claims-withdrawn-after-phase-12.md")
     research = section(read("docs/RESEARCH.md"), "Verified during Phase 12")
     return combine(
         (bool(adr), "docs/decisions/0037-launch-readiness.md missing"),
@@ -1939,6 +1940,7 @@ def _p12_decision() -> tuple[bool, str]:
         (bool(edits), "docs/decisions/0038-edit-shapes.md missing"),
         (bool(table), "docs/decisions/0039-readme-results-table.md missing"),
         ("C-025" in uncached, "ADR 0040 does not register C-025"),
+        ("withdrawn" in withdrawn, "ADR 0041 records no withdrawn claim"),
         ("num_ctx" in research, "RESEARCH.md has no Phase 12 notes on the Ollama context"),
         ("Begin Patch" in research, "RESEARCH.md has no Phase 12 notes on the patch format"),
     )

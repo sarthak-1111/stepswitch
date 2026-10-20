@@ -4,6 +4,111 @@ Newest phase first. Each phase records what was done, what research changed, ope
 actions that only the maintainer can take. Phase checks: `uv run python scripts/phase_check.py N`
 (one phase) or `--upto N` (phases 0 to N).
 
+## Phase 12: Launch readiness
+
+Status: done on 2026-10-20. `scripts/phase_check.py 12` passes 8 of 8 checks. `uv run pytest
+-q`: 2108 passed, 9 skipped (C-016 pending CI, the three withdrawn claims, and five tests that
+need ripgrep, POSIX file modes, the live model hub or a small model on a local Ollama).
+`ssw prove --quick` (971 s): twenty-one claims passing, C-016 pending CI, and C-021, C-024 and
+C-025 withdrawn (ADR 0041).
+
+This phase was added after Phase 11, at the maintainer's request to make the repository ready
+to publish (ADR 0037). It fixes what the Phase 11 logs showed, tunes on a new dev suite, and
+checks the result with one confirmatory run per local contestant on both mini suites, with the
+claims registered first and no reruns.
+
+### Done
+
+- **Integrity fixes (ADR 0037).**
+  - qwen2.5:32b on the workstation's Ollama answered nothing at `num_ctx` 32768, its default
+    there. Every Ollama request now carries the worker's context as `num_ctx`, and an Ollama
+    reply that is not complete is a model error.
+  - All 42 cross-family reviews of the Phase 11 router runs went to that model, and the agent
+    read each empty answer as an approval. A review that yields nothing usable is now recorded
+    as no review. The gates passed every Phase 11 run, so its pass rates stand, but no review
+    took place in them.
+  - `ssw bench run` sends each pool worker a canary request before the first task and stops
+    if one answers wrong. The comparison claims require a passing canary.
+- **Edit format version 2 (ADR 0038).** The edit tool takes the shapes the models sent:
+  begin-patch patches and unified diffs, old and new text, partial anchors, one edit at the
+  top level. Anchored edits keep their checks; text matches must be unique.
+- **Effort by difficulty (ADR 0037).** Plan and work effort follow the task's difficulty
+  band; work effort stays the same within a task and rises one level per escalation.
+- **Dev suite.** Six tasks (four general, two science) on repositories no mini suite uses,
+  for tuning only. Claims never read it.
+- **A patch is an edit.** The agent's work log read only the one-file edit shape, so after a
+  patch it never saw an edit, and a text answer after passing tests got a nudge turn instead
+  of finishing. With gpt-oss's chat template a new user turn drops the earlier reasoning,
+  which broke the prompt cache: on the dev suite that turn was 35% of the router's uncached
+  input.
+- **README results table (ADR 0039).** `ssw prove --render-readme` writes it after the
+  quickstart, from the evidence of passing claims (SPEC §24 updated). `ssw bench run` refuses
+  a results directory inside its work area, which is deleted after the run.
+- **Withdrawn claims (ADR 0041).** A claim can be withdrawn by an ADR. It keeps its entry,
+  tests and evidence, `ssw prove` never selects it, pytest skips its tests with the reason,
+  and the README lists it by id with a link to the decision (SPEC §18.1).
+
+### Dev runs (tuning only)
+
+Six tasks, two seeds, every contestant on the same task runs. Every run passed.
+
+| Run | Tokens/run | Uncached/run | Output/run | s/run |
+|---|---:|---:|---:|---:|
+| router, before the patch fix (`2026-10-20-dev-router`) | 23,868 | 8,224 | 1,321 | 40 |
+| router, after (`2026-10-20-dev-local`) | 19,678 | 5,759 | 1,296 | 38 |
+| Claude Code through `ssw proxy` (`2026-10-20-dev-local`) | 182,747 | 52,092 | 3,180 | 121 |
+| Claude Code, Sonnet 5.5 (`2026-10-20-dev-native`) | 68,870 | 7,786 | 1,169 | 13 |
+| Claude Code, Opus 5.5 (`2026-10-20-dev-native`) | 113,560 | 11,563 | 1,667 | 23 |
+
+The rule for an uncached claim against the frontier models was fixed before the native dev
+runs: at least 15% fewer than each. The router used 26.0% and 50.2% fewer, so C-025 was
+registered before the confirmatory run (ADR 0040).
+
+### Confirmatory runs
+
+`bench/results/2026-10-20-mini-general-confirmatory` and `...-mini-science-confirmatory`:
+the router and Claude Code through `ssw proxy`, both suites, two seeds, the pool of Phase 11
+(gpt-oss:120b and qwen2.5:32b on this workstation's Ollama), every canary passed. The
+baselines are the native runs of Phase 11 (ADR 0037).
+
+| Contestant | Passed | Tokens/run | Uncached/run | s/run |
+|---|---:|---:|---:|---:|
+| router, local models | 41/42 | 24,793 | 7,049 | 41.3 |
+| Claude Code through `ssw proxy`, local models | 42/42 | 173,130 | 48,200 | 165.5 |
+| Claude Code, Sonnet 5.5 (Phase 11) | 42/42 | 73,390 | 7,798 | 16.8 |
+| Claude Code, Opus 5.5 (Phase 11) | 42/42 | 93,920 | 9,386 | 21.1 |
+
+- The router's tokens were 66.2% fewer than Claude Code's on Sonnet 5.5 and 73.6% fewer than
+  on Opus 5.5, and 85.7% fewer than through `ssw proxy` on the same models. Its uncached
+  tokens were 9.6% fewer than on Sonnet 5.5 (95% interval: 11.8% more to 27.1% fewer), 24.9%
+  fewer than on Opus 5.5 (4.1% to 42.4%) and 85.4% fewer than through `ssw proxy`.
+- Against Phase 11's router rerun, tokens per task run fell from 42,081 to 24,793, uncached
+  tokens from 9,540 to 7,049, and wall time from a mean of 85.5 s to 41.3 s (median 86.9 s to
+  32.3 s), with a working reviewer this time.
+- The failed run (`mini-science/vectorize-gaussian-sum`, seed 1) was no infrastructure
+  error. The model's first patch replaced the whole function correctly, but its removed lines
+  dropped a trailing comma from one parameter line. The refusal listed the file's lines
+  without saying which one differed, the model sent the same copy nine more times (later with
+  the read view's hash prefixes in the patch), and the agent stopped as stuck.
+- **Claims:** C-022 and C-023 pass. C-021 and C-024 fail on the pass count, by that one task
+  run, and C-025 fails for Sonnet 5.5. All three are withdrawn by ADR 0041, neither narrowed
+  nor rerun. The README results table shows every contestant's passes, tokens and time.
+
+### Open issues
+
+- **Edit refusals.** The refusal of a patch should name the closest match and the line that
+  differs; a unique near-match that differs only in removed lines could be accepted with a
+  note; valid hash prefixes in patch lines could be stripped (ADR 0041). Tune on the dev
+  suite first.
+- **Time.** The router is still slower than Claude Code on hosted models: 0.7 against 0.3 to
+  0.4 minutes per task run on these suites.
+- **The mini suites are saturated.** Every contestant passes almost every task run, so they
+  cannot separate agents. Phase 13 adds a public benchmark.
+- The README's "leaderboard image" note under Phase 10 is superseded by the results table
+  (ADR 0039).
+- As before: the public repository and CI for C-016, the package index and the first tag are
+  maintainer actions (Phase 10).
+
 ## Phase 11: Frontier comparison
 
 Status: done on 2026-10-20. `scripts/phase_check.py 11` passes 6 of 6 checks.

@@ -4113,3 +4113,18 @@ hunk that matches more than once instead of taking the first match. It accepts a
 sentinel, and after a looser match it gives the added lines the file's indentation. A hunk with
 only added lines goes after its `@@` line, as the Python code puts it, or at the end of the
 file without one, as the Rust code does. `*** End of File` falls back as in the Python code.
+
+### gpt-oss on Ollama: a new user turn costs the prompt cache (0.34.4, observed 2026-10-20)
+
+Observed from the server's own counters (`prompt_eval_count` and the cached share the client
+derives from it), not from reading the chat template:
+
+- Within one tool-calling chain, each request of the router's dev runs found all but the newest
+  tool result in the server's prompt cache.
+- When a user message followed earlier assistant turns, the next request was shorter than the
+  one before (about 300 to 600 tokens), and the cache matched only the system prompt and the
+  first user message (about 1,000 tokens): the rendered prompt no longer carries the earlier
+  turns' reasoning, so it differs from the cached prefix at the first assistant turn.
+- In the dev runs before the fix (`bench/results/2026-10-20-dev-router`) one such turn per task
+  run, the nudge after a text answer, made 35% of the router's uncached input. The agent now
+  avoids that turn when the tests passed after an edit (ADR 0024, ADR 0038 bookkeeping fix).

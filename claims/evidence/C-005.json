@@ -8,7 +8,7 @@
   },
   "command": "uv run ssw prove --full --claim C-005",
   "mode": "quick",
-  "source_digest": "d610d446de2b7cfad7cc09c649cbc5eb142026619c4ff16944eff403ca0625b4",
+  "source_digest": "1a1889373b3089574c3f3bc6d4338676861782dd30108d96dfe61ec82710bba1",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -20,10 +20,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-19T23:48:42+00:00",
+  "updated": "2026-10-20T06:00:13+00:00",
   "sections": {
     "fallback": {
-      "recorded": "2026-10-19T23:47:33+00:00",
+      "recorded": "2026-10-20T06:00:13+00:00",
       "model": "phi-3.5-mini-instruct",
       "registry_tool_calls": "none",
       "worker": {
@@ -117,7 +117,7 @@
       ]
     },
     "matrix": {
-      "recorded": "2026-10-19T23:48:42+00:00",
+      "recorded": "2026-10-20T06:00:13+00:00",
       "ci_set": [
         "qwen3-4b-instruct-2507",
         "phi-3.5-mini-instruct",
