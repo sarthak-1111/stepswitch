@@ -108,6 +108,22 @@ server and the same instances, the difference between the two is the orchestrato
    before its grade has no result, so it starts again, and its saved prediction is dropped.
    The containers of a run carry a label with its directory's name; a resumption removes the
    ones still there, whose agent would otherwise keep calling the model server.
+10. **The confirmatory run, registered before it starts.** One seed of each contestant on the
+    50 Mini instances, on gpt-oss:120b on this workstation's model server.
+    - Stepswitch: `router` with that one model, `--max-steps 100 --budget-seconds 3600`, review
+      on. These are the settings of the dev runs. A higher step limit mostly adds tokens to
+      runs that have lost their way, and the dev runs did not show what it would win.
+    - mini-SWE-agent: item 2's configuration with its own limits: 250 steps, 60 s per command,
+      and an instance container that lives two hours.
+    - Claims C-026 to C-028, as registered. The evidence also gives each contestant's stop
+      reasons, and the tokens per instance on the instances that both resolved, which no step
+      limit shapes. The README table shows both.
+    - Dev runs, for tuning only: `bench/results/2026-10-20-swebench-dev` (both contestants,
+      mini-SWE-agent with its default configuration, the router before the fixes of item 7:
+      router 2 of 6 resolved, mini-SWE-agent 1 of 6), `...-swebench-dev-router` (the router
+      after them: 2 of 6, with 10 compactions instead of 28 and further on three of the four
+      it missed), and `2026-10-21-swebench-dev-check` (both contestants with these settings on
+      two instances).
 
 ## Consequences
 

@@ -62,6 +62,7 @@ yourself. `ssw prove --render-readme` writes this table from the evidence of pas
 | Instances resolved | — | — |
 | Tokens per instance, cached included | — | — |
 | Uncached tokens per instance | — | — |
+| Tokens per instance that both resolved, cached included | — | — |
 | Model calls per instance | — | — |
 | Minutes per instance | — | — |
 

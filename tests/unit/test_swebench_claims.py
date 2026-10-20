@@ -104,6 +104,8 @@ def test_the_comparison_leaves_out_gold_failures_and_infrastructure_errors(resul
     assert paired["mini_swe_agent_only"] == 0
     assert paired["stepswitch_only"] == ours["resolved"] - theirs["resolved"]
     assert paired["mcnemar_p"] < 0.05
+    assert paired["both_resolved_tokens"] == {"stepswitch": 51_000, "mini_swe_agent": 102_000}
+    assert ours["stop_reasons"] == {"done": 48}
     assert data["tokens"]["tokens"]["percent"] == 50.0
     assert data["tokens"]["uncached"]["percent"] < 0  # more uncached tokens than mini-SWE-agent
     assert data["hosted_tokens"] == 0

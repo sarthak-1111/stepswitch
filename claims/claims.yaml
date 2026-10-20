@@ -122,6 +122,10 @@ results_tables:
         cells:
           - C-026:sections.swebench.results.stepswitch.per_instance.uncached_tokens
           - C-026:sections.swebench.results.mini_swe_agent.per_instance.uncached_tokens
+      - label: Tokens per instance that both resolved, cached included
+        cells:
+          - C-026:sections.swebench.paired.both_resolved_tokens.stepswitch
+          - C-026:sections.swebench.paired.both_resolved_tokens.mini_swe_agent
       - label: Model calls per instance
         digits: 1
         cells:

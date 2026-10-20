@@ -21,6 +21,7 @@ ratios carry cluster bootstrap intervals over instances, as in the frontier comp
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from statistics import median
@@ -174,8 +175,13 @@ def measured(comp: Swebench) -> dict[str, Any]:
             "median_minutes": round(median(r.get("wall_seconds") or 0 for r in rows) / 60, 1)
             if rows
             else None,
+            # How the runs ended: a limit, a submission, or a model server error.
+            "stop_reasons": dict(
+                sorted(Counter(str(r.get("stop_reason") or r.get("status")) for r in rows).items())
+            ),
         }
     ours, theirs = comp.resolved(OURS), comp.resolved(THEIRS)
+    both = [i for i in comp.instances if ours[i] and theirs[i]]
     only_ours = sum(ours[i] and not theirs[i] for i in comp.instances)
     only_theirs = sum(theirs[i] and not ours[i] for i in comp.instances)
     groups = [[float(ours[i]) - float(theirs[i])] for i in comp.instances]
@@ -193,6 +199,13 @@ def measured(comp: Swebench) -> dict[str, Any]:
             "method": difference.method,
         }
         if difference is not None
+        else None,
+        # Tokens where both resolved the instance: no step limit or give-up shapes these.
+        "both_resolved_tokens": {
+            role: round(_per_instance([comp.rows[role][i] for i in both], tokens))
+            for role in comp.roles
+        }
+        if both
         else None,
     }
     return {"results": results, "paired": paired}
