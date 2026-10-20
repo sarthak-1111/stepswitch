@@ -5,8 +5,9 @@ They run from day one and keep public text honest:
 1. Every claim has at least one test, and every claim test maps to a registered claim.
 2. Text inside ``<!-- claim:C-0xx -->`` markers in public docs matches claims.yaml exactly, and
    unmarked superlatives or comparatives fail the lint.
-3. Every number in the README is rendered from an evidence file, never typed by hand.
-4. The README claims section is generated and lists only passing claims.
+3. Every number in the README is rendered from an evidence file of a passing claim, never typed
+   by hand.
+4. The README claims section and results table are generated and show only passing claims.
 
 The lint helpers are also exercised against synthetic text at the end of this file, so the
 checks stay meaningful while the public docs are still nearly empty.
@@ -53,6 +54,7 @@ SPEC_CLAIM_IDS = [f"C-{n:03d}" for n in range(1, 21)]
 CLAIM_SPAN_RE = re.compile(r"<!--\s*claim:(C-\d{3})\s*-->(.*?)<!--\s*/claim\s*-->", re.S)
 NUM_SPAN_RE = re.compile(r"<!--\s*num:(C-\d{3}):([A-Za-z0-9_.]+)\s*-->(.*?)<!--\s*/num\s*-->", re.S)
 CLAIMS_SECTION_RE = re.compile(r"<!--\s*claims:start\s*-->(.*?)<!--\s*claims:end\s*-->", re.S)
+RESULTS_SECTION_RE = re.compile(r"<!--\s*results:start\s*-->.*?<!--\s*results:end\s*-->", re.S)
 FENCE_RE = re.compile(r"^(```|~~~).*?^\1[ \t]*$", re.S | re.M)
 INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
 HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
@@ -431,6 +433,45 @@ def test_readme_claims_section_is_generated_from_passing_claims(registry: Regist
     else:
         rendered = renderer(registry, EVIDENCE_DIR)
         assert section.group(0) == rendered, "run `ssw prove --render-readme`"
+
+
+def test_readme_numbers_come_from_passing_claims(registry: Registry) -> None:
+    claims = claims_by_id(registry)
+    for cid, key, _ in NUM_SPAN_RE.findall(README_PATH.read_text(encoding="utf-8")):
+        assert claims.get(cid, {}).get("status") == "passing", f"{cid}:{key}: claim not passing"
+
+
+def test_readme_results_spec(registry: Registry) -> None:
+    """The results table spec (ADR 0039): labels without hand-typed digits, one cell per column,
+    each naming a registered claim and an evidence key."""
+    spec = registry.get("results")
+    if spec is None:
+        return
+    claims = claims_by_id(registry)
+    assert set(spec) == {"columns", "rows"}, f"results: fields {sorted(spec)}"
+    assert spec["columns"] and spec["rows"]
+    for column in spec["columns"]:
+        assert column.strip() and "|" not in column, f"results column {column!r}"
+        assert not re.search(r"\d", INLINE_CODE_RE.sub(" ", column)), f"digits in {column!r}"
+    for row in spec["rows"]:
+        assert set(row) <= {"label", "unit", "digits", "cells"}, f"results row {row}"
+        assert row["label"].strip() and not re.search(r"[\d|]", row["label"]), row["label"]
+        assert row.get("digits", 0) in range(5), f"{row['label']}: digits"
+        assert len(row["cells"]) == len(spec["columns"]), f"{row['label']}: one cell per column"
+        for cell in row["cells"]:
+            cid, _, key = cell.partition(":")
+            assert cid in claims, f"{row['label']}: {cell} names no registered claim"
+            assert re.fullmatch(r"[A-Za-z0-9_.]+", key), f"{row['label']}: {cell} key"
+
+
+def test_readme_results_table_is_generated_from_passing_claims(registry: Registry) -> None:
+    if registry.get("results") is None:
+        return
+    section = RESULTS_SECTION_RE.search(README_PATH.read_text(encoding="utf-8"))
+    assert section, "README needs <!-- results:start --> / <!-- results:end --> markers"
+    module = importlib.import_module("stepswitch.prove.render_readme")
+    rendered = module.render_results_section(registry, EVIDENCE_DIR)
+    assert section.group(0) == rendered, "run `ssw prove --render-readme`"
 
 
 # --------------------------------------------------------------------------------------------

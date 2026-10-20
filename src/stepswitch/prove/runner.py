@@ -246,7 +246,7 @@ def run(
         if changed:
             echo(f"Updated claims.yaml: {', '.join(changed)}")
         if render_readme.update_readme(root):
-            echo("Regenerated the README claims section.")
+            echo("Regenerated the README claims section and results table.")
         echo(f"Wrote {REPORT_JSON} and {REPORT_MD}")
     summary = report["summary"]
     echo(

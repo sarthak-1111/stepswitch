@@ -1,7 +1,7 @@
 {
   "claim": "C-022",
   "text": "On the mini suites, Stepswitch processes fewer tokens per task than Claude Code on Sonnet 5.5 and on Opus 5.5, counting cached tokens, and sends none to a hosted model.",
-  "scope": "The runs of C-021. Tokens are input tokens with cached tokens included, plus output tokens; for a native run they are what its harness reports per model (ADR 0034). Registered first on uncached tokens, the claim failed there: Stepswitch used more uncached tokens than Claude Code on Sonnet 5.5, and as many as on Opus 5.5, because the hosted prompt cache served more of Claude Code's input (ADR 0036). The README shows that comparison beside this claim, and the evidence reports both measures.",
+  "scope": "The runs of C-021. Tokens are input tokens with cached tokens included, plus output tokens; for a native run they are what its harness reports per model (ADR 0034). Registered first on uncached tokens, the claim failed there: Stepswitch used more uncached tokens than Claude Code on Sonnet 5.5, and as many as on Opus 5.5 (ADR 0036). Its fresh input matched Claude Code's; its output tokens were the difference (ADR 0037). The README shows that comparison beside this claim, and the evidence reports both measures. Every compared run of a contestant on local models passed the bench's canary check (ADR 0037).",
   "thresholds": {
     "contestant": "router",
     "baselines": {
@@ -17,13 +17,14 @@
     "measure": "tokens",
     "significant": true,
     "hosted_tokens_max": 0,
+    "preflight": true,
     "min_seeds": 2,
     "max_excluded_share": 0.1,
     "confidence_level": 0.95
   },
   "command": "uv run ssw prove --claim C-022",
   "mode": "quick",
-  "source_digest": "d610d446de2b7cfad7cc09c649cbc5eb142026619c4ff16944eff403ca0625b4",
+  "source_digest": "ea5904526b5f036cc4cf1d1071316fb03f360272cfb74870871dba8366cfce38",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -35,10 +36,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-20T00:00:44+00:00",
+  "updated": "2026-10-20T02:24:39+00:00",
   "sections": {
     "comparison": {
-      "recorded": "2026-10-20T00:00:44+00:00",
+      "recorded": "2026-10-20T02:24:39+00:00",
       "confidence": 0.95,
       "measure": "tokens",
       "roles": {
@@ -65,6 +66,12 @@
       ],
       "task_runs": 42,
       "excluded": [],
+      "preflight": {
+        "router": {
+          "mini-general": {},
+          "mini-science": {}
+        }
+      },
       "hosted_tokens": 0,
       "totals": {
         "stepswitch": {
@@ -84,6 +91,26 @@
           "tokens": 3944626,
           "uncached_tokens": 394194,
           "hosted_tokens": 3944626
+        }
+      },
+      "per_task_run": {
+        "stepswitch": {
+          "tokens": 42081,
+          "uncached_tokens": 9540,
+          "hosted_tokens": 0,
+          "minutes": 1.4
+        },
+        "sonnet": {
+          "tokens": 73390,
+          "uncached_tokens": 7798,
+          "hosted_tokens": 73390,
+          "minutes": 0.3
+        },
+        "opus": {
+          "tokens": 93920,
+          "uncached_tokens": 9386,
+          "hosted_tokens": 93920,
+          "minutes": 0.4
         }
       },
       "sonnet": {
@@ -166,7 +193,10 @@
         },
         "uncached_more_percent": 1.6
       },
-      "problems": []
+      "problems": [
+        "router: run 2026-10-20-mini-general-router has no passing canary check (preflight)",
+        "router: run 2026-10-20-mini-science-router has no passing canary check (preflight)"
+      ]
     }
   }
 }

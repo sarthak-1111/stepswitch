@@ -848,7 +848,10 @@ def cmd_prove(
     ] = None,
     render_readme: Annotated[
         bool,
-        typer.Option("--render-readme", help="Regenerate the README claims section; run no tests."),
+        typer.Option(
+            "--render-readme",
+            help="Regenerate the README claims section and results table; run no tests.",
+        ),
     ] = False,
     check: Annotated[
         bool,
@@ -872,8 +875,11 @@ def cmd_prove(
         if render_readme:
             changed = readme.update_readme(root, check=check)
             if check and changed:
-                _fail("the README claims section is out of date; run `ssw prove --render-readme`")
-            typer.echo("README claims section is up to date." if not changed else "README updated.")
+                _fail(
+                    "the README claims section or results table is out of date;"
+                    " run `ssw prove --render-readme`"
+                )
+            typer.echo("README is up to date." if not changed else "README updated.")
             return
         report = runner.run(
             root,

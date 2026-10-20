@@ -780,9 +780,9 @@ only complete when every claim assigned to it (§18.5) is `passing` in `ssw prov
 
 - README, top to bottom: one-line pitch → demo GIF of a task where step badges visibly switch
   models (tiny → large → reviewer) with a live token counter → "claims verified: N/N" badge and
-  "Don't trust us, run `ssw prove`" → 60-second CPU-only quickstart → leaderboard image →
-  "run it on your own repo" → compatibility matrix link → how it works → feature comparison
-  table (features only) → roadmap.
+  "Don't trust us, run `ssw prove`" → 60-second CPU-only quickstart → results table, generated
+  from passing claims (ADR 0039) → "run it on your own repo" → compatibility matrix link → how
+  it works → feature comparison table (features only) → roadmap.
 - Quickstart must work CPU-only: `uv tool install stepswitch && ssw init && ssw run "..."`
   (the kickoff's command used the working name, whose package-index entry belongs to an
   unrelated project; ADR 0001). Current uv downloads Python 3.15 by

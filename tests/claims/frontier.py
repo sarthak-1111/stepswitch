@@ -334,7 +334,8 @@ def tokens_comparison(limits: Mapping[str, Any]) -> tuple[dict[str, Any], list[s
     baseline, over the shared task runs, significantly with the `significant` threshold, and
     sends at most `hosted_tokens_max` tokens to hosted models when that threshold is set. Both
     measures are reported whichever is claimed; `uncached_more_percent` is how many percent
-    more uncached tokens the Stepswitch contestant used (ADR 0036)."""
+    more uncached tokens the Stepswitch contestant used (ADR 0036). `per_task_run` holds each
+    contestant's means over the shared task runs, which the README results table shows."""
     confidence = float(limits.get("confidence_level", metrics.DEFAULT_CONFIDENCE))
     measure_name = str(limits["measure"])
     measure = MEASURES[measure_name]
@@ -362,12 +363,20 @@ def tokens_comparison(limits: Mapping[str, Any]) -> tuple[dict[str, Any], list[s
         report["hosted_tokens"] = check_hosted(comp, OURS, int(limits["hosted_tokens_max"]))
     for role in roles:
         rows = comp.rows[roles[role]]
-        report.setdefault("totals", {})[role] = {
-            "contestant": roles[role],
+        sums = {
             "tokens": sum(tokens(rows[key]) for key in comp.shared),
             "uncached_tokens": sum(uncached(rows[key]) for key in comp.shared),
             "hosted_tokens": sum(int(rows[key].get("hosted_tokens") or 0) for key in comp.shared),
         }
+        report.setdefault("totals", {})[role] = {"contestant": roles[role], **sums}
+        if comp.shared:
+            # Means over the shared task runs, for the README results table (ADR 0039).
+            n = len(comp.shared)
+            seconds = sum(float(rows[key].get("wall_seconds") or 0.0) for key in comp.shared)
+            report.setdefault("per_task_run", {})[role] = {
+                **{name: round(total / n) for name, total in sums.items()},
+                "minutes": round(seconds / n / 60, 1),
+            }
     for role in baselines:
         claimed = ratio(token_clusters(comp, role, measure), confidence)
         fewer_uncached = ratio(token_clusters(comp, role, uncached), confidence)

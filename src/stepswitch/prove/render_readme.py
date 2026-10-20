@@ -1,9 +1,13 @@
-"""The README claims section, generated from claims/claims.yaml (SPEC §18.3 item 4).
+"""The README claims section and results table, generated from claims/claims.yaml (SPEC §18.3).
 
 Only claims whose latest status is `passing` are listed, each with its exact registered wording
 inside claim markers and a link to its evidence file. A claim's `readme_numbers` add measured
 values after the link, each read from the claim's evidence file and wrapped in a `num` marker,
 so the integrity lint can check it against that file (SPEC §18.3 item 3, claim C-018).
+
+The results table (ADR 0039) is generated the same way from the registry's `results` spec: each
+cell names `<claim>:<evidence key>` and shows that value, in a `num` marker, only while the claim
+is passing and its evidence holds the key; any other cell shows a dash.
 """
 
 from __future__ import annotations
@@ -20,6 +24,10 @@ START = "<!-- claims:start -->"
 END = "<!-- claims:end -->"
 EMPTY = "_No claims verified yet._"
 SECTION_RE = re.compile(r"<!--\s*claims:start\s*-->.*?<!--\s*claims:end\s*-->", re.S)
+RESULTS_START = "<!-- results:start -->"
+RESULTS_END = "<!-- results:end -->"
+RESULTS_RE = re.compile(r"<!--\s*results:start\s*-->.*?<!--\s*results:end\s*-->", re.S)
+DASH = "—"
 
 
 def _evidence(evidence_dir: Path | None, claim_id: str) -> dict[str, Any]:
@@ -41,18 +49,24 @@ def _lookup(data: Mapping[str, Any], key: str) -> Any:
     return value
 
 
+def _number(claim_id: str, key: str, evidence: Mapping[str, Any], spec: Mapping[str, Any]) -> str:
+    """`<num marker>value</num> unit`, or "" when the evidence holds no number at `key`."""
+    value = _lookup(evidence, key)
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return ""
+    text = f"{value:,.{int(spec.get('digits', 0))}f}"
+    unit = f" {spec['unit']}" if spec.get("unit") else ""
+    return f"<!-- num:{claim_id}:{key} -->{text}<!-- /num -->{unit}"
+
+
 def _numbers(claim: Mapping[str, Any], evidence: Mapping[str, Any]) -> list[str]:
     """`label <num marker>value</num> unit` for each of the claim's README numbers that its
     evidence holds; numbers missing from the evidence are left out."""
     shown = []
     for spec in claim.get("readme_numbers") or []:
-        value = _lookup(evidence, spec["key"])
-        if isinstance(value, bool) or not isinstance(value, int | float):
-            continue
-        text = f"{value:,.{int(spec.get('digits', 0))}f}"
-        unit = f" {spec['unit']}" if spec.get("unit") else ""
-        marker = f"<!-- num:{claim['id']}:{spec['key']} -->{text}<!-- /num -->"
-        shown.append(f"{spec['label']} {marker}{unit}")
+        number = _number(claim["id"], spec["key"], evidence, spec)
+        if number:
+            shown.append(f"{spec['label']} {number}")
     return shown
 
 
@@ -73,19 +87,61 @@ def render_claims_section(registry: Mapping[str, Any], evidence_dir: Path | None
     return f"{START}\n{body}\n{END}"
 
 
-def rendered(root: Path) -> str:
-    """README.md as `update_readme` would write it now."""
-    text = (root / "README.md").read_text(encoding="utf-8")
-    match = SECTION_RE.search(text)
+def render_results_section(registry: Mapping[str, Any], evidence_dir: Path | None = None) -> str:
+    """The results table from the registry's `results` spec, both markers included."""
+    spec = registry["results"]
+    passing = {c["id"] for c in registry["claims"] if c.get("status") == "passing"}
+    sources: set[str] = set()
+    dashes = False
+    lines = [
+        "| | " + " | ".join(spec["columns"]) + " |",
+        "|---" * (len(spec["columns"]) + 1) + "|",
+    ]
+    for row in spec["rows"]:
+        cells = []
+        for cell in row["cells"]:
+            claim_id, _, key = cell.partition(":")
+            number = ""
+            if claim_id in passing:
+                number = _number(claim_id, key, _evidence(evidence_dir, claim_id), row)
+            if number:
+                sources.add(claim_id)
+            dashes = dashes or not number
+            cells.append(number or DASH)
+        lines.append(f"| {row['label']} | " + " | ".join(cells) + " |")
+    notes = []
+    if sources:
+        links = ", ".join(f"[{cid}](claims/evidence/{cid}.json)" for cid in sorted(sources))
+        notes.append(f"Evidence: {links}.")
+    if dashes:
+        notes.append(f"A {DASH} marks a value with no passing claim behind it.")
+    footer = "\n\n" + " ".join(notes) if notes else ""
+    return f"{RESULTS_START}\n" + "\n".join(lines) + f"{footer}\n{RESULTS_END}"
+
+
+def _replace(text: str, pattern: re.Pattern[str], section: str, markers: str) -> str:
+    match = pattern.search(text)
     if match is None:
-        raise ValueError(f"README.md has no {START} / {END} markers")
-    section = render_claims_section(claims_module.load(root), root / "claims" / "evidence")
+        raise ValueError(f"README.md has no {markers} markers")
     return text[: match.start()] + section + text[match.end() :]
 
 
+def rendered(root: Path) -> str:
+    """README.md as `update_readme` would write it now."""
+    text = (root / "README.md").read_text(encoding="utf-8")
+    registry = claims_module.load(root)
+    evidence_dir = root / "claims" / "evidence"
+    section = render_claims_section(registry, evidence_dir)
+    text = _replace(text, SECTION_RE, section, f"{START} / {END}")
+    if registry.get("results") is not None:
+        table = render_results_section(registry, evidence_dir)
+        text = _replace(text, RESULTS_RE, table, f"{RESULTS_START} / {RESULTS_END}")
+    return text
+
+
 def update_readme(root: Path, *, check: bool = False) -> bool:
-    """Rewrite the section in README.md from the registry and the evidence files. True when it
-    was (or would be) changed; with `check` the file is left alone."""
+    """Rewrite the generated sections of README.md from the registry and the evidence files.
+    True when the file was (or would be) changed; with `check` it is left alone."""
     readme = root / "README.md"
     current = readme.read_text(encoding="utf-8")
     updated = rendered(root)

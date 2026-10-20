@@ -55,6 +55,51 @@ lint:
     - '§\d+(\.\d+)*'
     - '\bv\d+(\.\d+)+\b'
 
+# The README results table (ADR 0039), written by `ssw prove --render-readme` between the
+# results markers. Each cell is `<claim>:<evidence key>` and shows that value only while the
+# claim is passing and its evidence holds the key; any other cell shows a dash. Labels hold no
+# digits outside code spans, so model IDs go in code spans.
+results:
+  columns:
+    - "Stepswitch, local models"
+    - "Claude Code through `ssw proxy`, local models"
+    - "Claude Code, `claude-sonnet-5-5`"
+    - "Claude Code, `claude-opus-5-5`"
+  rows:
+    - label: Task runs passed
+      unit: "%"
+      digits: 1
+      cells:
+        - C-021:sections.comparison.stepswitch.pass_rate_percent
+        - C-023:sections.comparison.stepswitch.pass_rate_percent
+        - C-021:sections.comparison.sonnet.pass_rate_percent
+        - C-021:sections.comparison.opus.pass_rate_percent
+    - label: Tokens per task run, cached included
+      cells:
+        - C-022:sections.comparison.per_task_run.stepswitch.tokens
+        - C-024:sections.comparison.per_task_run.proxy.tokens
+        - C-022:sections.comparison.per_task_run.sonnet.tokens
+        - C-022:sections.comparison.per_task_run.opus.tokens
+    - label: Uncached tokens per task run
+      cells:
+        - C-022:sections.comparison.per_task_run.stepswitch.uncached_tokens
+        - C-024:sections.comparison.per_task_run.proxy.uncached_tokens
+        - C-022:sections.comparison.per_task_run.sonnet.uncached_tokens
+        - C-022:sections.comparison.per_task_run.opus.uncached_tokens
+    - label: Tokens sent to hosted models per task run
+      cells:
+        - C-022:sections.comparison.per_task_run.stepswitch.hosted_tokens
+        - C-024:sections.comparison.per_task_run.proxy.hosted_tokens
+        - C-022:sections.comparison.per_task_run.sonnet.hosted_tokens
+        - C-022:sections.comparison.per_task_run.opus.hosted_tokens
+    - label: Minutes per task run
+      digits: 1
+      cells:
+        - C-022:sections.comparison.per_task_run.stepswitch.minutes
+        - C-024:sections.comparison.per_task_run.proxy.minutes
+        - C-022:sections.comparison.per_task_run.sonnet.minutes
+        - C-022:sections.comparison.per_task_run.opus.minutes
+
 claims:
   - id: C-001
     text: "Runs end to end on a CPU-only machine with 8 GB RAM."
@@ -474,7 +519,7 @@ claims:
       - {key: sections.comparison.opus.claimed.percent, label: fewer tokens than Claude Code on Opus, unit: "%", digits: 1}
       - {key: sections.comparison.sonnet.uncached_more_percent, label: more uncached tokens than Claude Code on Sonnet, unit: "%", digits: 1}
       - {key: sections.comparison.opus.uncached_more_percent, label: more uncached tokens than Claude Code on Opus, unit: "%", digits: 1}
-    status: passing
+    status: failing
 
   - id: C-023
     text: "On the mini suites, Claude Code through `ssw proxy` on local models passes as many task runs as Claude Code on Sonnet 5.5 and on Opus 5.5."

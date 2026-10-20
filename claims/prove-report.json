@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "mode": "quick",
-  "source_digest": "d610d446de2b7cfad7cc09c649cbc5eb142026619c4ff16944eff403ca0625b4",
-  "created": "2026-10-20T00:00:46+00:00",
-  "duration_s": 1038.06,
+  "source_digest": "ea5904526b5f036cc4cf1d1071316fb03f360272cfb74870871dba8366cfce38",
+  "created": "2026-10-20T02:24:39+00:00",
+  "duration_s": 1.88,
   "platform": {
     "os": "windows",
     "machine": "amd64",
@@ -15,209 +15,27 @@
     "image_version": null
   },
   "selection": {
-    "phase": 11,
-    "claims": [],
+    "phase": null,
+    "claims": [
+      "C-022"
+    ],
     "skip": []
   },
   "claims": {
-    "C-001": {
-      "status": "passing",
+    "C-022": {
+      "status": "failing",
       "tests": {
-        "tests/claims/test_c001_cpu_only_8gb.py::test_toy_task_runs_in_cpu_only_8gb_container": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-002": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c002_step_switching.py::test_single_task_switches_endpoints_with_logged_reasons": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-003": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c003_switch_cost.py::test_switch_iff_gain_exceeds_cost_plus_margin": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-004": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c004_api_formats.py::test_conformance_against_mock_servers": "passed",
-        "tests/claims/test_c004_api_formats.py::test_round_trip_preserves_messages_and_tool_calls": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-005": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c005_fallback.py::test_model_without_native_tools_completes_task_via_fallback": "passed",
-        "tests/claims/test_c005_matrix.py::test_probe_suite_passes_on_ci_model_set": "passed",
-        "tests/claims/test_c005_matrix.py::test_compatibility_matrix_generated_from_probe_results": "passed"
-      },
-      "parts": [
-        "fallback",
-        "matrix"
-      ],
-      "notes": {}
-    },
-    "C-006": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c006_offline.py::test_offline_flow_makes_only_local_connections": "passed",
-        "tests/claims/test_c006_offline.py::test_audit_log_matches_observed_connections": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-007": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c007_no_telemetry.py::test_default_flow_opens_no_outbound_connections": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-008": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c008_science_gate.py::test_mutations_above_tolerance_caught_below_not_flagged": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-009": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c009_protected_constants.py::test_protected_change_fails_without_allow_flag": "passed",
-        "tests/claims/test_c009_protected_constants.py::test_protected_change_passes_with_allow_flag": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-010": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c010_handoff.py::test_bench_handoffs_validate_and_fit_token_budget": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-011": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c011_token_savings.py::test_optimized_uses_fewer_tokens_at_same_pass_rate": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-012": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c012_best_of_n.py::test_best_of_n_matches_or_beats_best_single_worker": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-013": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c013_disagreement.py::test_ambiguous_tasks_flagged_unambiguous_not": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-014": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c014_replay.py::test_replay_reproduces_diffs_and_gate_results": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-015": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c015_learning_router.py::test_bandit_regret_below_random_and_fixed_policies": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-016": {
-      "status": "pending",
-      "tests": {
-        "tests/claims/test_c016_platforms.py::test_prove_quick_passed_on_linux_macos_windows": "skipped"
+        "tests/claims/test_c022_frontier_tokens.py::test_local_router_processes_fewer_tokens_than_claude_code": "failed"
       },
       "parts": [],
       "notes": {
-        "tests/claims/test_c016_platforms.py::test_prove_quick_passed_on_linux_macos_windows": "pending: no platform evidence yet; the CI workflow writes claims/evidence/C-016.json after `ssw prove --quick` ran on all three platforms"
+        "tests/claims/test_c022_frontier_tokens.py::test_local_router_processes_fewer_tokens_than_claude_code": "tests\\claims\\test_c022_frontier_tokens.py:28: AssertionError"
       }
-    },
-    "C-017": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c017_quickstart.py::test_install_to_first_task_under_five_minutes": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-018": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c018_readme_numbers.py::test_every_readme_number_has_evidence_and_command": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-019": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c019_token_accounting.py::test_ledger_matches_server_usage_within_one_percent": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-020": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c020_budgets.py::test_tiny_budgets_stop_with_status_and_bounded_overrun": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-021": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c021_frontier_parity.py::test_local_router_passes_as_many_task_runs_as_claude_code": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-022": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c022_frontier_tokens.py::test_local_router_processes_fewer_tokens_than_claude_code": "passed"
-      },
-      "parts": [],
-      "notes": {}
-    },
-    "C-023": {
-      "status": "passing",
-      "tests": {
-        "tests/claims/test_c023_harness_parity.py::test_claude_code_on_local_models_passes_as_many_task_runs": "passed"
-      },
-      "parts": [],
-      "notes": {}
     }
   },
   "summary": {
-    "pending": 1,
-    "passing": 22,
-    "failing": 0
+    "pending": 0,
+    "passing": 0,
+    "failing": 1
   }
 }

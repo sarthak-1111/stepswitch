@@ -130,6 +130,46 @@ def test_render_section_shows_numbers_from_evidence(tmp_path: Path) -> None:
     assert integrity.lint_readme_numbers(section, registry, evidence_dir)
 
 
+def test_results_table_shows_values_of_passing_claims_only(tmp_path: Path) -> None:
+    integrity = importlib.import_module("tests.claims.test_integrity")
+    registry = claims_module.load(ROOT)
+    for claim in registry["claims"]:
+        claim["status"] = "pending"
+    registry["claims"][0]["status"] = "passing"  # C-001
+    registry["results"] = {
+        "columns": ["Ours", "Theirs, `model-1-2`"],
+        "rows": [
+            {
+                "label": "Passed",
+                "unit": "%",
+                "digits": 1,
+                "cells": ["C-001:sections.run.rate", "C-002:sections.run.rate"],
+            },
+            {"label": "Tokens", "cells": ["C-001:sections.run.tokens", "C-001:sections.run.gone"]},
+        ],
+    }
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+    for cid in ("C-001", "C-002"):
+        data = {"sections": {"run": {"rate": 95.24, "tokens": 41872}}}
+        (evidence_dir / f"{cid}.json").write_text(json.dumps(data), encoding="utf-8")
+    table = render_readme.render_results_section(registry, evidence_dir)
+    lines = table.splitlines()
+    assert lines[0] == render_readme.RESULTS_START and lines[-1] == render_readme.RESULTS_END
+    assert lines[1] == "| | Ours | Theirs, `model-1-2` |" and lines[2] == "|---|---|---|"
+    dash = render_readme.DASH
+    assert lines[3] == (
+        f"| Passed | <!-- num:C-001:sections.run.rate -->95.2<!-- /num --> % | {dash} |"
+    )
+    assert (
+        lines[4]
+        == f"| Tokens | <!-- num:C-001:sections.run.tokens -->41,872<!-- /num --> | {dash} |"
+    )
+    assert "[C-001](claims/evidence/C-001.json)" in table and "C-002" not in table
+    assert not integrity.lint_readme_numbers(table, registry, evidence_dir)
+    assert not integrity.lint_public_text(table, registry)
+
+
 MINI_TESTS = """
 import pytest
 
