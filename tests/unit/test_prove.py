@@ -189,6 +189,14 @@ def test_results_table_shows_values_of_passing_claims_only(tmp_path: Path) -> No
     assert "[C-001](claims/evidence/C-001.json)" in table and "C-002" not in table
     assert not integrity.lint_readme_numbers(table, registry, evidence_dir)
     assert not integrity.lint_public_text(table, registry)
+    # A named table (ADR 0042) has its own markers and the same rules.
+    registry["results_tables"] = {"swebench": registry["results"]}
+    named = render_readme.render_results_section(registry, evidence_dir, "swebench")
+    start, end, pattern = render_readme.results_markers("swebench")
+    assert named.splitlines()[0] == start == "<!-- results:swebench:start -->"
+    assert named.splitlines()[-1] == end and named.splitlines()[1:-1] == lines[1:-1]
+    readme = f"before\n{start}\nold\n{end}\nafter"
+    assert pattern.sub(named, readme) == f"before\n{named}\nafter"
 
 
 MINI_TESTS = """

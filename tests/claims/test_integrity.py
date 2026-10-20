@@ -96,9 +96,9 @@ def spec_claim_texts(spec_path: Path = SPEC_PATH) -> dict[str, str]:
     return texts
 
 
-# The phases of scripts/phase_check.py: SPEC §23's ten, then the frontier comparison (ADR 0034)
-# and launch readiness (ADR 0037).
-MAX_PHASE = 12
+# The phases of scripts/phase_check.py: SPEC §23's ten, then the frontier comparison (ADR 0034),
+# launch readiness (ADR 0037) and the public benchmark (ADR 0042).
+MAX_PHASE = 13
 
 
 # --------------------------------------------------------------------------------------------
@@ -445,12 +445,23 @@ def test_readme_numbers_come_from_passing_claims(registry: Registry) -> None:
         assert claims.get(cid, {}).get("status") == "passing", f"{cid}:{key}: claim not passing"
 
 
+def _results_specs(registry: Registry) -> dict[str | None, Any]:
+    """The results table spec (None) and the named ones (ADR 0042)."""
+    specs: dict[str | None, Any] = {}
+    if registry.get("results") is not None:
+        specs[None] = registry["results"]
+    specs.update(registry.get("results_tables") or {})
+    return specs
+
+
 def test_readme_results_spec(registry: Registry) -> None:
-    """The results table spec (ADR 0039): labels without hand-typed digits, one cell per column,
-    each naming a registered claim and an evidence key."""
-    spec = registry.get("results")
-    if spec is None:
-        return
+    """The results table specs (ADR 0039, ADR 0042): labels without hand-typed digits, one cell
+    per column, each naming a registered claim and an evidence key."""
+    for spec in _results_specs(registry).values():
+        _check_results_spec(registry, spec)
+
+
+def _check_results_spec(registry: Registry, spec: Any) -> None:
     claims = claims_by_id(registry)
     assert set(spec) == {"columns", "rows"}, f"results: fields {sorted(spec)}"
     assert spec["columns"] and spec["rows"]
@@ -470,13 +481,14 @@ def test_readme_results_spec(registry: Registry) -> None:
 
 
 def test_readme_results_table_is_generated_from_passing_claims(registry: Registry) -> None:
-    if registry.get("results") is None:
-        return
-    section = RESULTS_SECTION_RE.search(README_PATH.read_text(encoding="utf-8"))
-    assert section, "README needs <!-- results:start --> / <!-- results:end --> markers"
     module = importlib.import_module("stepswitch.prove.render_readme")
-    rendered = module.render_results_section(registry, EVIDENCE_DIR)
-    assert section.group(0) == rendered, "run `ssw prove --render-readme`"
+    readme = README_PATH.read_text(encoding="utf-8")
+    for name in _results_specs(registry):
+        start, end, pattern = module.results_markers(name)
+        section = (RESULTS_SECTION_RE if name is None else pattern).search(readme)
+        assert section, f"README needs {start} / {end} markers"
+        rendered = module.render_results_section(registry, EVIDENCE_DIR, name)
+        assert section.group(0) == rendered, "run `ssw prove --render-readme`"
 
 
 # --------------------------------------------------------------------------------------------

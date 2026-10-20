@@ -101,6 +101,38 @@ results:
         - C-022:sections.comparison.per_task_run.sonnet.minutes
         - C-022:sections.comparison.per_task_run.opus.minutes
 
+results_tables:
+  # The SWE-bench Verified Mini table (ADR 0042), from the evidence of C-026.
+  swebench:
+    columns:
+      - "Stepswitch, `gpt-oss:120b`"
+      - "mini-SWE-agent, `gpt-oss:120b`"
+    rows:
+      - label: Instances resolved
+        unit: "%"
+        digits: 1
+        cells:
+          - C-026:sections.swebench.results.stepswitch.resolved_percent
+          - C-026:sections.swebench.results.mini_swe_agent.resolved_percent
+      - label: Tokens per instance, cached included
+        cells:
+          - C-026:sections.swebench.results.stepswitch.per_instance.tokens
+          - C-026:sections.swebench.results.mini_swe_agent.per_instance.tokens
+      - label: Uncached tokens per instance
+        cells:
+          - C-026:sections.swebench.results.stepswitch.per_instance.uncached_tokens
+          - C-026:sections.swebench.results.mini_swe_agent.per_instance.uncached_tokens
+      - label: Model calls per instance
+        digits: 1
+        cells:
+          - C-026:sections.swebench.results.stepswitch.per_instance.steps
+          - C-026:sections.swebench.results.mini_swe_agent.per_instance.steps
+      - label: Minutes per instance
+        digits: 1
+        cells:
+          - C-026:sections.swebench.results.stepswitch.per_instance.minutes
+          - C-026:sections.swebench.results.mini_swe_agent.per_instance.minutes
+
 claims:
   - id: C-001
     text: "Runs end to end on a CPU-only machine with 8 GB RAM."
@@ -628,3 +660,98 @@ claims:
       - {key: sections.comparison.sonnet.claimed.percent, label: fewer uncached tokens than Claude Code on Sonnet, unit: "%", digits: 1}
       - {key: sections.comparison.opus.claimed.percent, label: fewer uncached tokens than Claude Code on Opus, unit: "%", digits: 1}
     status: withdrawn
+
+  - id: C-026
+    text: "On SWE-bench Verified Mini, Stepswitch and mini-SWE-agent each ran once on the same local open-weight model, graded by the official SWE-bench harness, and sent no token to a hosted model."
+    scope: >-
+      The instances of SWE-bench Verified Mini (`bench/suites/swebench-verified-mini.yaml`), one
+      seed, on one workstation with gpt-oss-120b on a local model server (ADR 0042). Stepswitch
+      is the `router` contestant with a pool of that one model; mini-SWE-agent 2.4.6 runs with
+      its own SWE-bench configuration on the same endpoint. Each task runs in the instance's own
+      image and sees only the problem statement. The official harness (swebench 5.0.2) grades
+      Stepswitch's task branch and mini-SWE-agent's submission. Instances whose reference patch
+      did not resolve on the machine, or whose run hit an infrastructure error, are left out for
+      both and listed, at most a tenth of the suite. The test set ran once, after tuning on the
+      dev set, and each contestant's predictions are committed beside the results.
+    proof: >-
+      Bench evidence: the gold check and the one confirmatory run under bench/results, with a
+      graded run of each contestant on every compared instance, a passing canary check, and no
+      token sent to a hosted model.
+    kind: bench
+    phase: 13
+    tests:
+      - tests/claims/test_c026_swebench_graded.py::test_swebench_results_come_from_one_graded_run_of_each_contestant
+    thresholds:
+      suite: swebench-verified-mini
+      dataset: SWE-bench/SWE-bench_Verified
+      harness: "5.0.2"
+      model: gpt-oss:120b
+      preflight: true
+      hosted_tokens_max: 0
+      max_excluded_share: 0.1
+      confidence_level: 0.95
+    evidence: [claims/evidence/C-026.json]
+    readme_numbers:
+      - {key: sections.swebench.results.stepswitch.resolved_percent, label: Stepswitch resolved, unit: "%", digits: 1}
+      - {key: sections.swebench.results.mini_swe_agent.resolved_percent, label: mini-SWE-agent resolved, unit: "%", digits: 1}
+    status: pending
+
+  - id: C-027
+    text: "On SWE-bench Verified Mini, Stepswitch resolves at least as many instances as mini-SWE-agent with the same local model."
+    scope: >-
+      The runs of C-026, paired over the instances both are compared on, one seed. The claim
+      rests on the two counts; the evidence adds the discordant pairs, an exact McNemar test and
+      the difference's 95% interval. Stepswitch's prediction is its task branch whatever the
+      run's status (ADR 0042), and the evidence counts the resolved runs that ended as done.
+    proof: >-
+      Bench evidence: Stepswitch's resolved count over the compared instances is at least
+      mini-SWE-agent's.
+    kind: bench
+    phase: 13
+    tests:
+      - tests/claims/test_c027_swebench_resolved.py::test_stepswitch_resolves_at_least_as_many_instances_as_mini_swe_agent
+    thresholds:
+      suite: swebench-verified-mini
+      dataset: SWE-bench/SWE-bench_Verified
+      harness: "5.0.2"
+      model: gpt-oss:120b
+      preflight: true
+      hosted_tokens_max: 0
+      max_excluded_share: 0.1
+      confidence_level: 0.95
+      comparison: at_least_as_many
+    evidence: [claims/evidence/C-027.json]
+    readme_numbers:
+      - {key: sections.swebench.results.stepswitch.resolved, label: Stepswitch resolved, unit: instances}
+      - {key: sections.swebench.results.mini_swe_agent.resolved, label: mini-SWE-agent resolved, unit: instances}
+    status: pending
+
+  - id: C-028
+    text: "On SWE-bench Verified Mini, Stepswitch uses fewer tokens per instance than mini-SWE-agent with the same local model, counting cached tokens."
+    scope: >-
+      The runs of C-026. Tokens are input tokens with cached tokens included, plus output
+      tokens, as the model server reported them for each request; Stepswitch's review and brief
+      requests count. The evidence also gives uncached tokens: the input tokens the server did
+      not serve from its prompt cache, plus the output tokens (ADR 0028).
+    proof: >-
+      Bench evidence: the share of tokens Stepswitch used fewer over the compared instances,
+      with its 95% cluster-bootstrap interval over instances lying above zero.
+    kind: bench
+    phase: 13
+    tests:
+      - tests/claims/test_c028_swebench_tokens.py::test_stepswitch_uses_fewer_tokens_per_instance_than_mini_swe_agent
+    thresholds:
+      suite: swebench-verified-mini
+      dataset: SWE-bench/SWE-bench_Verified
+      harness: "5.0.2"
+      model: gpt-oss:120b
+      preflight: true
+      hosted_tokens_max: 0
+      max_excluded_share: 0.1
+      confidence_level: 0.95
+      measure: tokens
+      significant: true
+    evidence: [claims/evidence/C-028.json]
+    readme_numbers:
+      - {key: sections.swebench.tokens.tokens.percent, label: fewer tokens than mini-SWE-agent, unit: "%", digits: 1}
+    status: pending

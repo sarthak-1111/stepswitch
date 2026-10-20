@@ -9,7 +9,9 @@ Withdrawn claims (ADR 0041) are listed after them by id, with a link to the deci
 
 The results table (ADR 0039) is generated the same way from the registry's `results` spec: each
 cell names `<claim>:<evidence key>` and shows that value, in a `num` marker, only while the claim
-is passing and its evidence holds the key; any other cell shows a dash.
+is passing and its evidence holds the key; any other cell shows a dash. Further tables, named in
+the registry's `results_tables` (ADR 0042), go between `<!-- results:<name>:start -->` and
+`<!-- results:<name>:end -->`.
 """
 
 from __future__ import annotations
@@ -95,9 +97,25 @@ def render_claims_section(registry: Mapping[str, Any], evidence_dir: Path | None
     return f"{START}\n{body}\n{END}"
 
 
-def render_results_section(registry: Mapping[str, Any], evidence_dir: Path | None = None) -> str:
-    """The results table from the registry's `results` spec, both markers included."""
-    spec = registry["results"]
+def results_markers(name: str | None = None) -> tuple[str, str, re.Pattern[str]]:
+    """(start marker, end marker, section pattern) of the results table, or of a named one."""
+    if name is None:
+        return RESULTS_START, RESULTS_END, RESULTS_RE
+    tag = re.escape(name)
+    return (
+        f"<!-- results:{name}:start -->",
+        f"<!-- results:{name}:end -->",
+        re.compile(rf"<!--\s*results:{tag}:start\s*-->.*?<!--\s*results:{tag}:end\s*-->", re.S),
+    )
+
+
+def render_results_section(
+    registry: Mapping[str, Any], evidence_dir: Path | None = None, name: str | None = None
+) -> str:
+    """The results table from the registry's `results` spec, or from its `results_tables`
+    entry `name`, both markers included."""
+    spec = registry["results"] if name is None else registry["results_tables"][name]
+    start, end, _ = results_markers(name)
     passing = {c["id"] for c in registry["claims"] if c.get("status") == "passing"}
     sources: set[str] = set()
     dashes = False
@@ -124,7 +142,7 @@ def render_results_section(registry: Mapping[str, Any], evidence_dir: Path | Non
     if dashes:
         notes.append(f"A {DASH} marks a value with no passing claim behind it.")
     footer = "\n\n" + " ".join(notes) if notes else ""
-    return f"{RESULTS_START}\n" + "\n".join(lines) + f"{footer}\n{RESULTS_END}"
+    return f"{start}\n" + "\n".join(lines) + f"{footer}\n{end}"
 
 
 def _replace(text: str, pattern: re.Pattern[str], section: str, markers: str) -> str:
@@ -144,6 +162,10 @@ def rendered(root: Path) -> str:
     if registry.get("results") is not None:
         table = render_results_section(registry, evidence_dir)
         text = _replace(text, RESULTS_RE, table, f"{RESULTS_START} / {RESULTS_END}")
+    for name in registry.get("results_tables") or {}:
+        start, end, pattern = results_markers(name)
+        table = render_results_section(registry, evidence_dir, name)
+        text = _replace(text, pattern, table, f"{start} / {end}")
     return text
 
 

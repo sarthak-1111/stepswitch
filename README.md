@@ -47,6 +47,36 @@ ssw run "Fix the bug in add() in calc.py so that the tests pass."
 
 ## Results
 
+### SWE-bench Verified Mini
+
+Real issues from django and sphinx, from the published Mini subset of SWE-bench Verified, graded
+by the official SWE-bench harness, which runs tests that are hidden from the agents. Stepswitch and
+mini-SWE-agent ran on the same open-weight model, `gpt-oss:120b`, on one workstation, and each
+saw only the issue text. Each contestant's patches are committed beside the results under
+[bench/results](bench/results), in the harness's own format, so you can grade them again
+yourself. `ssw prove --render-readme` writes this table from the evidence of passing claims.
+
+<!-- results:swebench:start -->
+| | Stepswitch, `gpt-oss:120b` | mini-SWE-agent, `gpt-oss:120b` |
+|---|---|---|
+| Instances resolved | — | — |
+| Tokens per instance, cached included | — | — |
+| Uncached tokens per instance | — | — |
+| Model calls per instance | — | — |
+| Minutes per instance | — | — |
+
+A — marks a value with no passing claim behind it.
+<!-- results:swebench:end -->
+
+To run it yourself you need Docker and a model server:
+
+```sh
+ssw bench run --suite swebench-verified-mini --router-pool <endpoint>/<model> \
+  --workers "router,mini-swe-agent:<endpoint>/<model>"
+```
+
+### Mini bench suites
+
 Task runs on the mini bench suites: small bug fixes, features, refactors and numerical tasks in
 Python, not the hardest tasks. They were measured with `ssw bench` on one workstation, where the
 local models were `gpt-oss:120b` and `qwen2.5:32b` under Ollama. `ssw prove --render-readme`
