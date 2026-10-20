@@ -510,7 +510,7 @@ on by default): no code reuse and no adapter.
 | TK2 | Repo map | tree-sitter def/ref graph ranked by personalized PageRank, token-budgeted (default 2k); tags cached per file content hash (worktrees hold uncommitted edits); core grammars from pinned per-language wheels (offline), the language pack optional and prefetched. |
 | TK3 | Read dedup | content-hash cache; re-reading an unchanged file returns a short stub. |
 | TK4 | Tool-output distillation | outputs > 2k tokens summarized by T0, keeping error lines, file:line refs and numbers verbatim; raw output stored and retrievable. |
-| TK5 | Diff-only edits | hash-anchored or unified-diff edits; whole-file text only to create a file or replace one of at most 100 lines (ADR 0018). |
+| TK5 | Diff-only edits | hash-anchored edits, excerpt (old and new text) edits, or patches (unified diff or the `*** Begin Patch` format); whole-file text only to create a file or replace one of at most 100 lines (ADR 0018, ADR 0038). |
 | TK6 | Context pruning | drop superseded tool results; rolling structured summary at 60% of the budget. |
 | TK7 | Handoff briefs | HANDOFF v0.1 on model switches (§9). |
 | TK8 | Constrained decoding | JSON Schema or grammar constraints for classifier, router, reviewer, handoff, fallback tool protocol. |

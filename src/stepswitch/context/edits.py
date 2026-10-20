@@ -82,35 +82,54 @@ def line_hashes(lines: Sequence[str]) -> list[str]:
 
 @dataclass(frozen=True)
 class Anchor:
+    """A line by number and hash. Version 2 also holds a partial anchor until it is resolved
+    against the file (`resolve_anchor`): a bare hash has line 0, a bare line number hash ""."""
+
     line: int
     hash: str
 
+    @property
+    def partial(self) -> bool:
+        return not (self.line and self.hash)
+
     def __str__(self) -> str:
-        return f"{self.line}:{self.hash}"
+        return f"{self.line or '?'}:{self.hash or '?'}"
 
 
 _ANCHOR_RE = re.compile(rf"^\s*[Ll]?(\d+)\s*[:#]\s*([A-Za-z]{{{HASH_LEN}}})(?![A-Za-z])")
+# A bare hash, perhaps followed by the line as read shows it: "ab" or "ab|    return x".
+_HASH_RE = re.compile(rf"^\s*([A-Za-z]{{{HASH_LEN}}})\s*(?:\|.*)?$", re.S)
 
 
 def parse_anchor(value: Any, what: str = "anchor") -> Anchor:
-    """`"12:ab"`, `"12:ab|text..."`, `{"line": 12, "hash": "ab"}` (case-insensitive hash)."""
+    """`"12:ab"`, `"12:ab|text..."`, `{"line": 12, "hash": "ab"}` (case-insensitive hash).
+
+    Version 2 (ADR 0038): a bare hash `"ab"` or a bare line number `12` parses to a partial
+    anchor, which `resolve_anchor` completes or refuses against the file."""
     if isinstance(value, Anchor):
         return value
     if isinstance(value, Mapping):
         line, digest = value.get("line"), value.get("hash")
         if isinstance(line, str) and line.strip().isdigit():
             line = int(line)
-        if isinstance(line, int) and isinstance(digest, str):
+        if isinstance(line, int) and not isinstance(line, bool) and isinstance(digest, str):
             return parse_anchor(f"{line}:{digest}", what)
+        if line is not None and digest is None:
+            return parse_anchor(line, what)
+    if isinstance(value, bool):
+        raise EditError(f"{what} {value!r} is not an anchor: use `<line>:<hash>` as shown by read")
     if isinstance(value, int) or (isinstance(value, str) and value.strip().isdigit()):
-        raise EditError(
-            f"{what} {value} has no hash: copy the full anchor `<line>:<hash>` from read output, "
-            "for example 12:ab"
-        )
+        number = int(value)
+        if number < 1:
+            raise EditError(f"{what} {value}: lines are numbered from 1")
+        return Anchor(number, "")
     if isinstance(value, str):
         match = _ANCHOR_RE.match(value)
         if match:
             return Anchor(int(match.group(1)), match.group(2).lower())
+        bare = _HASH_RE.match(value)
+        if bare:
+            return Anchor(0, bare.group(1).lower())
     raise EditError(
         f"{what} {value!r} is not an anchor: use `<line>:<hash>` as shown by read, e.g. 12:ab"
     )
@@ -256,19 +275,52 @@ OP_ALIASES = {
     "insert_above": "insert_before",
     "insert": "insert",
 }
-START_KEYS = ("start", "from", "anchor", "line", "at", "begin", "start_anchor", "first")
-END_KEYS = ("end", "to", "until", "stop", "end_anchor", "last")
+START_KEYS = (
+    "start",
+    "from",
+    "anchor",
+    "line",
+    "at",
+    "begin",
+    "start_anchor",
+    "first",
+    "line_start",
+    "start_line",
+)
+END_KEYS = ("end", "to", "until", "stop", "end_anchor", "last", "line_end", "end_line")
 TEXT_KEYS = ("text", "content", "new_text", "replacement", "code", "lines", "new", "with")
 EXAMPLE = '{"op": "replace", "start": "12:ab", "end": "14:cd", "text": "new lines"}'
 
 
 @dataclass(frozen=True)
 class Op:
-    kind: str  # "replace", "delete", "insert_before" or "insert_after"
+    kind: str  # "replace", "delete", "insert_before", "insert_after", or "excerpt" (v2)
     start: Anchor
     end: Anchor
     lines: tuple[str, ...] = ()
     index: int = 0  # position in the request, for messages
+    # Version 2 (ADR 0038): an excerpt edit names its lines by their old text, and `start`
+    # is then only a hint; a delete may give how many lines it removes instead of `end`.
+    old: tuple[str, ...] | None = None
+    count: int | None = None
+
+
+NO_ANCHOR = Anchor(0, "")
+OLD_KEYS = ("old", "old_text", "old_string", "old_str", "search", "find", "original", "old_lines")
+NEW_KEYS: tuple[str, ...] = (
+    "new",
+    "new_text",
+    "new_string",
+    "new_str",
+    "replace",
+    "replacement",
+    "with",
+    "text",
+    "content",
+    "code",
+    "lines",
+    "insert",
+)
 
 
 def _first(data: Mapping[str, Any], keys: Sequence[str]) -> Any:
@@ -289,6 +341,57 @@ def _split_range(value: Any) -> tuple[Any, Any]:
     return value, None
 
 
+def _count(value: Any) -> int | None:
+    """A line count such as the 2 of `{"delete": 2, "line": 19}`."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int) and value >= 1:
+        return value
+    if isinstance(value, str) and value.strip().isdigit() and int(value) >= 1:
+        return int(value)
+    return None
+
+
+def _is_hash(value: Any) -> bool:
+    return isinstance(value, str) and bool(_HASH_RE.match(value))
+
+
+def _with_hash(start_raw: Any, digest: str) -> Any:
+    """A line number and a hash given apart (`{"hash": "cp", "line": 13}`, or
+    `{"delete": "pb", "line": 11}`) as one anchor; a hash alone as a bare hash."""
+    if isinstance(start_raw, int) and not isinstance(start_raw, bool):
+        return f"{start_raw}:{digest.strip()}"
+    if isinstance(start_raw, str) and start_raw.strip().isdigit():
+        return f"{start_raw.strip()}:{digest.strip()}"
+    return start_raw if start_raw is not None else digest
+
+
+def _parse_excerpt(
+    data: Mapping[str, Any], kind: str | None, start_raw: Any, label: str, index: int
+) -> Op | None:
+    """Version 2: an edit that names its lines by their old text (`old`/`new`, `search`/
+    `replace`, or `delete`/`insert` holding text). `start` or `line`, if given, is a hint."""
+    old_raw = _first(data, OLD_KEYS)
+    deleted = data.get("delete")
+    if old_raw is None and isinstance(deleted, str) and _count(deleted) is None:
+        old_raw = None if _is_hash(deleted) else deleted
+    if old_raw is None:
+        return None
+    new_raw = _first(data, NEW_KEYS)
+    if new_raw is None:
+        if kind != "delete":
+            raise EditError(
+                f"{label}: give `new`, the text that replaces `old`, or op delete to remove it"
+            )
+        new_raw = ""
+    old = tuple(text_lines(old_raw, f"{label} old text"))
+    if not old:
+        raise EditError(f"{label}: `old` is empty; to add lines, insert them at an anchor")
+    hint = parse_anchor(start_raw, f"{label} line") if start_raw is not None else NO_ANCHOR
+    new = tuple(text_lines(new_raw, f"{label} new text"))
+    return Op("excerpt", hint, hint, new, index, old=old)
+
+
 def parse_edit(raw: Any, index: int = 0) -> Op:
     label = f"edit {index + 1}"
     if not isinstance(raw, Mapping):
@@ -306,13 +409,57 @@ def parse_edit(raw: Any, index: int = 0) -> Op:
     if "range" in data and start_raw is None:
         start_raw, range_end = _split_range(data["range"])
         end_raw = end_raw if end_raw is not None else range_end
+    if _is_hash(data.get("hash")):
+        start_raw = _with_hash(start_raw, data["hash"])
+    if _is_hash(start_raw) and _count(data.get("line")) is not None:
+        start_raw = _with_hash(data["line"], start_raw)  # `{"anchor": "ml", "line": 15}`
+    excerpt = _parse_excerpt(data, kind, start_raw, label, index)
+    if excerpt is not None:
+        return excerpt
     text_raw = _first(data, TEXT_KEYS)
+    deleted = data.get("delete")
+    by_hash = isinstance(deleted, str) and _is_hash(deleted)
+    if isinstance(deleted, str) and by_hash:
+        start_raw = _with_hash(start_raw, deleted)  # `{"delete": "pb", "line": 11}`
+    count = _count(deleted) or (_count(data.get("count")) if kind == "delete" else None)
+    insert_raw = data.get("insert")
+    flagged = deleted is True  # `{"delete": true, "line": 18}`
+    if kind in (None, "delete", "replace") and (
+        flagged or ((count is not None or by_hash) and end_raw is None)
+    ):
+        # Version 2: `{"delete": 2, "line": 19}` removes two lines from line 19; with `insert`
+        # holding text, the new lines take their place.
+        if isinstance(insert_raw, str) and text_raw is None:
+            text_raw = insert_raw
+        kind = "replace" if text_raw is not None else "delete"
+    elif isinstance(insert_raw, str) and text_raw is None:
+        text_raw, count = insert_raw, None
+        kind = kind or "insert"
+    else:
+        count = None
     after, before = data.get("after"), data.get("before")
+    position = str(data.get("position") or data.get("where") or "").strip().lower()
+    if (
+        kind in (None, "insert")
+        and position in ("after", "below", "before", "above")
+        and after is None
+        and before is None
+        and start_raw is not None
+    ):
+        # `{"anchor": "gf", "insert": "...", "position": "after"}`
+        after, before = (start_raw, None) if position in ("after", "below") else (None, start_raw)
     if kind in (None, "insert"):
         if after is not None:
             kind = "insert_after"
         elif before is not None:
             kind = "insert_before"
+        elif kind == "insert" and start_raw is not None:
+            kind = "insert_before"  # version 2: inserting "at" a line puts the text before it
+        elif kind == "insert" and text_raw is not None:
+            # Version 2: no anchor. It can only go where the call's deletes remove one block of
+            # lines (`resolve_ops`); anywhere else it is refused there.
+            lines = tuple(text_lines(text_raw, f"{label} text"))
+            return Op("insert_in_place", NO_ANCHOR, NO_ANCHOR, lines, index)
         elif kind == "insert":
             raise EditError(f"{label}: insert needs `after` or `before` with an anchor")
         elif start_raw is not None and text_raw is not None:
@@ -330,17 +477,20 @@ def parse_edit(raw: Any, index: int = 0) -> Op:
         start = end = anchor
     else:
         if start_raw is None:
-            raise EditError(f"{label}: {kind} needs `start` (and `end` for several lines)")
+            raise EditError(
+                f"{label}: {kind} needs `start` (and `end` for several lines) with anchors from "
+                "read, or `old`: the exact lines it changes"
+            )
         start = parse_anchor(start_raw, f"{label} start")
         end = parse_anchor(end_raw, f"{label} end") if end_raw is not None else start
-        if end.line < start.line:
+        if not (start.partial or end.partial) and end.line < start.line:
             raise EditError(f"{label}: end {end} comes before start {start}")
     if kind == "delete":
-        return Op(kind, start, end, (), index)
+        return Op(kind, start, end, (), index, count=count)
     if text_raw is None:
         hint = " (use op delete to remove lines)" if kind == "replace" else ""
         raise EditError(f"{label}: {kind} needs `text`{hint}")
-    return Op(kind, start, end, tuple(text_lines(text_raw, f"{label} text")), index)
+    return Op(kind, start, end, tuple(text_lines(text_raw, f"{label} text")), index, count=count)
 
 
 def parse_edits(raw: Any) -> list[Op]:
@@ -386,6 +536,319 @@ def _stale(doc: TextDoc, hashes: list[str], anchor: Anchor, reason: str) -> Edit
     )
 
 
+def resolve_anchor(
+    doc: TextDoc, hashes: list[str], anchor: Anchor, seen: Seen | None, what: str = "anchor"
+) -> Anchor:
+    """Complete a version 2 partial anchor against the file, or refuse it.
+
+    A bare hash names the one line that has it now. A bare line number is taken only when the
+    toolbox showed that line at that number with the content it holds now: the model cannot
+    have counted from a stale copy."""
+    if not anchor.partial:
+        return anchor
+    total = len(doc.lines)
+    if not anchor.line:
+        found = [number for number, digest in enumerate(hashes, 1) if digest == anchor.hash]
+        if len(found) == 1:
+            return Anchor(found[0], anchor.hash)
+        if not found:
+            raise EditError(
+                f"{what} {anchor.hash!r} matches no line now: use `<line>:<hash>` as shown by "
+                "read, e.g. 12:ab"
+            )
+        rows = "\n".join(render(doc.lines, hashes, n, n) for n in found[:5])
+        raise EditError(f"{what} {anchor.hash!r} matches several lines; give the line too:\n{rows}")
+    if anchor.line > total:
+        raise _stale(doc, hashes, Anchor(anchor.line, "?"), f"the file has {total} lines")
+    digest = hashes[anchor.line - 1]
+    shown = seen.get((anchor.line, digest)) if seen is not None else None
+    if shown is not None and shown == _content(doc.lines[anchor.line - 1]):
+        return Anchor(anchor.line, digest)
+    row = render(doc.lines, hashes, anchor.line, anchor.line)
+    raise EditError(
+        f"{what} {anchor.line} has no hash, and line {anchor.line} was not shown to you as it "
+        f"is now: copy the full anchor `<line>:<hash>` from read output. Line {anchor.line} is "
+        f"now:\n{row}"
+    )
+
+
+def _indent(line: str) -> str:
+    return line[: len(line) - len(line.lstrip(" \t"))]
+
+
+# Typographic characters a model may write where the file has the ASCII ones. The last matching
+# level reads them as ASCII, as the reference patch tools do (docs/RESEARCH.md, Phase 12).
+_FOLD = str.maketrans(
+    {
+        **dict.fromkeys("‐‑‒–—―−", "-"),
+        **dict.fromkeys("‘’‚‛", "'"),
+        **dict.fromkeys("“”„‟", '"'),
+        **dict.fromkeys("            　", " "),
+    }
+)
+MATCH_LEVELS = 3  # exact, any indentation, any indentation and typographic punctuation
+
+
+def _matches(lines: Sequence[str], old: Sequence[str], *, level: int = 0) -> list[int]:
+    """1-based start lines where `old` matches as whole lines. Trailing whitespace never counts;
+    level 1 also ignores indentation, and level 2 also reads typographic dashes, quotes and
+    spaces as ASCII."""
+    size = len(old)
+
+    def key(text: str) -> str:
+        if level == 0:
+            return _content(text)
+        if level == 1:
+            return _content(text).lstrip(" \t")
+        return _content(text).translate(_FOLD).strip()
+
+    wanted = [key(line) for line in old]
+    return [
+        start + 1
+        for start in range(len(lines) - size + 1)
+        if all(key(lines[start + offset]) == wanted[offset] for offset in range(size))
+    ]
+
+
+def find_lines(lines: Sequence[str], old: Sequence[str], start: int = 0) -> tuple[list[int], int]:
+    """The 1-based start lines, at or after line `start + 1`, where `old` matches at the
+    strictest level that matches at all, and that level."""
+    for level in range(MATCH_LEVELS):
+        found = [start + n for n in _matches(lines[start:], old, level=level)]
+        if found:
+            return found, level
+    return [], 0
+
+
+def _reindent(file_lines: Sequence[str], old: Sequence[str], new: Sequence[str]) -> list[str]:
+    """New lines shifted by the indentation the file has and the excerpt lacked (or had too
+    much of), when every non-blank matched line differs by the same amount."""
+    deltas = set()
+    for have, gave in zip(file_lines, old, strict=True):
+        if not have.strip():
+            continue
+        have_ws, gave_ws = _indent(have), _indent(gave)
+        if have_ws.endswith(gave_ws):
+            deltas.add(("add", have_ws[: len(have_ws) - len(gave_ws)]))
+        elif gave_ws.endswith(have_ws):
+            deltas.add(("cut", gave_ws[: len(gave_ws) - len(have_ws)]))
+        else:
+            return []
+    if len(deltas) != 1:
+        return []
+    ((direction, prefix),) = deltas
+    if direction == "add":
+        return [prefix + line if line.strip() else line for line in new]
+    if all(line.startswith(prefix) or not line.strip() for line in new):
+        return [line[len(prefix) :] if line.strip() else line for line in new]
+    return []
+
+
+def _hint_line(hashes: list[str], anchor: Anchor) -> int | None:
+    """The line an excerpt's hint points at. A hint only chooses between matches of the old
+    text, so a bare line number or a stale hash is enough for it."""
+    if anchor == NO_ANCHOR:
+        return None
+    if anchor.line:
+        return anchor.line
+    found = [number for number, digest in enumerate(hashes, 1) if digest == anchor.hash]
+    return found[0] if len(found) == 1 else None
+
+
+def _closest(found: list[int], size: int, hint: int | None) -> list[int]:
+    """Of several matches `size` lines long, the ones nearest the hint line (all without one)."""
+    if hint is None or len(found) < 2:
+        return found
+    distance = {
+        start: 0
+        if start <= hint < start + size
+        else min(abs(hint - start), abs(hint - (start + size - 1)))
+        for start in found
+    }
+    best = min(distance.values())
+    return [start for start in found if distance[start] == best]
+
+
+def _word(char: str) -> bool:
+    return char.isalnum() or char == "_"
+
+
+def _inline_op(doc: TextDoc, hashes: list[str], op: Op, hint: int | None) -> Op | None:
+    """The excerpt as text inside lines, as a string replace finds it: it must occur once (or
+    once nearest the hint), and not start or end inside a word (`x = 1` is not found in
+    `max = 1`). The lines it touches are replaced by themselves with the text swapped."""
+    needle = "\n".join(op.old or ())
+    if not needle.strip():
+        return None
+    text = "\n".join(doc.lines)
+    starts: list[int] = []
+    at = text.find(needle)
+    while at != -1:
+        end = at + len(needle)
+        before = text[at - 1] if at else " "
+        after = text[end] if end < len(text) else " "
+        if not (_word(needle[0]) and _word(before)) and not (_word(needle[-1]) and _word(after)):
+            starts.append(at)
+        at = text.find(needle, at + 1)
+    if not starts:
+        return None
+    first_line = {at: text.count("\n", 0, at) + 1 for at in starts}
+    size = needle.count("\n") + 1
+    closest = _closest(sorted(set(first_line.values())), size, hint)
+    chosen = [at for at in starts if first_line[at] in closest]
+    if len(chosen) > 1:
+        label = f"edit {op.index + 1}"
+        rows = "\n...\n".join(
+            render(doc.lines, hashes, first_line[at], first_line[at] + size - 1)
+            for at in chosen[:4]
+        )
+        raise EditError(
+            f"{label}: the old text occurs {len(chosen)} times; give more of it, or `line` "
+            f"with one of these anchors. Nothing was changed.\n{rows}"
+        )
+    at = chosen[0]
+    end = at + len(needle)
+    first, last = first_line[at], text.count("\n", 0, end) + 1
+    line_start = text.rfind("\n", 0, at) + 1
+    line_end = text.find("\n", end)
+    line_end = len(text) if line_end == -1 else line_end
+    block = text[line_start:at] + "\n".join(op.lines) + text[end:line_end]
+    lines = tuple(block.split("\n")) if block else ()
+    anchors = Anchor(first, hashes[first - 1]), Anchor(last, hashes[last - 1])
+    return Op("replace", *anchors, lines, op.index, old=op.old)
+
+
+def _excerpt_op(doc: TextDoc, hashes: list[str], op: Op) -> Op:
+    """An excerpt edit as the replace of the lines its old text matches (ADR 0038): whole
+    lines exactly, else whole lines whatever their indentation (the new lines then get the
+    file's) and then also whatever their typographic punctuation, else text inside lines that
+    occurs once."""
+    label = f"edit {op.index + 1}"
+    old = list(op.old or ())
+    new = list(op.lines)
+    hint = _hint_line(hashes, op.start)
+    found, level = find_lines(doc.lines, old)
+    loose = level > 0
+    if not found:
+        inline = _inline_op(doc, hashes, op, hint)
+        if inline is not None:
+            return inline
+        first = old[0].strip()
+        near = [n for n, line in enumerate(doc.lines, 1) if first and line.strip() == first]
+        if near:
+            low, high = max(1, near[0] - 2), min(len(doc.lines), near[0] + len(old) + 1)
+        else:
+            low, high = 1, min(len(doc.lines), SMALL_FILE_LINES)
+        raise EditError(
+            f"{label}: the old text is not in the file. Copy it exactly from read output, "
+            f"indentation included. Nothing was changed. Lines {low}-{high} are now:\n"
+            f"{render(doc.lines, hashes, low, high)}"
+        )
+    if len(found) > 1:
+        closest = _closest(found, len(old), hint)
+        if len(closest) == 1:
+            found = closest
+        if len(found) > 1:
+            rows = "\n...\n".join(
+                render(doc.lines, hashes, start, start + len(old) - 1) for start in found[:4]
+            )
+            raise EditError(
+                f"{label}: the old text matches {len(found)} places; add a line of context, or "
+                f"give `line` with one of these anchors. Nothing was changed.\n{rows}"
+            )
+    start = found[0]
+    end = start + len(old) - 1
+    if loose:
+        shifted = _reindent(doc.lines[start - 1 : end], old, new)
+        if not shifted and new:
+            raise EditError(
+                f"{label}: the old text matches lines {start}-{end} only with other "
+                "indentation, and not by one consistent amount; copy those lines exactly. "
+                f"Nothing was changed.\n{render(doc.lines, hashes, start, end)}"
+            )
+        new = shifted
+    # `old` stays set: the lines were found by their current text, so `_validate` skips the
+    # shown-before check, which a two-letter hash collision could fail.
+    return Op(
+        "replace",
+        Anchor(start, hashes[start - 1]),
+        Anchor(end, hashes[end - 1]),
+        tuple(new),
+        op.index,
+        old=op.old,
+    )
+
+
+def resolve_ops(doc: TextDoc, ops: Sequence[Op], seen: Seen | None) -> list[Op]:
+    """Version 2 edits as anchored ones: partial anchors completed, excerpts located, line
+    counts turned into ends. Anchored edits pass through unchanged."""
+    hashes = line_hashes(doc.lines)
+    resolved: list[Op] = []
+    for op in ops:
+        label = f"edit {op.index + 1}"
+        if op.kind == "excerpt":
+            resolved.append(_excerpt_op(doc, hashes, op))
+            continue
+        if op.kind == "insert_in_place":
+            resolved.append(op)  # placed below, once the deletes are known
+            continue
+        start = resolve_anchor(doc, hashes, op.start, seen, f"{label} start")
+        end = (
+            start
+            if op.end == op.start
+            else resolve_anchor(doc, hashes, op.end, seen, f"{label} end")
+        )
+        if op.count is not None:
+            last = start.line + op.count - 1
+            if last > len(doc.lines):
+                raise EditError(
+                    f"{label}: {op.count} lines from line {start.line} run past the end of the "
+                    f"file ({len(doc.lines)} lines)"
+                )
+            end = Anchor(last, hashes[last - 1])
+        if end.line < start.line:
+            raise EditError(f"{label}: end {end} comes before start {start}")
+        resolved.append(Op(op.kind, start, end, op.lines, op.index))
+    return _place_inserts(resolved)
+
+
+def _place_inserts(ops: list[Op]) -> list[Op]:
+    """Version 2: an insert without an anchor goes where the call's deletes remove one block of
+    lines (`[{"delete": true, "line": 18}, ..., {"delete": true, "line": 24}, {"insert": ...}]`
+    replaces lines 18-24). Without such a block there is no place it could mean."""
+    floating = [op for op in ops if op.kind == "insert_in_place"]
+    if not floating:
+        return ops
+    deleted = sorted(
+        {n for op in ops if op.kind == "delete" for n in range(op.start.line, op.end.line + 1)}
+    )
+    if not deleted or deleted != list(range(deleted[0], deleted[-1] + 1)):
+        raise EditError(
+            f"edit {floating[0].index + 1}: insert needs `after` or `before` with an anchor"
+        )
+    first = next(op.start for op in ops if op.kind == "delete" and op.start.line == deleted[0])
+    return [
+        Op("insert_before", first, first, op.lines, op.index)
+        if op.kind == "insert_in_place"
+        else op
+        for op in ops
+    ]
+
+
+def _drop_covered_deletes(ops: list[Op]) -> list[Op]:
+    """Version 2: a delete of lines that a replace in the same call also changes adds nothing.
+    `[{"delete": true, "line": 15}, {"line": 15, "text": "..."}]` asks for one change."""
+    replaces = [op for op in ops if op.kind == "replace"]
+    return [
+        op
+        for op in ops
+        if not (
+            op.kind == "delete"
+            and any(r.start.line <= op.start.line and op.end.line <= r.end.line for r in replaces)
+        )
+    ]
+
+
 def _check(doc: TextDoc, hashes: list[str], anchor: Anchor, seen: Seen | None) -> None:
     total = len(doc.lines)
     if anchor.line < 1 or anchor.line > total:
@@ -402,9 +865,10 @@ def _check(doc: TextDoc, hashes: list[str], anchor: Anchor, seen: Seen | None) -
 def _validate(doc: TextDoc, ops: list[Op], seen: Seen | None) -> None:
     hashes = line_hashes(doc.lines)
     for op in ops:
-        _check(doc, hashes, op.start, seen)
+        shown = seen if op.old is None else None
+        _check(doc, hashes, op.start, shown)
         if op.end != op.start:
-            _check(doc, hashes, op.end, seen)
+            _check(doc, hashes, op.end, shown)
     ranges = sorted(
         (op for op in ops if op.kind in ("replace", "delete")), key=lambda op: op.start.line
     )
@@ -431,6 +895,7 @@ def apply_ops(
     doc: TextDoc, ops: list[Op], *, seen: Seen | None = None
 ) -> tuple[TextDoc, list[tuple[int, int]]]:
     """The edited document and the new-file line ranges each edit produced (validated first)."""
+    ops = _drop_covered_deletes(resolve_ops(doc, ops, seen))
     _validate(doc, ops, seen)
     newline = doc.newline
     inserts: dict[int, list[Op]] = defaultdict(list)  # gap index -> inserts, request order
@@ -605,11 +1070,20 @@ def edit_file(
     different content, the edit is refused even if the short hash happens to match.
     """
     display = display or path.name
+    # Version 2: the empty defaults models send beside the real argument are left out.
+    if edits in ([], {}, "") and text is not None:
+        edits = None
+    if edits is not None and isinstance(text, str) and not text.strip():
+        text = None
     if edits is not None and text is not None:
         raise EditError("give either `edits` (anchored changes) or `text` (whole file), not both")
+    exists = path.exists()
+    if create and exists and (edits is not None or (seen and text is not None)):
+        # Version 2: a stray `create` beside edits to an existing file, or `create` with the
+        # whole new content of a file the model has read (rewritten as `text` would be).
+        create = False
     if create and edits is not None:
         raise EditError("`create` takes `text` (the whole new file), not `edits`")
-    exists = path.exists()
     if create or (not exists and edits is None):
         if exists:
             raise EditError(

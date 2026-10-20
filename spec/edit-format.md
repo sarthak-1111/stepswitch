@@ -1,9 +1,10 @@
-# Edit format: hash-anchored line edits (version 1)
+# Edit format: hash-anchored line edits (version 2)
 
 This is the edit format of the built-in agent's `read` and `edit` tools (SPEC §12 item 1,
-SPEC §13 TK5). The implementation is `src/stepswitch/context/edits.py`, used by
-`src/stepswitch/workers/tools.py`. The tests in `tests/unit/test_context_edits.py` pin the
-golden values below.
+SPEC §13 TK5). The implementation is `src/stepswitch/context/edits.py` and, for patches,
+`src/stepswitch/context/patch.py`, used by `src/stepswitch/workers/tools.py`. The tests in
+`tests/unit/test_context_edits.py` pin the golden values below; `tests/unit/test_edit_shapes.py`
+covers the version 2 shapes (ADR 0038).
 
 Design goals:
 
@@ -13,6 +14,9 @@ Design goals:
 - Stale knowledge is caught per anchor. A refused edit changes nothing, and the error shows
   the current lines with fresh anchors, so the next call can succeed without another `read`.
 - Small models format JSON loosely, so common variants are accepted (section 4).
+- Models trained on other edit tools send old and new text, or a patch, whatever the tool's
+  description says. Version 2 accepts those where the change they ask for is not in doubt
+  (sections 4.2 to 4.4), and refuses with a precise message where it is.
 
 ## 1. Reading: anchored rows
 
@@ -103,32 +107,120 @@ one empty line. A list of strings is also accepted. CRLF inside `text` is read a
 **Whole files.**
 
 - `{"path": "new.py", "text": "...", "create": true}` creates a file. It is refused if the
-  file exists. Missing parent directories are created.
+  file exists and the model has not read it. Missing parent directories are created.
 - `{"path": "small.py", "text": "..."}` replaces an existing file of at most 100 lines. Larger
   files need anchored edits. SPEC TK5 rules out whole-file rewrites; this exception covers only
-  small files.
-- `edits` and `text` cannot be combined, and `create` takes only `text`.
+  small files. `create: true` with the whole content of a file the model has read is the same
+  rewrite (version 2).
+- `edits` and `text` cannot be combined. An empty `edits` (`[]`, `{}`, `""`) beside `text`, or
+  an empty `text` beside `edits`, is a default the model filled in and is left out (version 2).
+- `create` takes only `text`; beside `edits` to an existing file it is ignored (version 2).
+- `new` without `old` creates a missing file from it, and is refused for an existing file:
+  taking it as the whole file could wipe out the rest.
 
 ## 4. Accepted variants
 
+### 4.1 Anchored edits
+
 - Anchors: `"12:ab"`, `"12:AB"`, `"L12:ab"`, `"12#ab"`, a whole copied row `"12:ab|  text"`
-  (everything after `|` is ignored), and `{"line": 12, "hash": "ab"}`. A bare line number is
-  refused with a hint to copy the full anchor.
+  (everything after `|` is ignored), and `{"line": 12, "hash": "ab"}`.
+- Partial anchors (version 2). A bare hash `"ab"` (or `"ab|  text"`) names the one line that
+  has that hash now; a hash that matches no line or several is refused, and the error lists
+  the matches. A bare line number `12` is taken only when the toolbox showed line 12 with the
+  content it holds now; otherwise it is refused with that line's current anchor, so the model
+  cannot have counted from a stale copy. A hash and a line number given apart (`"hash"`, or a
+  bare-hash `anchor` beside a numeric `line`) are joined into one anchor.
 - Op key: `op`, `action`, `type` or `kind`. Op names are matched case-insensitively, with `-`
   and spaces read as `_`. Aliases:
   - `replace`: `replace_lines`, `replace_range`, `set`, `change`, `update`, `modify`, `edit`.
   - `delete`: `delete_lines`, `remove`, `del`, `cut`.
   - `insert_after`: `after`, `append`, `add_after`, `insert_below`.
   - `insert_before`: `before`, `prepend`, `add_before`, `insert_above`.
-- Start key: `start`, `from`, `anchor`, `line`, `at`, `begin`, `start_anchor` or `first`.
-- End key: `end`, `to`, `until`, `stop`, `end_anchor` or `last`.
+- Start key: `start`, `from`, `anchor`, `line`, `at`, `begin`, `start_anchor`, `first`,
+  `line_start` or `start_line`.
+- End key: `end`, `to`, `until`, `stop`, `end_anchor`, `last`, `line_end` or `end_line`.
 - `range`: `"12:ab-14:cd"`; `..`, `,` or an en dash also work as the separator. A two-item list
   works too.
 - Text key: `text`, `content`, `new_text`, `replacement`, `code`, `lines`, `new` or `with`.
-- `{"after": anchor, "text": ...}` and `{"before": anchor, "text": ...}` are inserts. An edit
-  with an anchor and text but no op is a `replace`. A plain `insert` needs `after` or
-  `before`.
-- `edits` can be a list, a single edit object, or a JSON string holding either.
+- `{"after": anchor, "text": ...}` and `{"before": anchor, "text": ...}` are inserts, and so is
+  an `insert` with `"position": "after"` (or `before`, `below`, `above`) and an anchor. An
+  `insert` at a line without a position goes before it. An edit with an anchor and text but no
+  op is a `replace`.
+- Deletes (version 2): `{"delete": 2, "line": 19}` removes two lines from line 19;
+  `{"delete": true, "line": 19}` removes line 19; `{"delete": "pb", "line": 11}` names line
+  11:pb. With text (`text`, or `insert` holding text) beside it, the new lines take the
+  removed lines' place.
+- In one call (version 2): a delete of lines that a `replace` also changes is dropped, and an
+  `insert` without an anchor goes where the call's deletes remove one contiguous block. Without
+  such a block it is refused.
+- `edits` can be a list, a single edit object, or a JSON string holding either. One edit can
+  also be given at the top level, beside `path`.
+
+### 4.2 Excerpt edits (version 2)
+
+An edit can name its lines by their old text instead of anchors:
+
+```json
+{"path": "src/app.py", "edits": [{"old": "    total = a - b", "new": "    total = a + b"}]}
+```
+
+- Old-text key: `old`, `old_text`, `old_string`, `old_str`, `search`, `find`, `original`,
+  `old_lines`, or `delete` holding text. New-text key: `new`, `new_text`, `new_string`,
+  `new_str`, `replace`, `replacement`, `with`, a text key, or `insert`.
+- The old text is looked for, in order: as whole lines exactly (trailing whitespace never
+  counts); as whole lines whatever their indentation, when the file's lines are indented by one
+  consistent amount more or less than the excerpt, and the new lines then get the same shift;
+  the same, also reading typographic dashes, quotes and spaces as ASCII; as text inside lines
+  that occurs once and does not start or end inside a word (`x = 1` is not found in
+  `max = 1`), the way a string replace finds it.
+- A match must be unique. A `start` or `line` given beside the old text is a hint that picks
+  the nearest of several matches. Otherwise several matches are refused, and the error shows
+  them with their anchors.
+- `old`/`new` can also be given at the top level, beside `path`.
+
+### 4.3 Patches (version 2)
+
+`{"patch": "..."}` (also `diff`, `patch_text`, `unified_diff`), or the whole argument string
+when it is a patch, holds a text patch. The tool names `apply_patch` and `applypatch` are
+aliases of `edit`. Two kinds are read:
+
+- The `*** Begin Patch` format: `*** Add File:`, `*** Update File:` (with hunks after `@@` or
+  `@@ <a line to find first>`, lines starting with a space, `-` or `+`, and an optional
+  `*** End of File`), `*** Delete File:`, ending with `*** End Patch`. The grammar and the
+  reference behaviour are in docs/RESEARCH.md (Phase 12).
+- Unified diffs: `--- a/<path>`, `+++ b/<path>`, `@@ -l,c +l,c @@`. The old start line is a
+  hint only; `--- /dev/null` adds a file.
+
+Hunks are found by their text, never by line numbers: context and `-` lines are the old text,
+context and `+` lines the new. The search moves forward through the file hunk after hunk, as in
+the reference tools, and an `@@ <line>` header starts it at that line. Matching is exact, then
+whatever the indentation, then also reading typographic dashes, quotes and spaces as ASCII, as
+the reference tools do; context lines keep the file's own text. Where Stepswitch differs:
+
+- A hunk whose old text matches more than once ahead of the search position is refused unless
+  an `@@ <line>` header or a unified line hint chooses; the reference tools take the first
+  match.
+- After a looser match the added lines get the file's indentation; the reference tools write
+  them as given.
+- A hunk with only added lines goes after its `@@` line, as in one reference, and at the end of
+  the file without one, as in the other (the two differ; docs/RESEARCH.md, Phase 12).
+- `*** End of File` prefers the match that ends the file and falls back to the hunk's match
+  elsewhere, as the Python reference does.
+- Deleting and moving files are refused: the edit tool changes content only. Adding a file
+  that exists is refused.
+- Lenient: blank lines around the patch, a heredoc wrapper, padded markers, CRLF, a missing
+  `*** Begin Patch` or `*** End Patch`, a missing `@@` before the first hunk, and a unified
+  `@@ -l,c +l,c @@` header inside the `*** Begin Patch` format.
+- A file named twice is changed by its second section as the first left it.
+- Every file is checked before any is written. A refused patch changes nothing.
+
+### 4.4 The call (version 2)
+
+- `path` may be left out when the edits fit exactly one file read so far: every full anchor
+  was shown for it, and every old text is in it now. The reply says where the edit went. A
+  partial anchor names no file, so it never stands in for `path`.
+- A missing `path` stands for the one file of its name, for anchored edits and for patches'
+  updated files, as for `read`.
 
 Anything else is refused with a short message that names the problem and, where it helps,
 shows an example.
@@ -137,8 +229,12 @@ shows an example.
 
 Nothing is written until every check passes:
 
-1. Each anchor's line exists, and its hash matches the line's current hash.
+1. Each anchor's line exists, and its hash matches the line's current hash. Partial anchors
+   are completed first (section 4.1), or refused.
 2. If the toolbox showed this `(line, hash)` pair, the line still holds the content it showed.
+   Lines found by their old text (sections 4.2 and 4.3) skip this check: their current text
+   was just matched, and a two-letter collision with an older read could only refuse them
+   wrongly.
 3. No two `replace`/`delete` ranges share a line. The error asks for one combined `replace`.
 4. No insert lands strictly inside a range that a `replace` or `delete` in the same call
    removes. Inserting before the range's first line or after its last line is fine.
@@ -213,3 +309,9 @@ This format was designed independently and shares no code with Oh My Pi. The dif
 Any change to the row syntax, the hash rule or the anchor grammar is a new version of this
 document. Update `HASH_LEN` and the related code in `edits.py` and the golden values in the
 tests in the same change.
+
+- Version 1 (Phase 2, ADR 0018): anchored edits, as above without the version 2 items.
+- Version 2 (Phase 12, ADR 0038): partial anchors, excerpt edits, patches, and the call-level
+  defaults marked "version 2" above. The row syntax and the hash rule are unchanged, so every
+  version 1 call means the same in version 2, except a bare line number, which version 1
+  refused and version 2 takes when the toolbox showed that line as it is now.

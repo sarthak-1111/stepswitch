@@ -31,6 +31,7 @@ from typing import Any
 
 from stepswitch.compat.ir import ToolSpec
 from stepswitch.context import edits as edit_format
+from stepswitch.context import patch as patch_format
 from stepswitch.context import proc
 from stepswitch.context.deny import DenyList
 from stepswitch.context.walk import (
@@ -93,8 +94,8 @@ _SPECS: dict[str, tuple[str, dict[str, Any], tuple[str, ...]]] = {
         ("action",),
     ),
     "edit": (
-        "Change a file with anchors from read. Or give `text` to create a file "
-        "(create: true) or rewrite a small one.",
+        "Change files: `edits` by read anchors or by `old`/`new` text, a `patch`, or `text` "
+        "for a new or small file.",
         {
             "path": _STR,
             "edits": {
@@ -109,14 +110,16 @@ _SPECS: dict[str, tuple[str, dict[str, Any], tuple[str, ...]]] = {
                         "start": _ANCHOR,
                         "end": _ANCHOR,
                         "text": _STR,
+                        "old": {"type": "string", "description": "exact lines to change"},
+                        "new": {"type": "string", "description": "the lines that replace old"},
                     },
-                    "required": ["op", "start"],
                 },
             },
             "text": _STR,
             "create": {"type": "boolean"},
+            "patch": {"type": "string", "description": "*** Begin Patch ... *** End Patch"},
         },
-        ("path",),
+        (),
     ),
     "run": (
         "Run a command in the repo root. No shell: no pipes, redirects or &&.",
@@ -154,6 +157,8 @@ TOOL_ALIASES = {
     "write": "edit",
     "write_file": "edit",
     "apply_edit": "edit",
+    "apply_patch": "edit",
+    "applypatch": "edit",
     "bash": "run",
     "shell": "run",
     "exec": "run",
@@ -193,9 +198,18 @@ _PARAMS: dict[str, dict[str, tuple[str, tuple[str, ...]]]] = {
     },
     "edit": {
         "path": ("str", _PATH_ALIASES),
-        "edits": ("any", ("changes", "ops", "operations", "edit", "patch")),
+        "edits": ("any", ("changes", "ops", "operations", "edit")),
+        "patch": ("str", ("diff", "patch_text", "unified_diff")),
+        # Version 2 (ADR 0038): one edit given at the top level, by old text or by anchors.
+        "old": ("str", ("old_text", "old_string", "old_str", "search", "find", "original")),
+        "new": ("any", ("new_string", "new_str", "replace", "replacement")),
+        "op": ("str", ("action", "operation")),
+        "start": ("any", ("anchor", "from", "line", "at", "start_line", "line_start")),
+        "end": ("any", ("to", "until", "end_line", "line_end")),
+        "after": ("any", ()),
+        "before": ("any", ()),
         "text": ("str", ("content", "contents", "new_text", "code", "file_text")),
-        "create": ("bool", ("new", "new_file", "create_file")),
+        "create": ("bool", ("new_file", "create_file")),
     },
     "run": {
         "command": ("command", ("cmd", "commandline", "command_line", "args", "argv", "shell")),
@@ -471,6 +485,8 @@ class Toolbox:
                         f"{tool}: arguments are not valid JSON ({exc.msg} at character "
                         f"{exc.pos}). Send one JSON object, for example {example}"
                     ) from exc
+            elif tool == "edit" and patch_format.looks_like_patch(text):
+                raw = {"patch": text}  # a patch sent as the whole argument
             else:
                 required = _SPECS[tool][2]
                 if len(required) != 1:
@@ -929,7 +945,40 @@ class Toolbox:
     # -- edit --------------------------------------------------------------------------------
 
     def _tool_edit(self, args: dict[str, Any]) -> ToolOutput:
+        if args.get("patch") is not None:
+            return self._tool_patch(str(args["patch"]))
+        new = args.pop("new", None)
+        if isinstance(new, bool):
+            args["create"] = args.get("create") or new  # `new: true` asks for a new file
+            new = None
+        old = args.pop("old", None)
+        single = {key: args.pop(key, None) for key in ("op", "start", "end", "after", "before")}
+        single = {key: value for key, value in single.items() if value is not None}
+        if old is not None and args.get("edits") is None:
+            # Version 2 (ADR 0038): one excerpt edit given at the top level.
+            replacement = new if new is not None else args.pop("text", None)
+            args["edits"] = [{"old": old, "new": replacement, **single}]
+            new = None
+        elif single and args.get("edits") is None and not args.get("create"):
+            # Version 2: one anchored edit given at the top level.
+            given = args.pop("text", None)
+            args["edits"] = [{**single, "text": given if given is not None else new}]
+            new = None
+        found = None
+        if args.get("path") is None and args.get("edits") is not None:
+            found = self._path_from_edits(args["edits"])
+            args["path"] = found
+        if args.get("path") is None:
+            raise ToolError(f"edit: missing `path`. Example: {_EXAMPLES['edit']}")
         path, rel = self.resolve(args["path"], must_exist=False)
+        if new is not None and args.get("edits") is None and args.get("text") is None:
+            if path.exists():
+                # Taking `new` alone as the whole file could wipe out the rest of it.
+                raise ToolError(
+                    f"edit: `new` needs `old`, the exact lines of {rel} it replaces. To rewrite "
+                    "the whole file, send it as `text`."
+                )
+            args["text"] = new if isinstance(new, str) else edit_format.text_lines(new)
         asked = None
         if args.get("edits") is not None and not args.get("create"):
             # Anchored edits change an existing file; a missing path stands for the one file
@@ -974,7 +1023,87 @@ class Toolbox:
             data["asked"] = asked
             note = f"[{asked} does not exist: the edit went to {rel}, the only file of that name]"
             text = f"{note}\n{text}"
+        if found is not None:
+            data["inferred_path"] = True
+            text = f"[no `path` was given: the edit went to {rel}, the file it matches]\n{text}"
         return ToolOutput(text, data=data, changed_files=changed)
+
+    def _path_from_edits(self, edits: Any) -> str | None:
+        """For edits sent without `path`: the one file they fit among those read so far. Full
+        anchors fit a file whose read output showed all of them; old text, a file that holds
+        it now. A partial anchor fits no file: it names no file by itself."""
+        try:
+            ops = edit_format.parse_edits(edits)
+        except edit_format.EditError:
+            return None
+        anchors = {(a.line, a.hash) for op in ops if op.old is None for a in (op.start, op.end)}
+        if any(not (line and digest) for line, digest in anchors):
+            return None
+        excerpts = ["\n".join(op.old) for op in ops if op.old is not None]
+        fits: list[str] = []
+        for rel, seen in self._seen.items():
+            if not seen or not anchors <= seen.keys():
+                continue
+            if excerpts:
+                try:
+                    current = (self.root / rel).read_text(encoding="utf-8").replace("\r\n", "\n")
+                except (OSError, UnicodeDecodeError):
+                    continue
+                if not all(excerpt in current for excerpt in excerpts):
+                    continue
+            fits.append(rel)
+        return fits[0] if len(fits) == 1 else None
+
+    def _tool_patch(self, text: str) -> ToolOutput:
+        """A patch in the `*** Begin Patch` format or a unified diff (ADR 0038): every file is
+        checked first, and a refused patch changes nothing."""
+        changes = patch_format.parse(text)
+        notes: list[str] = []
+
+        def resolve(raw: str, existing: bool) -> tuple[Path, str]:
+            path, rel = self.resolve(raw, must_exist=False)
+            only = self._only_named(path, rel) if existing else None
+            if only is not None:
+                notes.append(
+                    f"[{rel} does not exist: the patch went to {only[1]}, the only "
+                    "file of that name]"
+                )
+                path, rel = only
+            if path.is_dir():
+                raise ToolError(f"{rel} is a directory")
+            return path, rel
+
+        def seen_for(rel: str) -> edit_format.Seen:
+            return self._seen.setdefault(rel, {})
+
+        results = patch_format.write(patch_format.plan(changes, resolve), seen_for)
+        rows: list[str] = list(notes)
+        changed: list[str] = []
+        budget = max(1000, self.max_output_chars // (2 * max(1, len(results))))
+        for result in results:
+            if self._repo_map is not None:
+                self._repo_map.invalidate(result.path)
+            if result.created:
+                rows.append(f"created {result.path} ({result.total_lines} lines)\n{result.preview}")
+            elif not result.changed:
+                rows.append(f"no change: {result.path} already has that content")
+            else:
+                rows.append(
+                    f"edited {result.path}: +{result.added} -{result.removed} "
+                    f"(now {result.total_lines} lines)\n{bound(result.diff, budget)}\n"
+                    f"updated lines with fresh anchors:\n{result.preview}"
+                )
+            if result.changed:
+                changed.append(result.path)
+        data = {
+            "patch": True,
+            "files": [
+                {"path": r.path, "created": r.created, "added": r.added, "removed": r.removed}
+                for r in results
+            ],
+            "diff": "\n".join(r.diff for r in results if r.changed),
+        }
+        return ToolOutput("\n\n".join(rows), data=data, changed_files=changed)
 
     # -- run and test ------------------------------------------------------------------------
 

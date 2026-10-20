@@ -4032,3 +4032,84 @@ and https://code.claude.com/docs/en/memory.
   that protocol sends a `format` JSON Schema, so the reply is constrained to JSON.
 - Ollama reports these failures as a plain 500. Only the message tells them apart from other
   server errors.
+
+## Verified during Phase 12
+
+### Ollama native requests: `num_ctx`, and a model that stopped answering (0.34.4, checked 2026-10-20)
+
+Sources: plain `POST /api/chat` requests (`stream: false`, `options.num_predict` 40) to the
+workstation's local Ollama server, version from `GET /api/version`; the Ollama row in the
+table above for the request and reply fields.
+
+- qwen2.5:32b answered with a run of `@` characters at `num_ctx` 32768, which is the context
+  the server gave it when a request set none. At `num_ctx` 8192 and 16384 it answered normally
+  (a short greeting, `done: true`, `done_reason: "stop"`). gpt-oss:120b answered normally on
+  the same server throughout.
+- With a JSON Schema `format`, as the fallback tool protocol sends, the same model returned
+  HTTP 200 with `done: false` and empty content. Without a `format`, it returned HTTP 500 with
+  an error saying the token repeat limit was reached.
+- A non-streamed reply that is complete has `done: true` and a `done_reason`. A reply with
+  `done: false` is not a finished answer, so Stepswitch treats it as a model error (ADR 0037).
+- Setting `options.num_ctx` in a request chose the context for that request. This repeats the
+  rule already recorded above: set `num_ctx` explicitly and never assume the server's default.
+  The agent's requests had not set it (ADR 0037); from Phase 12 the worker's `context` from the
+  catalog is sent as `options.num_ctx` on every Ollama native request.
+
+### The `*** Begin Patch` format: two reference implementations (checked 2026-10-20)
+
+Sources:
+
+- https://github.com/openai/gpt-oss at commit 5681a6b6552635e7b29cde94a61ca6a7aee90ebd:
+  `gpt_oss/tools/apply_patch.py` (Python) and `gpt_oss/tools/apply_patch.md` (the tool
+  description given to the model).
+- https://github.com/openai/codex at commit 091008729d5572712ac08964a9602eb71cf31428:
+  `codex-rs/core/assets/tools/apply_patch.lark` (the grammar) and `codex-rs/apply-patch/src/`
+  (`parser.rs`, `file_update.rs`, `seek_sequence.rs`; Rust).
+
+Grammar (`apply_patch.lark`):
+
+```text
+start: begin_patch hunk+ end_patch
+begin_patch: "*** Begin Patch" LF
+end_patch: "*** End Patch" LF?
+hunk: add_hunk | delete_hunk | update_hunk
+add_hunk: "*** Add File: " filename LF add_line+
+delete_hunk: "*** Delete File: " filename LF
+update_hunk: "*** Update File: " filename LF change_move? change?
+add_line: "+" /(.*)/ LF
+change_move: "*** Move to: " filename LF
+change: (change_context | change_line)+ eof_line?
+change_context: ("@@" | "@@ " /(.+)/) LF
+change_line: ("+" | "-" | " ") /(.*)/ LF
+eof_line: "*** End of File" LF
+```
+
+Behaviour of the two implementations:
+
+- **Sentinels.** Both need `*** Begin Patch` first and `*** End Patch` last. The Rust parser
+  also accepts the patch inside a heredoc (`<<EOF`, `<<'EOF'` or `<<"EOF"` first, `EOF` last)
+  and trims the marker lines.
+- **Old and new text.** A hunk's old text is its context and `-` lines; its new text is its
+  context and `+` lines. Context lines stay as they are in the file; only the removed and
+  added lines change. Added lines are written as given.
+- **Matching.** The old text is matched as whole lines: exactly, then ignoring trailing
+  whitespace, then ignoring leading and trailing whitespace. The Rust one adds a fourth pass
+  that reads typographic dashes (U+2010 to U+2015, U+2212), quotes (U+2018 to U+201B,
+  U+201C to U+201F) and odd spaces (U+00A0, U+2002 to U+200A, U+202F, U+205F, U+3000) as
+  their ASCII forms.
+- **Search.** The search moves forward: each hunk is looked for after the end of the previous
+  one, and the first match wins. Neither checks for a second match. An `@@ <line>` header is
+  looked for first, and the hunk's old text after that line.
+- **`*** End of File`.** The Rust code searches only from the position where the old text
+  would end the file; the comment on it mentions a fallback that the code does not have. The
+  Python code tries the end first and then searches from the current position.
+- **Only added lines.** The Rust code appends them to the end of the file. The Python code
+  inserts them at the search position: after the `@@` line, or at the top of the file for a
+  first hunk without one.
+
+What Stepswitch takes (spec/edit-format.md §4.3, ADR 0038): the grammar, the forward search,
+the `@@` line, context lines kept from the file, and all four matching passes. It refuses a
+hunk that matches more than once instead of taking the first match. It accepts a missing
+sentinel, and after a looser match it gives the added lines the file's indentation. A hunk with
+only added lines goes after its `@@` line, as the Python code puts it, or at the end of the
+file without one, as the Rust code does. `*** End of File` falls back as in the Python code.

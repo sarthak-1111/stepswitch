@@ -62,10 +62,16 @@ def test_parse_anchor_forms() -> None:
     assert E.parse_anchor(" 12:AB|    return x") == E.Anchor(12, "ab")
     assert E.parse_anchor({"line": "7", "hash": "qz"}) == E.Anchor(7, "qz")
     assert E.parse_anchor("L3:xy") == E.Anchor(3, "xy")
-    with pytest.raises(E.EditError, match="has no hash"):
-        E.parse_anchor(12)
+    # Version 2 (ADR 0038): a bare line or hash parses to a partial anchor, which is completed
+    # or refused against the file (tests/unit/test_edit_shapes.py).
+    assert E.parse_anchor(12) == E.Anchor(12, "") and E.parse_anchor(12).partial
+    assert E.parse_anchor("ab") == E.Anchor(0, "ab") and str(E.parse_anchor("ab")) == "?:ab"
     with pytest.raises(E.EditError, match="not an anchor"):
         E.parse_anchor("12:abc")
+    with pytest.raises(E.EditError, match="not an anchor"):
+        E.parse_anchor(True)
+    with pytest.raises(E.EditError, match="numbered from 1"):
+        E.parse_anchor(0)
 
 
 # -- operations ----------------------------------------------------------------------------
