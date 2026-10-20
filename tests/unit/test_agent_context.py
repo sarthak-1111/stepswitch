@@ -272,6 +272,29 @@ def test_the_rolling_summary_replaces_old_turns_at_sixty_percent(tmp_path: Path)
     assert len(lines) == len(loop.handoffs)
 
 
+PASS = [read(name, start=start, end=start + 19) for name in "abc" for start in (1, 21, 41, 61)]
+EDIT_A = Action(tool="edit", arguments={"path": "a", "edits": []})
+
+
+def test_reading_again_after_a_compaction_is_progress(tmp_path: Path) -> None:
+    """The brief tells the worker to read a file again before editing it (ADR 0042)."""
+    script = sequence([*PASS, *PASS, EDIT_A, FINISH])
+    settings = ContextSettings(window_tokens=4096)
+    loop = build(tmp_path, [scripted("a/m", "t2", script)], FileToolbox(BIG), settings=settings)
+    assert loop.run().status == "done"
+    assert loop.compactions >= 2
+    assert sorted(set(loop.progress.counted.values())) == [1, 2]
+
+
+def test_a_third_pass_over_the_same_reads_is_stuck(tmp_path: Path) -> None:
+    script = sequence([*PASS, *PASS, *PASS, EDIT_A, FINISH])
+    settings = ContextSettings(window_tokens=4096)
+    loop = build(tmp_path, [scripted("a/m", "t2", script)], FileToolbox(BIG), settings=settings)
+    outcome = loop.run()
+    assert (outcome.status, outcome.stop_reason) == ("failed", "stuck")
+    assert max(loop.progress.counted.values()) == 2
+
+
 # ------------------------------------------------------------------------------------------
 # TK7: briefs on relays, escalation switches and failovers
 # ------------------------------------------------------------------------------------------

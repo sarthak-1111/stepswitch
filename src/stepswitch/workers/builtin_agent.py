@@ -47,6 +47,7 @@ import json
 import re
 import sys
 import time
+from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -90,6 +91,11 @@ __all__ = ["CONTROL_TOOLS", "TOOL_NAMES", "AgentLoop", "LoopOutcome"]
 
 # Consecutive work steps without progress (no new file read, search, edit or test outcome).
 STUCK_STEPS = 8
+# How often one read or search can count as progress: again after a compaction or a handoff
+# dropped its result, but a third pass over the same reads is going in circles (ADR 0042).
+PROGRESS_COUNTS = 2
+# Facts that a brief keeps (the files changed, the failing tests): seen again, they never count.
+LASTING_PROGRESS = ("edit:", "test:", "run:")
 # Consecutive text-only answers in work steps before the answer counts as `finish`.
 TEXT_ONLY_LIMIT = 2
 REVIEW_ROUNDS = 1
@@ -228,6 +234,29 @@ class LoopOutcome:
     verdict: dict[str, Any] | None = None
     review: dict[str, Any] | None = None
     detail: str = ""
+
+
+@dataclass
+class Progress:
+    """The facts that counted as progress, for stuck detection.
+
+    A compaction or a handoff takes the results of reads and searches out of the transcript,
+    and the brief tells the worker to read a file again before it edits it. So a read seen
+    again after one counts once more, up to `PROGRESS_COUNTS` times."""
+
+    counted: Counter[str] = field(default_factory=Counter)
+    shown: set[str] = field(default_factory=set)  # seen since the transcript last lost results
+
+    def see(self, key: str) -> bool:
+        """Note the fact `key`; whether it counts as progress."""
+        new = key not in self.shown and self.counted[key] < PROGRESS_COUNTS
+        self.shown.add(key)
+        if new:
+            self.counted[key] += 1
+        return new
+
+    def forget_results(self) -> None:
+        self.shown = {key for key in self.shown if key.startswith(LASTING_PROGRESS)}
 
 
 class _AuxModel:
@@ -369,6 +398,7 @@ class AgentLoop:
     effort_raised: int = 0
     compactions: int = 0
     relayed: bool = False
+    progress: Progress = field(default_factory=Progress)
     registry: PrefixRegistry = field(default_factory=PrefixRegistry)
     records: list[prune.ResultRecord] = field(default_factory=list)
     read_cache: dedup.ReadCache = field(default_factory=dedup.ReadCache)
@@ -1051,6 +1081,7 @@ class AgentLoop:
     def _reset_results(self) -> None:
         self.records = []
         self.read_cache.reset()
+        self.progress.forget_results()
         self.last_call = None
 
     def _handoff(
@@ -1105,6 +1136,7 @@ class AgentLoop:
             if record.index >= tail
         ]
         self.read_cache.reset()
+        self.progress.forget_results()
         self.compactions += 1
         self._record_brief(
             fitted,
@@ -1492,7 +1524,6 @@ class AgentLoop:
         failures_on_rung = 0
         review_rounds = 0
         idle = 0
-        seen_progress: set[str] = set()
         while True:
             limit = self._limit()
             if limit is not None:
@@ -1547,8 +1578,7 @@ class AgentLoop:
                     self._add_result(call, output, text, index, shaped)
                     self._log_tool(call, output)
                     key = self._progress_key(call, output)
-                    if key is not None and key not in seen_progress:
-                        seen_progress.add(key)
+                    if key is not None and self.progress.see(key):
                         idle = -1
                 if finish is not None:
                     try:

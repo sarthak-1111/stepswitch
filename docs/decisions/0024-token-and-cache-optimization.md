@@ -67,7 +67,9 @@ Research corrected three SPEC assumptions (docs/RESEARCH.md, "SPEC corrections")
      the project root `<project>` and the home directory `~`.
 6. **Compaction (TK6).**
    - At 60% of the transcript budget, the older turns are replaced by a brief. The budget is
-     min(32,768, the worker's context), and the latest exchange is kept verbatim.
+     min(32,768, the worker's context), and the latest exchange is kept verbatim. (Amended by
+     ADR 0042, item 7: when the budget is not configured, a worker with more than 65,536
+     tokens of context gets half of it, at most 65,536.)
    - Compaction briefs are recorded like switch briefs (reason `compaction`), so C-010 covers
      them as well.
    - Superseded results become one-line stubs, applied in batches of at least 800 tokens so

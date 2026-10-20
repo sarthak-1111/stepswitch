@@ -293,6 +293,25 @@ def test_grep_repo_map_and_search(box: T.Toolbox) -> None:
     assert "exact" not in box.execute("search", {"query": "class names for widgets"}).data
 
 
+def test_exact_matches_show_source_files_before_tests_and_prose(root: Path) -> None:
+    """A change log that names `add` on every line came first in file order (ADR 0042)."""
+    (root / "CHANGES").write_text("".join(f"* add: fix {i}\n" for i in range(40)), "utf-8")
+    (root / "tests").mkdir()
+    (root / "tests" / "test_calc.py").write_text("from pkg.calc import add\n", "utf-8")
+    found = T.Toolbox(root).execute("search", {"query": "add"})
+    lines = found.text.splitlines()
+    assert lines[0] == "exact matches of `add` (20 of 42, source files first):"
+    assert lines[1] == "pkg/calc.py:1: def add(a, b):"
+    assert lines[2] == "tests/test_calc.py:1: from pkg.calc import add"
+    assert lines[3].startswith("CHANGES:1: ")
+    assert [T._match_rank(p) for p in ("a/b.py", "tests/b.py", "src/b.test.ts", "b.md")] == [
+        0,
+        1,
+        1,
+        2,
+    ]
+
+
 class _RemoteEmbedder:
     local = False
 

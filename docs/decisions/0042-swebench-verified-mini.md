@@ -59,7 +59,9 @@ server and the same instances, the difference between the two is the orchestrato
    - The search index reads the repository map once per refresh (on django: 627 s to 9.6 s),
      skips translation catalogs and generated files, and takes a path scope. A query written as
      code gets exact matches first: definitions for `def name` or `class Name`, the text as
-     written for a fragment, every line naming a name otherwise.
+     written for a fragment, every line naming a name otherwise. They list source files first,
+     then tests, then everything else: in file order, sphinx's change logs filled all twenty
+     lines for a name the issue mentioned.
    - Failures that already happen at the base commit: after a failed run, the `test` tool and
      the test gates run the same command in a checkout of the base commit and list the failures
      found there apart. They never pass because of them: a task is often to fix a test that
@@ -75,6 +77,17 @@ server and the same instances, the difference between the two is the orchestrato
      differ there, or says that a hunk came before the previous one.
    - The repository hygiene scan removes URLs before allowed identifiers, and allows the
      provider prefix that mini-SWE-agent's model client needs for a chat-completions server.
+   - The transcript budget (amends ADR 0024, item 6). When `window_tokens` is not configured,
+     a worker with more than 65,536 tokens of context gets half of it, at most 65,536; every
+     other worker keeps min(32,768, its context). On the dev set, a 131,072-token model
+     compacted at about 20,000 tokens, every 12 to 15 steps on django and sphinx files, and read
+     the same ranges again after each brief.
+   - Stuck detection. A compaction or a handoff takes the earlier reads out of the transcript,
+     and the brief tells the worker to read a file again before it edits it, but a read with the
+     same arguments never counted as progress again: a dev run that went over the same file
+     ranges after its third compaction stopped as stuck. Such a read or search now counts once
+     more after a compaction or handoff; a third pass is still stuck, and edits, test results
+     and command outputs count only once.
 8. **Containers and volumes.** The bench names what it creates `ssw-swe-*`, and the harness
    names its grading containers `sweb.eval.<id>.<run id>`. The bench removes only those.
    Instance images stay, because pulling them again is slow.

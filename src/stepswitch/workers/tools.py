@@ -34,6 +34,7 @@ from stepswitch.context import edits as edit_format
 from stepswitch.context import patch as patch_format
 from stepswitch.context import proc
 from stepswitch.context.deny import DenyList
+from stepswitch.context.repomap import language_for
 from stepswitch.context.walk import (
     SKIP_DIRS,
     IgnoreMatcher,
@@ -314,6 +315,9 @@ _UNITTEST_HEADER = re.compile(r"^(?:FAIL|ERROR|UNEXPECTED SUCCESS): (\S+) \(([^)
 _UNITTEST_RULE = re.compile(r"^(?:=+|-+)$")
 LARGE_SUITE = 200  # test files; above it, `test` without a selector runs the impacted tests
 EXACT_MATCHES = 20  # lines that name a searched name, shown above the search results
+# Lines read to choose them: source files come first, then tests, then the rest (docs, change
+# logs, data). In file order, sphinx's change logs filled all 20 lines for a name (ADR 0042).
+EXACT_SCAN = 1000
 _NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 # A search for a definition: `def name`, `class Name(Base)`, `fn name<T>`, ...
 _DEFINITION_RE = re.compile(
@@ -323,6 +327,18 @@ _DEFINITION_RE = re.compile(
 _CODE_RE = re.compile(r"[()\[\]{}=:'\"]|\w\.\w|\w_\w")  # a query written as code, not prose
 _GREP_META = re.compile(r"[\\.^$|?*+()\[\]{}]")  # escaped, a fragment is matched as written
 TEST_DIRS = ("tests/", "test/")
+
+
+def _match_rank(path: str) -> int:
+    """0 for a source file, 1 for a test file, 2 for anything else."""
+    if language_for(path) is None:
+        return 2
+    parts = path.split("/")
+    name = parts[-1]
+    stem = name.rsplit(".", 1)[0]
+    in_tests = any(part in {"test", "tests"} for part in parts[:-1])
+    test = in_tests or name.startswith("test_") or stem.endswith(("_test", ".test", ".spec"))
+    return 1 if test else 0
 
 
 @dataclass
@@ -924,13 +940,17 @@ class Toolbox:
             data["path"] = scope
         exact = self._exact_matches(query, scope)
         if exact is not None:
-            label, matches = exact
+            label, matches, found = exact
             data["exact"] = [f"{m.path}:{m.line}" for m in matches]
             shown = "\n".join(f"{m.path}:{m.line}: {m.text.strip()}" for m in matches)
-            text = f"{label} ({len(matches)}):\n{shown}\n\n{text}"
+            count = str(len(matches))
+            if found > len(matches):
+                more = "+" if found >= EXACT_SCAN else ""
+                count = f"{len(matches)} of {found}{more}, source files first"
+            text = f"{label} ({count}):\n{shown}\n\n{text}"
         return ToolOutput(text, data=data)
 
-    def _exact_matches(self, query: str, scope: str) -> tuple[str, list[Any]] | None:
+    def _exact_matches(self, query: str, scope: str) -> tuple[str, list[Any], int] | None:
         """For a query that is code rather than a description, the lines that hold it: models
         often search where grep would serve them. `def name` or `class name` gives the
         definitions; a fragment (`call_command('flush'`) its text as written; a name, or the name
@@ -949,12 +969,14 @@ class Toolbox:
         if len(name) >= 3 and _NAME_RE.fullmatch(name):
             attempts.append((f"exact matches of `{name}`", rf"\b{name}\b"))
         for label, pattern in attempts:
-            matches = self._grep_lines(pattern, scope)
+            matches, found = self._grep_lines(pattern, scope)
             if matches:
-                return label, matches
+                return label, matches, found
         return None
 
-    def _grep_lines(self, pattern: str, scope: str) -> list[Any]:
+    def _grep_lines(self, pattern: str, scope: str) -> tuple[list[Any], int]:
+        """The first `EXACT_MATCHES` lines that match, source files first, and how many lines
+        matched (at most `EXACT_SCAN`)."""
         from stepswitch.context.search import SearchError, run_grep
 
         try:
@@ -962,11 +984,13 @@ class Toolbox:
                 self.root,
                 pattern,
                 path=scope if scope not in ("", ".") else None,
-                max_results=EXACT_MATCHES,
+                max_results=EXACT_SCAN,
             )
         except SearchError:
-            return []
-        return [m for m in report.matches if not self.denied(m.path)]
+            return [], 0
+        matches = [m for m in report.matches if not self.denied(m.path)]
+        matches.sort(key=lambda match: _match_rank(match.path))
+        return matches[:EXACT_MATCHES], len(matches)
 
     # -- lsp ---------------------------------------------------------------------------------
 

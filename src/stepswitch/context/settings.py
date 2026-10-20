@@ -2,7 +2,8 @@
 
     [context]
     optimize = true                  # false: the Phase 2 baseline (`ssw run --no-optimize`)
-    window_tokens = 32768            # the work transcript's budget (capped by the worker's)
+    window_tokens = 32768            # the work transcript's budget (capped by the worker's);
+                                     # unset: half a large context, 32768 to 65536 (ADR 0042)
     compact_at = 0.6                 # rolling HANDOFF summary at this share of it (TK6)
     prune_min_tokens = 800           # superseded results are stubbed in batches this large
     keep_recent = 2                  # the newest results of each kind are never stubbed
@@ -29,6 +30,10 @@ from stepswitch.context.prune import COMPACT_AT, KEEP_RECENT, PRUNE_MIN_TOKENS
 from stepswitch.router.cost import HANDOFF_THRESHOLD_TOKENS
 
 WINDOW_TOKENS = 32_768
+# Without a configured window, a worker with a large context gets half of it, up to this
+# (ADR 0042): on SWE-bench a 32,768-token window compacted every dozen steps and the agent read
+# the same files again after each brief.
+AUTO_WINDOW_MAX = 65_536
 # A brief plus the latest exchange must fit after compaction.
 MIN_WINDOW_TOKENS = 4_096
 
@@ -39,10 +44,24 @@ def _int(value: Any, default: int, minimum: int) -> int:
     return value
 
 
+def _window(value: Any) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < MIN_WINDOW_TOKENS:
+        return None
+    return value
+
+
+def auto_window(context: int | None) -> int:
+    """The transcript budget when none is configured: half of a context above 65,536 tokens, at
+    most 65,536, else `WINDOW_TOKENS` capped by the context."""
+    if not context:
+        return WINDOW_TOKENS
+    return min(max(WINDOW_TOKENS, min(context // 2, AUTO_WINDOW_MAX)), context)
+
+
 @dataclass(frozen=True)
 class ContextSettings:
     optimize: bool = True
-    window_tokens: int = WINDOW_TOKENS
+    window_tokens: int | None = None  # None: chosen from the worker's context (`window_for`)
     compact_at: float = COMPACT_AT
     prune_min_tokens: int = PRUNE_MIN_TOKENS
     keep_recent: int = KEEP_RECENT
@@ -62,7 +81,7 @@ class ContextSettings:
         optimize = section.get("optimize", True)
         return cls(
             optimize=optimize if isinstance(optimize, bool) else True,
-            window_tokens=_int(section.get("window_tokens"), WINDOW_TOKENS, MIN_WINDOW_TOKENS),
+            window_tokens=_window(section.get("window_tokens")),
             compact_at=float(compact_at),
             prune_min_tokens=_int(section.get("prune_min_tokens"), PRUNE_MIN_TOKENS, 0),
             keep_recent=_int(section.get("keep_recent"), KEEP_RECENT, 0),
@@ -76,4 +95,6 @@ class ContextSettings:
 
     def window_for(self, context: int | None) -> int:
         """The transcript budget on a worker with `context` tokens (None: unknown)."""
+        if self.window_tokens is None:
+            return auto_window(context)
         return min(self.window_tokens, context) if context else self.window_tokens
