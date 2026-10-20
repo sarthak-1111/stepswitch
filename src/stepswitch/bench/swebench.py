@@ -64,6 +64,11 @@ MINI_PREFIX = "mini-swe-agent:"
 GOLD = "gold"  # the dataset's reference patches, graded like a contestant's (ADR 0042)
 SWEBENCH_VERSION = "5.0.2"
 MINI_SWE_AGENT_VERSION = "2.4.6"
+# mini-SWE-agent's own SWE-bench prompt for text actions (a command in a fenced block) and its
+# own client that reads them. Its default sends tool calls, which the model server must parse:
+# on the dev set, three of its six runs ended there on an HTTP 500 (ADR 0042, item 2).
+MINI_CONFIG = "swebench_backticks.yaml"
+MINI_MODEL_CLASS = "litellm_textbased"
 # Pinned beside mini-SWE-agent: litellm 1.106.0 imports `mcp` on every completion without
 # depending on it (docs/RESEARCH.md, Phase 13).
 LITELLM_VERSION = "1.106.0"
@@ -853,7 +858,7 @@ def run_mini(
     model, api_base = mini_model(config, settings.worker)
     name = _container("mini", instance)
     specs = [
-        "swebench.yaml",
+        MINI_CONFIG,
         f"model.model_kwargs.api_base={api_base}",
         "model.model_kwargs.api_key=none",
         "model.cost_tracking=ignore_errors",
@@ -862,7 +867,8 @@ def run_mini(
     script = (
         "set -eu; mkdir -p /work/dataset /work/out; cd /work; cat > /work/dataset/test.jsonl; "
         f"{HARNESS_MOUNT}/mini/bin/mini-extra swebench --subset /work/dataset --split test "
-        f"--filter '^{re.escape(instance)}$' -o /work/out -w 1 -m '{model}' {configs} 1>&2; "
+        f"--filter '^{re.escape(instance)}$' -o /work/out -w 1 -m '{model}' "
+        f"--model-class {MINI_MODEL_CLASS} {configs} 1>&2; "
         "tar -C /work/out -cf - ."
     )
     env = {
@@ -1241,6 +1247,8 @@ def run_suite(
         "harness": {
             "swebench": SWEBENCH_VERSION,
             "mini_swe_agent": MINI_SWE_AGENT_VERSION,
+            "mini_config": MINI_CONFIG,
+            "mini_model_class": MINI_MODEL_CLASS,
             "litellm": LITELLM_VERSION,
             "volume": harness,
         },

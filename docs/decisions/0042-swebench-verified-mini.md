@@ -27,9 +27,14 @@ server and the same instances, the difference between the two is the orchestrato
    runs once, after its claims are registered, and is never rerun to improve a number.
 2. **Contestants.** `router` is Stepswitch with a pool of one model (`--router-pool
    <endpoint>/<model>`), so no other model helps it. `mini-swe-agent:<endpoint>/<model>` is
-   mini-SWE-agent 2.4.6 with its own SWE-bench configuration, on the same endpoint and model
-   through the chat-completions format. A SWE-bench suite refuses every other kind of
-   contestant.
+   mini-SWE-agent 2.4.6 with its own SWE-bench configuration for text actions
+   (`swebench_backticks.yaml` with its `litellm_textbased` client), on the same endpoint and
+   model through the chat-completions format. Its default configuration sends tool calls,
+   which the model server must parse: on the dev set, three of its six runs ended on the
+   server's HTTP 500 for a tool call it could not parse, one of them a call whose patch held
+   the fix (its JSON had a stray bracket).
+   Stepswitch works around that failure (ADR 0035), so the default would have compared the
+   workaround, not the agents. A SWE-bench suite refuses every other kind of contestant.
 3. **Where a task runs.** Each task run happens in a container of the instance's own image.
    Stepswitch runs from a read-only volume with its locked dependencies and Python 3.12, with
    the package source and its data copied in as a wheel lays them out. mini-SWE-agent runs from

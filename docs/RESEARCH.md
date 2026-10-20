@@ -4199,6 +4199,22 @@ Sources: the package installed from PyPI (`minisweagent/config/benchmarks/sweben
   `ModuleNotFoundError: No module named 'mcp'` and the run submitted an empty patch. With
   mcp 2.3.0 installed, a tool-calling completion against the local server worked. The harness
   volume pins mini-swe-agent 2.4.6, litellm 1.106.0 and mcp 2.3.0.
+- Tool calls on the local server (observed on the dev set, 2026-10-20). With the default
+  config, three of six gpt-oss:120b runs ended with `litellm.InternalServerError: ...
+  error parsing tool call: raw='...'`: the server answered HTTP 500 because it could not parse
+  the tool call the model wrote (the same failure ADR 0035 works around for Stepswitch). In
+  one of them the call's patch held the instance's fix, and its JSON ended with a stray `]`
+  (`invalid character ']' after object key:value pair`). The others ended at the step limit
+  (250), on `RepeatedFormatError`, or submitted.
+- Text actions. The package also ships `config/benchmarks/swebench_backticks.yaml`: the
+  SWE-bench prompt with one command per reply in a fenced ```` ```mswea_bash_command ````
+  block. Neither the installed file nor upstream's main branch sets `model_class`, so it is
+  used with `--model-class litellm_textbased` (`models/__init__.py`,
+  `_MODEL_CLASS_MAPPING`), a client that sends no tools and whose default `action_regex`
+  reads that block. The v2 migration guide gives `mini-extra swebench -c
+  swebench_backticks.yaml` for text-based parsing. Sources: the installed package;
+  https://raw.githubusercontent.com/SWE-agent/mini-swe-agent/main/docs/advanced/v2_migration.md ;
+  https://raw.githubusercontent.com/SWE-agent/mini-swe-agent/main/src/minisweagent/config/benchmarks/swebench_backticks.yaml
 
 ### Running the bench in Linux containers on a Windows host (checked 2026-10-20)
 

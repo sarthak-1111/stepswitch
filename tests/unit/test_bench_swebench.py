@@ -377,6 +377,8 @@ def test_mini_swe_agent_runs_with_its_own_runner(tmp_path: Path) -> None:
     assert f"--filter '^{re.escape(INSTANCE)}$'" in script
     assert "-m 'openai/big-model'" in script
     assert "api_base=http://host.docker.internal:11434/v1" in script
+    # Its text actions, so the model server never has to parse a tool call (ADR 0042, item 2).
+    assert "-c 'swebench_backticks.yaml'" in script and "--model-class litellm_textbased" in script
     assert f"{S.SOCKET}:{S.SOCKET}" in started and "HF_HUB_OFFLINE=1" in started
     assert json.loads(docker.stdin["mini"]) == ROW  # its runner reads the instance's row
     kept = tmp_path / "logs" / "mini-swe-agent-local-big-model" / INSTANCE / "s0"
