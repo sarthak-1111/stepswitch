@@ -69,12 +69,19 @@ yourself. `ssw prove --render-readme` writes this table from the evidence of pas
 A — marks a value with no passing claim behind it.
 <!-- results:swebench:end -->
 
+mini-SWE-agent ran with its own SWE-bench configuration for text actions
+(`swebench_backticks.yaml`) and its own step limit, so the model server had no tool call to
+parse. Stepswitch ran with the limits in the command below
+([ADR 0042](docs/decisions/0042-swebench-verified-mini.md)).
+
 To run it yourself you need Docker and a model server:
 
 ```sh
 ssw bench run --suite swebench-verified-mini --router-pool <endpoint>/<model> \
-  --workers "router,mini-swe-agent:<endpoint>/<model>"
+  --workers "router,mini-swe-agent:<endpoint>/<model>" --max-steps 100 --budget-seconds 3600
 ```
+
+A full run takes days on one workstation; `--resume --out <dir>` continues an interrupted one.
 
 ### Mini bench suites
 
