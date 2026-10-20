@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "suite": "swebench-dev",
+  "suite_file": "swebench-dev.yaml",
+  "kind": "swebench",
+  "command": "ssw bench run --suite swebench-dev --workers router,mini-swe-agent:ws-ollama-local/gpt-oss:120b --seeds 1 --tasks sphinx-doc__sphinx-8459,django__django-12858 --router-pool ws-ollama-local/gpt-oss:120b --max-steps 100 --budget-seconds 3600.0",
+  "started": "2026-10-20T15:14:57+00:00",
+  "finished": "2026-10-20T16:23:43+00:00",
+  "version": "0.1.0.dev0",
+  "commit": "8fd3b0773318",
+  "source_sha256": "07701537afc45ba8b221458dd7f5082a4efb01aed3011ef3995bb1688bed63fc",
+  "seeds": [
+    0
+  ],
+  "contestants": [
+    "router",
+    "mini-swe-agent:ws-ollama-local/gpt-oss:120b"
+  ],
+  "tasks": [
+    "sphinx-doc__sphinx-8459",
+    "django__django-12858"
+  ],
+  "review": true,
+  "router_pool": [
+    "ws-ollama-local/gpt-oss:120b"
+  ],
+  "max_steps": 100,
+  "budget_seconds": 3600.0,
+  "dataset": {
+    "name": "SWE-bench/SWE-bench_Verified",
+    "split": "test",
+    "revision": "78f471bf655a3137b2e8a75af1501690ec009ec3",
+    "fetched": "2026-10-20T07:49:32+00:00",
+    "rows_sha256": "3202296b305c5200899a778701dbfc600e90f1d98bd3e3a8ddc949e7adf61ac2"
+  },
+  "harness": {
+    "swebench": "5.0.2",
+    "mini_swe_agent": "2.4.6",
+    "mini_config": "swebench_backticks.yaml",
+    "mini_model_class": "litellm_textbased",
+    "litellm": "1.106.0",
+    "volume": "ssw-swe-harness-0a537ac83e08a5b6"
+  },
+  "runtime": {
+    "volume": "ssw-swe-deps-e7fd85592073bc6a",
+    "python": "3.12",
+    "gates": [
+      "impacted_tests"
+    ]
+  },
+  "images": [
+    "swebench/sweb.eval.x86_64.django_1776_django-12858:latest",
+    "swebench/sweb.eval.x86_64.sphinx-doc_1776_sphinx-8459:latest"
+  ],
+  "image_digests": {
+    "swebench/sweb.eval.x86_64.django_1776_django-12858:latest": "sha256:c9865ad6e7a0907fa9a449b6f7541a72904777036515d539b38186fe01e09f2b",
+    "swebench/sweb.eval.x86_64.sphinx-doc_1776_sphinx-8459:latest": "sha256:c2856c3d9bc3ad3015f6ed63a66621229393d3574bb546e64c1a5bbee7a2e572"
+  },
+  "preflight": {
+    "ok": true,
+    "prompt": "Reply with the single word READY and nothing else.",
+    "workers": {
+      "ws-ollama-local/gpt-oss:120b": {
+        "ok": true,
+        "seconds": 1.7,
+        "reply": "READY"
+      }
+    }
+  },
+  "scoring": "passes when the official harness (swebench 5.0.2) resolves the instance with the run's patch: every FAIL_TO_PASS test passes and every PASS_TO_PASS test still passes"
+}

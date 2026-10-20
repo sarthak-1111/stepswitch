@@ -64,11 +64,10 @@ MINI_PREFIX = "mini-swe-agent:"
 GOLD = "gold"  # the dataset's reference patches, graded like a contestant's (ADR 0042)
 SWEBENCH_VERSION = "5.0.2"
 MINI_SWE_AGENT_VERSION = "2.4.6"
-# mini-SWE-agent's own SWE-bench prompt for text actions (a command in a fenced block) and its
-# own client that reads them. Its default sends tool calls, which the model server must parse:
-# on the dev set, three of its six runs ended there on an HTTP 500 (ADR 0042, item 2).
-MINI_CONFIG = "swebench_backticks.yaml"
-MINI_MODEL_CLASS = "litellm_textbased"
+# mini-SWE-agent's default SWE-bench configuration and client: tool calls. Its text-action
+# configuration did worse with gpt-oss on the dev set (ADR 0042, item 2).
+MINI_CONFIG = "swebench.yaml"
+MINI_MODEL_CLASS = "litellm"
 # Pinned beside mini-SWE-agent: litellm 1.106.0 imports `mcp` on every completion without
 # depending on it (docs/RESEARCH.md, Phase 13).
 LITELLM_VERSION = "1.106.0"

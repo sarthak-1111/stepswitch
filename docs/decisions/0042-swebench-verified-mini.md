@@ -27,14 +27,20 @@ server and the same instances, the difference between the two is the orchestrato
    runs once, after its claims are registered, and is never rerun to improve a number.
 2. **Contestants.** `router` is Stepswitch with a pool of one model (`--router-pool
    <endpoint>/<model>`), so no other model helps it. `mini-swe-agent:<endpoint>/<model>` is
-   mini-SWE-agent 2.4.6 with its own SWE-bench configuration for text actions
-   (`swebench_backticks.yaml` with its `litellm_textbased` client), on the same endpoint and
-   model through the chat-completions format. Its default configuration sends tool calls,
-   which the model server must parse: on the dev set, three of its six runs ended on the
-   server's HTTP 500 for a tool call it could not parse, one of them a call whose patch held
-   the fix (its JSON had a stray bracket).
-   Stepswitch works around that failure (ADR 0035), so the default would have compared the
-   workaround, not the agents. A SWE-bench suite refuses every other kind of contestant.
+   mini-SWE-agent 2.4.6 with its default SWE-bench configuration (`swebench.yaml`, tool calls
+   through its `litellm` client), on the same endpoint and model through the chat-completions
+   format. Both of its SWE-bench configurations were tried on the dev set:
+   - With tool calls, three of six gpt-oss:120b runs ended when the model server answered
+     HTTP 500 for a tool call it could not parse, after mini-SWE-agent's own ten retries. In
+     one of them the call's patch held the fix, and its JSON had a stray bracket.
+   - With text actions (`swebench_backticks.yaml` and the `litellm_textbased` client), gpt-oss
+     wrote several commands in one reply, and both dev runs ended on `RepeatedFormatError`,
+     one of them on an instance that the default resolved.
+
+   The default is the configuration its authors ship and gpt-oss's own way to act, so it is
+   the baseline. Stepswitch meets the same parse failure with its fallback tool protocol
+   (ADR 0035): that is a difference between the agents, and each one's stop reasons in the
+   evidence show it. A SWE-bench suite refuses every other kind of contestant.
 3. **Where a task runs.** Each task run happens in a container of the instance's own image.
    Stepswitch runs from a read-only volume with its locked dependencies and Python 3.12, with
    the package source and its data copied in as a wheel lays them out. mini-SWE-agent runs from
@@ -125,8 +131,9 @@ server and the same instances, the difference between the two is the orchestrato
       mini-SWE-agent with its default configuration, the router before the fixes of item 7:
       router 2 of 6 resolved, mini-SWE-agent 1 of 6), `...-swebench-dev-router` (the router
       after them: 2 of 6, with 10 compactions instead of 28 and further on three of the four
-      it missed), and `2026-10-21-swebench-dev-check` (both contestants with these settings on
-      two instances).
+      it missed), and `2026-10-21-swebench-dev-check` (the router with these settings, 2 of 2;
+      mini-SWE-agent with its text-action configuration, 0 of 2, both on
+      `RepeatedFormatError`).
 
 ## Consequences
 

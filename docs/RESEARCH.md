@@ -4212,7 +4212,12 @@ Sources: the package installed from PyPI (`minisweagent/config/benchmarks/sweben
   used with `--model-class litellm_textbased` (`models/__init__.py`,
   `_MODEL_CLASS_MAPPING`), a client that sends no tools and whose default `action_regex`
   reads that block. The v2 migration guide gives `mini-extra swebench -c
-  swebench_backticks.yaml` for text-based parsing. Sources: the installed package;
+  swebench_backticks.yaml` for text-based parsing. With it, gpt-oss:120b on the local server
+  wrote several commands in one reply (4 to 34 blocks, as if it saw their output), and both
+  dev runs (2026-10-21) ended on `RepeatedFormatError`, one of them on an instance that the
+  default resolved. mini-SWE-agent retries a failed model call ten times with backoff
+  (`models/utils/retry.py`, `MSWEA_MODEL_RETRY_STOP_AFTER_ATTEMPT`) unless it is one of its
+  abort exceptions; HTTP 500 is not one. Sources: the installed package;
   https://raw.githubusercontent.com/SWE-agent/mini-swe-agent/main/docs/advanced/v2_migration.md ;
   https://raw.githubusercontent.com/SWE-agent/mini-swe-agent/main/src/minisweagent/config/benchmarks/swebench_backticks.yaml
 

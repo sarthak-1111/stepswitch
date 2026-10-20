@@ -69,10 +69,9 @@ yourself. `ssw prove --render-readme` writes this table from the evidence of pas
 A — marks a value with no passing claim behind it.
 <!-- results:swebench:end -->
 
-mini-SWE-agent ran with its own SWE-bench configuration for text actions
-(`swebench_backticks.yaml`) and its own step limit, so the model server had no tool call to
-parse. Stepswitch ran with the limits in the command below (see
-[the benchmark's decision record](docs/decisions/0042-swebench-verified-mini.md)).
+mini-SWE-agent ran with its default SWE-bench configuration and its own step limit, and
+Stepswitch with the limits in the command below. The evidence lists how each contestant's runs
+ended (see [the benchmark's decision record](docs/decisions/0042-swebench-verified-mini.md)).
 
 To run it yourself you need Docker and a model server:
 

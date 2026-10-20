@@ -1,0 +1,89 @@
+{
+  "command": "ssw bench run --suite swebench-dev --workers router,mini-swe-agent:ws-ollama-local/gpt-oss:120b --seeds 1 --tasks sphinx-doc__sphinx-8459,django__django-12858 --router-pool ws-ollama-local/gpt-oss:120b --max-steps 100 --budget-seconds 3600.0",
+  "commit": "8fd3b0773318",
+  "contestants": [
+    {
+      "cache_hit_rate": 0.9304094616703584,
+      "cached_input_tokens": 3551452,
+      "ci": {
+        "confidence": 0.95,
+        "high": 1.0,
+        "low": 1.0,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "router",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 0.0,
+      "input_tokens": 3817085,
+      "median_hosted_tokens": 0.0,
+      "median_tokens": 1924835.5,
+      "median_uncached_tokens": 149109.5,
+      "median_wall_seconds": 629.6485,
+      "output_tokens": 32586,
+      "pass_rate": 1.0,
+      "passed": 2,
+      "rank": 1,
+      "reference_cost": null,
+      "runs": 2,
+      "statuses": {
+        "done": 1,
+        "stopped": 1
+      },
+      "tasks": 2,
+      "tests_modified": 1
+    },
+    {
+      "cache_hit_rate": 0.9602003438738133,
+      "cached_input_tokens": 642230,
+      "ci": {
+        "confidence": 0.95,
+        "high": 0.0,
+        "low": 0.0,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "mini-swe-agent:ws-ollama-local/gpt-oss:120b",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 0.0,
+      "input_tokens": 668850,
+      "median_hosted_tokens": 0.0,
+      "median_tokens": 388199.0,
+      "median_uncached_tokens": 67084.0,
+      "median_wall_seconds": 1433.3670000000002,
+      "output_tokens": 107548,
+      "pass_rate": 0.0,
+      "passed": 0,
+      "rank": 2,
+      "reference_cost": null,
+      "runs": 2,
+      "statuses": {
+        "stopped": 2
+      },
+      "tasks": 2,
+      "tests_modified": 0
+    }
+  ],
+  "date": "2026-10-20T16:23:43+00:00",
+  "hardware": null,
+  "interval": {
+    "confidence": 0.95,
+    "resamples": 10000,
+    "seed": 0
+  },
+  "prices": null,
+  "results_file": "results.jsonl",
+  "router_pool": [
+    "ws-ollama-local/gpt-oss:120b"
+  ],
+  "runs": 4,
+  "schema": 1,
+  "scoring": "passes when the official harness (swebench 5.0.2) resolves the instance with the run's patch: every FAIL_TO_PASS test passes and every PASS_TO_PASS test still passes",
+  "seeds": [
+    0
+  ],
+  "sources": null,
+  "suite": "swebench-dev",
+  "tasks": 2,
+  "version": "0.1.0.dev0"
+}
