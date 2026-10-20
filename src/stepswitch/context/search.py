@@ -11,7 +11,9 @@ and `--no-config`, so no user configuration file changes its behaviour.
 `semantic` splits files into chunks (one per definition from the repo map, line windows for the
 rest), scores them with BM25 over identifier-aware tokens, and, when an embedder is given, also
 by cosine similarity of embeddings, fused by reciprocal rank. Without an embedder every hit is
-marked `mode="keyword"`. Chunks and embeddings are cached by content hash.
+marked `mode="keyword"`. Chunks and embeddings are cached by content hash. Bulk text that is not
+code (translation catalogs, minified bundles, source maps, lock files, SVG) is not indexed;
+`grep` still searches it. A search can be limited to a file or directory.
 """
 
 from __future__ import annotations
@@ -331,6 +333,9 @@ MAX_CHUNK_LINES = 120
 EMBED_CHARS = 2000
 EMBED_LIMIT = 2000  # embed every chunk up to this many; beyond it, only keyword candidates
 RRF_K = 60
+UNINDEXED_SUFFIXES = (".po", ".pot", ".min.js", ".min.css", ".map", ".lock", ".svg")
+_TERMS: dict[str, tuple[str, ...]] = {}
+_TERMS_LIMIT = 500_000  # distinct words whose terms are remembered
 
 
 def _stem(word: str) -> str:
@@ -341,16 +346,25 @@ def _stem(word: str) -> str:
     return word
 
 
+def _terms_of(word: str) -> tuple[str, ...]:
+    """The terms of one word, remembered: the same identifiers recur all over a repository."""
+    found = _TERMS.get(word)
+    if found is None:
+        parts = [p.lower() for chunk in word.split("_") for p in _CAMEL_RE.findall(chunk)]
+        whole = word.strip("_").lower()
+        terms = [whole] if len(parts) > 1 and whole not in STOPWORDS else []
+        terms += [_stem(p) for p in parts if len(p) >= 2 and p not in STOPWORDS]
+        found = tuple(terms)
+        if len(_TERMS) < _TERMS_LIMIT:
+            _TERMS[word] = found
+    return found
+
+
 def tokenize(text: str) -> list[str]:
     """Identifier-aware terms: `parseHttpHeader` -> parsehttpheader, parse, http, header."""
     terms: list[str] = []
-    for match in _WORD_RE.finditer(text):
-        word = match.group()
-        parts = [p.lower() for chunk in word.split("_") for p in _CAMEL_RE.findall(chunk)]
-        whole = word.strip("_").lower()
-        if len(parts) > 1 and whole not in STOPWORDS:
-            terms.append(whole)
-        terms.extend(_stem(p) for p in parts if len(p) >= 2 and p not in STOPWORDS)
+    for word in _WORD_RE.findall(text):
+        terms += _terms_of(word)
     return terms
 
 
@@ -458,8 +472,11 @@ class SearchIndex:
     def refresh(self) -> None:
         seen: set[str] = set()
         changed = False
+        self.repo_map.refresh()  # once: asking it about each file must not walk the tree again
         for rel, path in iter_files(self.root, matcher=IgnoreMatcher(self.root)):
             if self.exclude is not None and self.exclude(rel):
+                continue
+            if rel.lower().endswith(UNINDEXED_SUFFIXES):
                 continue
             try:
                 data = path.read_bytes()
@@ -475,7 +492,7 @@ class SearchIndex:
             text = data.decode("utf-8", errors="replace")
             definitions: list[tuple[str, int, int]] = []
             if language_for(rel) is not None:
-                tags = self.repo_map.tags(rel)
+                tags = self.repo_map.tags(rel, refresh=False)
                 if tags is not None:
                     definitions = [(t.name, t.line, t.end_line) for t in tags.tags if t.depth == 0]
             chunks = chunk_file(rel, text, definitions)
@@ -569,18 +586,31 @@ class SearchIndex:
 
     # -- query -------------------------------------------------------------------------------
 
-    def search(self, query: str, *, embedder: Any | None = None, k: int = 8) -> SearchResult:
+    def search(
+        self, query: str, *, embedder: Any | None = None, k: int = 8, path: str | None = None
+    ) -> SearchResult:
+        """The best `k` chunks for `query`, from the chunks of `path` (a root-relative file or
+        directory) when it is given."""
         self.refresh()
         everything = self._all()
-        keyword = self.keyword_scores(query)
+        scope = PurePath(path).as_posix().strip("/") if path else ""
+        allowed: Sequence[int] = range(len(everything))
+        if scope not in ("", "."):
+            allowed = [
+                position
+                for position, (chunk, _) in enumerate(everything)
+                if chunk.path == scope or chunk.path.startswith(scope + "/")
+            ]
+        inside = set(allowed)
+        keyword = [item for item in self.keyword_scores(query) if item[1] in inside]
         mode = "keyword"
         note = None
         fused: dict[int, float] = {}
         for rank, (_, position) in enumerate(keyword[:200]):
             fused[position] = fused.get(position, 0.0) + 1.0 / (RRF_K + rank + 1)
-        if embedder is not None and everything:
-            if len(everything) <= EMBED_LIMIT:
-                candidates = list(range(len(everything)))
+        if embedder is not None and allowed:
+            if len(allowed) <= EMBED_LIMIT:
+                candidates = list(allowed)
             else:
                 candidates = [position for _, position in keyword[:200]]
             try:

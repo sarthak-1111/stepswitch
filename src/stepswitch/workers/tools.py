@@ -127,13 +127,18 @@ _SPECS: dict[str, tuple[str, dict[str, Any], tuple[str, ...]]] = {
         ("command",),
     ),
     "test": (
-        "Run the tests (or one file, test id or -k filter) and summarize failures.",
+        "Run tests: a file, test id or -k filter (none: a large suite runs the impacted"
+        " tests). Summarizes failures.",
         {"selector": _STR},
         (),
     ),
     "search": (
-        "Find code related to a description.",
-        {"query": _STR, "k": _INT},
+        "Find code related to a description (for an exact name or text, use grep).",
+        {
+            "query": _STR,
+            "path": {"type": "string", "description": "file or directory to search in"},
+            "k": _INT,
+        },
         ("query",),
     ),
     "finish": (
@@ -218,7 +223,8 @@ _PARAMS: dict[str, dict[str, tuple[str, tuple[str, ...]]]] = {
     "test": {"selector": ("str", ("test", "tests", "target", "path", "file", "filter", "k"))},
     "search": {
         "query": ("str", ("q", "text", "description", "pattern", "search")),
-        "k": ("int", ("limit", "top_k", "n", "count")),
+        "path": ("str", ("dir", "directory", *_PATH_ALIASES)),
+        "k": ("int", ("limit", "top_k", "n", "count", "max_results")),
     },
     "finish": {"summary": ("str", ("message", "result", "reason", "answer", "text"))},
 }
@@ -302,6 +308,21 @@ _CARGO_FAIL = re.compile(r"^test (\S+) \.\.\. FAILED")
 _CARGO_RESULT = re.compile(r"test result: \w+\. (\d+) passed; (\d+) failed; (\d+) ignored")
 _JEST_TOTALS = re.compile(r"^Tests:\s+(.*)$")
 _JEST_FAIL = re.compile(r"^\s*●\s+(.+?)\s*$")
+_UNITTEST_RAN = re.compile(r"^Ran (\d+) tests? in [\d.]+s$")
+_UNITTEST_RESULT = re.compile(r"^(OK|FAILED)(?: \((.*)\))?$")
+_UNITTEST_HEADER = re.compile(r"^(?:FAIL|ERROR|UNEXPECTED SUCCESS): (\S+) \(([^)]*)\)")
+_UNITTEST_RULE = re.compile(r"^(?:=+|-+)$")
+LARGE_SUITE = 200  # test files; above it, `test` without a selector runs the impacted tests
+EXACT_MATCHES = 20  # lines that name a searched name, shown above the search results
+_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+# A search for a definition: `def name`, `class Name(Base)`, `fn name<T>`, ...
+_DEFINITION_RE = re.compile(
+    r"^(?:async\s+)?(def|class|function|fn|func|struct|interface|trait)\s+"
+    r"([A-Za-z_][A-Za-z0-9_]*)\s*(?:$|[(:<\[{])"
+)
+_CODE_RE = re.compile(r"[()\[\]{}=:'\"]|\w\.\w|\w_\w")  # a query written as code, not prose
+_GREP_META = re.compile(r"[\\.^$|?*+()\[\]{}]")  # escaped, a fragment is matched as written
+TEST_DIRS = ("tests/", "test/")
 
 
 @dataclass
@@ -322,10 +343,64 @@ class TestSummary:
             "skipped": self.skipped,
         }
 
+    def unnamed(self) -> int:
+        """Failures the summary counted but could not name (all of them for an unknown runner)."""
+        if self.runner == "unknown":
+            return max(len(self.failing), 1)
+        return max((self.failed or 0) + (self.errors or 0) - len(self.failing), 0)
+
+
+def failing_tests(output: str) -> tuple[list[str], int]:
+    """(failing test ids, failures that could not be named) of a test run's output."""
+    summary = summarize_tests(output)
+    return summary.failing, summary.unnamed()
+
+
+def _unittest_summary(lines: Sequence[str], summary: TestSummary) -> None:
+    """unittest's report (Django's test runner prints it too): the counts after `Ran N tests`,
+    each failing test as a label the runner accepts back (`module.Class.test`), and the last
+    line of its traceback."""
+    ran = None
+    for i, line in enumerate(lines):
+        found = _UNITTEST_RAN.match(line.strip())
+        if found is None:
+            continue
+        result = next(
+            (m for rest in lines[i + 1 :] if (m := _UNITTEST_RESULT.match(rest.strip()))), None
+        )
+        if result is not None:
+            ran = (int(found.group(1)), result.group(2) or "")
+    if ran is None:
+        return
+    total, detail = ran
+    counts = {key.strip(): int(value) for key, value in re.findall(r"([a-z ]+)=(\d+)", detail)}
+    summary.runner = "unittest"
+    summary.failed = counts.get("failures", 0)
+    summary.errors = counts.get("errors", 0)
+    summary.skipped = counts.get("skipped", 0)
+    others = counts.get("expected failures", 0) + counts.get("unexpected successes", 0)
+    summary.passed = max(total - summary.failed - summary.errors - summary.skipped - others, 0)
+    for i, line in enumerate(lines):
+        header = _UNITTEST_HEADER.match(line)
+        if header is None:
+            continue
+        name, where = header.groups()
+        test_id = where if where.endswith("." + name) else f"{where}.{name}"
+        if test_id not in summary.failing:
+            summary.failing.append(test_id)
+        body = []
+        for rest in lines[i + 2 :]:  # past the rule under the header
+            if _UNITTEST_RULE.match(rest.strip()):
+                break
+            if rest.strip():
+                body.append(rest.strip())
+        if body:
+            summary.details.append(f"{test_id}: {body[-1]}")
+
 
 def summarize_tests(output: str) -> TestSummary:
     """Counts, failing test ids and the decisive assertion lines from a test run's output
-    (pytest in detail; go test, cargo test and jest-style summaries in outline)."""
+    (pytest and unittest in detail; go test, cargo test and jest-style summaries in outline)."""
     summary = TestSummary()
     lines = output.splitlines()
     for line in reversed(lines):
@@ -371,6 +446,8 @@ def summarize_tests(output: str) -> TestSummary:
             summary.runner = "jest"
             for n, kind in re.findall(r"(\d+) (passed|failed|skipped)", jest_total.group(1)):
                 setattr(summary, kind, int(n))
+    if summary.runner == "unknown":
+        _unittest_summary(lines, summary)
     return summary
 
 
@@ -397,9 +474,15 @@ class Toolbox:
         env: Mapping[str, str] | None = None,
         test_timeout: float | None = None,
         lsp_manager: Any | None = None,
+        base: str | None = None,
+        base_env: Callable[[Path], Mapping[str, str]] | None = None,
     ) -> None:
         self.root = root.resolve()
         self.test_command = list(test_command) if test_command else None
+        # The task's base commit: test failures are compared with it (`stepswitch.verify.
+        # baseline`), and a large suite runs only what the change reaches without a selector.
+        self.base = base
+        self.base_env = base_env
         self.run_timeout = run_timeout
         self.test_timeout = test_timeout or max(run_timeout, 600.0)
         self.allow_run = allow_run
@@ -821,8 +904,9 @@ class Toolbox:
         if not query:
             raise ToolError("search: `query` is empty")
         k = min(max(int(args.get("k") or 8), 1), 20)
+        scope = self.resolve(args["path"])[1] if args.get("path") else ""
         embedder, skipped = self._embedder()
-        result = self.search_index().search(query, embedder=embedder, k=k)
+        result = self.search_index().search(query, embedder=embedder, k=k, path=scope or None)
         note = skipped or result.note
         rows = []
         for hit in result.hits:
@@ -831,12 +915,58 @@ class Toolbox:
             rows.append(f"{label}\n{snippet}")
         header = f"{len(result.hits)} results ({result.mode}{'; ' + note if note else ''})"
         text = header + ("\n" + "\n".join(rows) if rows else "")
-        data = {
+        data: dict[str, Any] = {
             "query": query,
             "mode": result.mode,
             "hits": [f"{h.path}:{h.start}-{h.end}" for h in result.hits],
         }
+        if scope:
+            data["path"] = scope
+        exact = self._exact_matches(query, scope)
+        if exact is not None:
+            label, matches = exact
+            data["exact"] = [f"{m.path}:{m.line}" for m in matches]
+            shown = "\n".join(f"{m.path}:{m.line}: {m.text.strip()}" for m in matches)
+            text = f"{label} ({len(matches)}):\n{shown}\n\n{text}"
         return ToolOutput(text, data=data)
+
+    def _exact_matches(self, query: str, scope: str) -> tuple[str, list[Any]] | None:
+        """For a query that is code rather than a description, the lines that hold it: models
+        often search where grep would serve them. `def name` or `class name` gives the
+        definitions; a fragment (`call_command('flush'`) its text as written; a name, or the name
+        a fragment calls (`execute_sql_flush(self, using`, `ops.flush`), every line naming it."""
+        text = query.strip().strip("`")
+        attempts: list[tuple[str, str]] = []
+        defined = _DEFINITION_RE.match(text)
+        if defined:
+            keyword, name = defined.groups()
+            attempts.append((f"definitions of `{name}`", rf"\b{keyword}\s+{name}\b"))
+        else:
+            name = text.split("(", 1)[0].strip().strip("'\"").rstrip(":;, ").rsplit(".", 1)[-1]
+            bare = text.strip("'\"").rstrip("():;, ")  # `add(` says no more than `add`
+            if not _NAME_RE.fullmatch(bare) and _CODE_RE.search(text) and len(text) <= 80:
+                attempts.append((f"exact matches of `{text}`", _GREP_META.sub(r"\\\g<0>", text)))
+        if len(name) >= 3 and _NAME_RE.fullmatch(name):
+            attempts.append((f"exact matches of `{name}`", rf"\b{name}\b"))
+        for label, pattern in attempts:
+            matches = self._grep_lines(pattern, scope)
+            if matches:
+                return label, matches
+        return None
+
+    def _grep_lines(self, pattern: str, scope: str) -> list[Any]:
+        from stepswitch.context.search import SearchError, run_grep
+
+        try:
+            report = run_grep(
+                self.root,
+                pattern,
+                path=scope if scope not in ("", ".") else None,
+                max_results=EXACT_MATCHES,
+            )
+        except SearchError:
+            return []
+        return [m for m in report.matches if not self.denied(m.path)]
 
     # -- lsp ---------------------------------------------------------------------------------
 
@@ -1076,7 +1206,7 @@ class Toolbox:
         def seen_for(rel: str) -> edit_format.Seen:
             return self._seen.setdefault(rel, {})
 
-        results = patch_format.write(patch_format.plan(changes, resolve), seen_for)
+        results = patch_format.write(patch_format.plan(changes, resolve, notes), seen_for)
         rows: list[str] = list(notes)
         changed: list[str] = []
         budget = max(1000, self.max_output_chars // (2 * max(1, len(results))))
@@ -1208,6 +1338,9 @@ class Toolbox:
         except ValueError as exc:
             raise ToolError(f"test: cannot split the selector ({exc})") from exc
         extra, notes = self._test_paths(extra)
+        implicit = not extra
+        if implicit:
+            extra, notes = self._impacted_selection()
         env = self._child_env()
         argv = [self._program(self.test_command[0], env), *self.test_command[1:], *extra]
         self._fresh_bytecode()
@@ -1220,14 +1353,31 @@ class Toolbox:
         status = "passed" if result.exit_code == 0 and not result.timed_out else "failed"
         if result.timed_out:
             status = f"timed out after {self.test_timeout:g} s"
+        # Failures that also happen at the base commit are told apart, never passed over: a task
+        # is often to fix one of them.
+        new, old = self._preexisting(status, summary, argv, result.duration_s)
         head = f"tests {status} (exit {result.exit_code}, {result.duration_s:.1f} s)"
         lines = [*notes, head + (f": {shown}" if shown else "")]
-        if summary.failing:
-            lines.append("failing:")
-            lines += [f"  {test_id}" for test_id in summary.failing[:30]]
+        if old and not new:
+            lines.append("every failing test also fails at the base commit, before your change")
+        if new:
+            lines.append("failing:" if not old else "failing since your change:")
+            lines += [f"  {test_id}" for test_id in new[:30]]
+        if old:
+            lines.append("failing at the base commit too, before your change:")
+            lines += [f"  {test_id}" for test_id in old[:30]]
         if summary.details:
             lines.append("details:")
             lines += [f"  {row}" for row in summary.details[:40]]
+        if status == "failed" and not any(counts.values()) and not summary.failing:
+            # The runner stopped before running a test (a collection or setup error).
+            hint = "no test ran: the test runner stopped before running any test"
+            if implicit and extra:
+                hint += (
+                    "; the chosen files may hold tests that cannot run here, so give a selector"
+                    " (one test file or test id) to run the tests you need"
+                )
+            lines.append(hint)
         if status != "passed" and not summary.failing and not summary.details:
             tail = "\n".join(result.output.rstrip().splitlines()[-40:])
             lines.append("output (last lines):\n" + tail)
@@ -1238,10 +1388,63 @@ class Toolbox:
             "ok": status == "passed",
             "runner": summary.runner,
             "counts": counts,
-            "failing": summary.failing,
+            "failing": new,
             "duration_s": round(result.duration_s, 3),
         }
+        if old:
+            data["preexisting"] = old
         return ToolOutput("\n".join(lines), data=data)
+
+    def _preexisting(
+        self, status: str, summary: TestSummary, argv: Sequence[str], seconds: float
+    ) -> tuple[list[str], list[str]]:
+        """(new failures, failures the base commit has too) of a failed run whose failures are
+        all named (`stepswitch.verify.baseline`)."""
+        from stepswitch.verify import baseline
+
+        if (
+            status != "failed"
+            or not summary.failing
+            or summary.unnamed()
+            or seconds > baseline.MAX_SECONDS
+            or self.base_env is None
+        ):
+            return list(summary.failing), []
+        found = baseline.for_worktree(self.root, self.base)
+        if found is None:
+            return list(summary.failing), []
+        offline = self.offline
+        base_env = self.base_env
+        before = found.failing(
+            argv,
+            env_for=lambda path: proc.minimal_env(base_env(path), offline=offline),
+            summarize=failing_tests,
+            timeout=self.test_timeout,
+        )
+        return baseline.compare(summary.failing, before)
+
+    def _impacted_selection(self) -> tuple[list[str], list[str]]:
+        """Without a selector, a suite of more than LARGE_SUITE test files runs only the tests
+        that import the changed modules; a smaller suite runs whole."""
+        from stepswitch.verify import commands, impact
+
+        if self.base is None:
+            return [], []
+        files = impact.python_files(self.root)
+        tests = [rel for rel in files if impact.is_test_file(rel) or rel.startswith(TEST_DIRS)]
+        if len(tests) <= LARGE_SUITE:
+            return [], []
+        changed = commands.changed_files(self.root, self.base)
+        selection = impact.select_tests(self.root, changed, python="", has_testmon=False)
+        if selection.mode == "mapped":
+            shown = ", ".join(selection.args[:8]) + (" ..." if len(selection.args) > 8 else "")
+            note = f"no selector: running the {len(selection.args)} test file(s) that import"
+            return selection.args, [f"{note} your changes ({shown})"]
+        raise ToolError(
+            f"test: this suite has {len(tests)} test files and runs for a long time; give a"
+            f" selector (a test file, a test id or a -k filter). Without one, only the tests"
+            f" that import your changes run, and here: {selection.reason}."
+        )
 
     def _test_paths(self, extra: list[str]) -> tuple[list[str], list[str]]:
         """The selector's test files as paths from the root. A `.py` file that does not exist as

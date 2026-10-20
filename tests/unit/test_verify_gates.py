@@ -847,6 +847,48 @@ def test_project_env_puts_the_working_trees_src_first(tmp_path: Path) -> None:
     assert commands.project_overrides("python", worktree, base={}) == {"PYTHONPATH": src}
 
 
+def test_project_env_activates_a_conda_environment(tmp_path: Path) -> None:
+    # A conda environment has no pyvenv.cfg; its programs (pip, pytest, the interpreter
+    # itself as `python`) must still come first on PATH.
+    env = tmp_path / "miniconda3" / "envs" / "testbed"
+    write(env, {"conda-meta/history": "", "bin/python": ""})
+    python = str(env / "bin" / "python")
+    overrides = commands.project_overrides(python, base={"PATH": "p"})
+    assert overrides == {"CONDA_PREFIX": str(env), "PATH": str(env / "bin") + os.pathsep + "p"}
+    # Windows keeps the interpreter at the environment's top level.
+    windows = tmp_path / "conda-win"
+    write(windows, {"conda-meta/history": "", "python.exe": ""})
+    found = commands.project_overrides(str(windows / "python.exe"), base={"PATH": "p"})
+    assert found["CONDA_PREFIX"] == str(windows)
+    assert found["PATH"].split(os.pathsep) == [
+        str(windows),
+        str(windows / "Library" / "bin"),
+        str(windows / "Scripts"),
+        "p",
+    ]
+    assert commands.project_overrides(str(tmp_path / "bin" / "python"), base={"PATH": "p"}) == {}
+
+
+def test_project_env_puts_a_flat_layout_worktree_first(tmp_path: Path) -> None:
+    # A flat layout (the package at the top level, as in Django) installed in editable mode
+    # from the checkout: a test runner started as a script imports the checkout's code unless
+    # the task's worktree comes first.
+    bindir = "Scripts" if sys.platform == "win32" else "bin"
+    name = "python.exe" if sys.platform == "win32" else "python"
+    checkout = tmp_path / "project"
+    worktree = checkout / ".stepswitch" / "wt" / "4fe9ecc6"
+    write(checkout / ".venv", {"pyvenv.cfg": "home = x\n", f"{bindir}/{name}": ""})
+    write(worktree / "pkg", {"__init__.py": ""})
+    python = str(checkout / ".venv" / bindir / name)
+    env = commands.project_env(python, repo=worktree, base={"PATH": "p", "PYTHONPATH": "lib"})
+    assert env["PYTHONPATH"] == str(worktree) + os.pathsep + "lib"
+    assert commands.project_overrides("python", worktree, base={}) == {"PYTHONPATH": str(worktree)}
+    # The checkout itself is what its editable install points at: nothing to do.
+    write(checkout / "pkg", {"__init__.py": ""})
+    assert "PYTHONPATH" not in commands.project_env(python, repo=checkout, base={})
+    assert "PYTHONPATH" not in commands.project_env("python", repo=checkout, base={})
+
+
 def test_tool_commands_prefer_the_project_interpreter(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

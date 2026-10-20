@@ -665,6 +665,7 @@ def _run_candidate(shared: _Shared, run: _Run) -> None:
     task_spec = (
         spec if plan is None else spec.model_copy(update={"seed": plan.seed, "review": False})
     )
+    python = shared.policy.python
     toolbox = Toolbox(
         workdir,
         test_command=shared.policy.test_command,
@@ -672,7 +673,9 @@ def _run_candidate(shared: _Shared, run: _Run) -> None:
         offline=shared.offline,
         cache_dir=shared.state_dir / "cache" / "context",
         # The agent's commands see the project's environment, as the gates do.
-        env=commands.project_overrides(shared.policy.python, workdir, base=minimal_env()),
+        env=commands.project_overrides(python, workdir, base=minimal_env()),
+        base=run.worktree.base_commit,
+        base_env=lambda path: commands.project_overrides(python, path, base=minimal_env()),
     )
     run.toolbox = toolbox
     scrub = [(str(workdir), "."), (str(shared.root), "<project>"), (str(Path.home()), "~")]

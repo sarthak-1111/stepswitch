@@ -880,8 +880,11 @@ class RepoMap:
         self.refresh()
         return sorted(self._files)
 
-    def tags(self, path: str) -> FileTags | None:
-        self.refresh()
+    def tags(self, path: str, *, refresh: bool = True) -> FileTags | None:
+        """The definitions and references of one file; `refresh=False` skips the walk over
+        the tree, for a caller that refreshed once before asking about many files."""
+        if refresh:
+            self.refresh()
         entry = self._files.get(path)
         return entry.tags if entry is not None else None
 

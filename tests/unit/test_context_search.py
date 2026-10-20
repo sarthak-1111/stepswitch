@@ -247,6 +247,49 @@ def test_a_failing_embedder_falls_back_to_keywords(tmp_path: Path) -> None:
     assert result.hits[0].path == "src/config.py"
 
 
+def test_search_within_a_path_and_without_translation_catalogs(tmp_path: Path) -> None:
+    root = write(
+        tmp_path,
+        {
+            **SOURCE,
+            "tests/test_config.py": (
+                "def test_parse_config():\n    assert parse_config('settings')\n"
+            ),
+            # Translation catalogs are bulk text, not code: grep still sees them.
+            "locale/fr/LC_MESSAGES/app.po": 'msgid "parse the settings"\nmsgstr "lire"\n',
+        },
+    )
+    index = S.SearchIndex(root)
+    everywhere = index.search("parse config settings", k=5)
+    assert {hit.path for hit in everywhere.hits} == {"src/config.py", "tests/test_config.py"}
+    within = index.search("parse config settings", k=5, path="tests")
+    assert [hit.path for hit in within.hits] == ["tests/test_config.py"]
+    assert index.search("parse config settings", path="src/config.py").hits[0].path == (
+        "src/config.py"
+    )
+    assert index.search("parse config settings", path="docs").hits == []
+    assert [m.path for m in S.grep(root, "parse the settings")] == ["locale/fr/LC_MESSAGES/app.po"]
+
+
+def test_indexing_walks_the_tree_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Indexing asked the repo map for each file's definitions, and each question walked the
+    # whole tree again: 11 minutes on a repository of Django's size.
+    files = {f"pkg/mod{i}.py": f"def handler_{i}(event):\n    return event\n" for i in range(30)}
+    root = write(tmp_path, files)
+    walks = []
+    original = S.RepoMap.refresh
+
+    def counted(self: S.RepoMap) -> None:
+        walks.append(1)
+        original(self)
+
+    monkeypatch.setattr(S.RepoMap, "refresh", counted)
+    index = S.SearchIndex(root)
+    result = index.search("handler_7 event", k=1)
+    assert result.hits[0].path == "pkg/mod7.py" and result.hits[0].symbol == "handler_7"
+    assert len(walks) == 1
+
+
 def test_the_index_follows_file_changes(tmp_path: Path) -> None:
     root = write(tmp_path, SOURCE)
     hits = S.semantic(root, "render report table")

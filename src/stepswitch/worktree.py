@@ -256,9 +256,13 @@ class Worktree:
         self.pool._git([*apply, "-"], cwd=target, env=env, input_data=data)
 
     def release(self, keep: bool = False) -> None:
-        """Give the worktree back: removed by default, left on disk with `keep=True`."""
+        """Give the worktree back: removed by default, left on disk with `keep=True`. The
+        checkout of its base commit that test runs compared with goes in any case."""
         if not self.released:
             self.released = True
+            from stepswitch.verify import baseline
+
+            baseline.release(Path(self.path))
             self.pool._release(self, keep)
 
 

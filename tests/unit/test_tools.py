@@ -271,6 +271,26 @@ def test_grep_repo_map_and_search(box: T.Toolbox) -> None:
     found = box.execute("search", {"query": "calculator total"})
     assert "keyword" in found.text and found.data["hits"]
     assert found.data["hits"][0].startswith("pkg/calc.py:")
+    within = box.execute("search", {"query": "calculator total", "path": "pkg"})
+    assert within.data["hits"] and all(hit.startswith("pkg/") for hit in within.data["hits"])
+    assert within.data["path"] == "pkg"
+    missing = box.execute("search", {"query": "calculator total", "path": "nowhere"})
+    assert missing.is_error and "nowhere" in missing.text
+    # A name, as models often send it, also gets its exact occurrences.
+    named = box.execute("search", {"query": "add("})
+    assert named.text.startswith("exact matches of `add` (")
+    assert "pkg/calc.py:" in named.text.splitlines()[1]
+    assert named.data["exact"] and named.data["exact"][0].startswith("pkg/calc.py:")
+    assert "exact" not in box.execute("search", {"query": "add two numbers"}).data
+    # Shapes sent in the SWE-bench smoke run (ADR 0042): a definition, a fragment, a call.
+    defined = box.execute("search", {"query": "def add(self"})
+    assert defined.text.startswith("definitions of `add` (1):\npkg/calc.py:1: def add(a, b):")
+    assert box.execute("search", {"query": "class Calculator"}).data["exact"] == ["pkg/calc.py:5"]
+    fragment = box.execute("search", {"query": "total = 0"})
+    assert fragment.text.startswith("exact matches of `total = 0` (1):")
+    call = box.execute("search", {"query": "add(a, c"})  # not as written: the name it calls
+    assert call.text.startswith("exact matches of `add` (")
+    assert "exact" not in box.execute("search", {"query": "class names for widgets"}).data
 
 
 class _RemoteEmbedder:
@@ -517,3 +537,61 @@ def test_summaries_of_common_test_runners() -> None:
     assert (jest.runner, jest.passed, jest.failed) == ("jest", 3, 1)
     assert jest.failing == ["calc › adds numbers"]
     assert T.summarize_tests("nothing recognisable").runner == "unknown"
+
+
+# Django's runner at verbosity 2: unittest output, with headers in the format before Python
+# 3.11 (`test (module.Class)`) and after it (`test (module.Class.test)`).
+UNITTEST_OUTPUT = """\
+test_flush_sql (backends.base.test_ops.SqlFlushTests) ... ERROR
+test_long_flush (backends.tests.LongNameTest.test_long_flush) ... FAIL
+test_other (backends.tests.LongNameTest) ... ok
+
+======================================================================
+ERROR: test_flush_sql (backends.base.test_ops.SqlFlushTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/backends/base/test_ops.py", line 175, in test_flush_sql
+    connection.ops.execute_sql_flush(sql_list)
+TypeError: execute_sql_flush() missing 1 required positional argument: 'sql_list'
+
+======================================================================
+FAIL: test_long_flush (backends.tests.LongNameTest.test_long_flush)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/backends/tests.py", line 167, in test_long_flush
+    self.assertEqual(count, 1)
+AssertionError: 0 != 1
+
+----------------------------------------------------------------------
+Ran 80 tests in 0.131s
+
+FAILED (failures=1, errors=1, skipped=11)
+Destroying test database for alias 'default'...
+"""
+
+
+def test_summary_of_unittest_output() -> None:
+    summary = T.summarize_tests(UNITTEST_OUTPUT)
+    assert summary.runner == "unittest"
+    assert (summary.passed, summary.failed, summary.errors, summary.skipped) == (67, 1, 1, 11)
+    # Failing tests as labels the runner accepts back, with the decisive line of each.
+    assert summary.failing == [
+        "backends.base.test_ops.SqlFlushTests.test_flush_sql",
+        "backends.tests.LongNameTest.test_long_flush",
+    ]
+    assert summary.details == [
+        "backends.base.test_ops.SqlFlushTests.test_flush_sql:"
+        " TypeError: execute_sql_flush() missing 1 required positional argument: 'sql_list'",
+        "backends.tests.LongNameTest.test_long_flush: AssertionError: 0 != 1",
+    ]
+    passing = T.summarize_tests(
+        "test_a (m.T) ... ok\n\n" + "-" * 70 + "\nRan 1 test in 0.001s\n\nOK\n"
+    )
+    assert (passing.runner, passing.passed, passing.failed, passing.failing) == (
+        "unittest",
+        1,
+        0,
+        [],
+    )
+    skipped = T.summarize_tests("Ran 3 tests in 0.002s\n\nOK (skipped=1, expected failures=1)\n")
+    assert (skipped.passed, skipped.skipped) == (1, 1)

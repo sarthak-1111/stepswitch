@@ -3,13 +3,17 @@
 Gates check the project, so every tool runs from the project's environment, not Stepswitch's.
 The interpreter comes from configuration (`[tracks.<track>].python`, then `[science].python`
 for the science track), else the repository's `.venv`, else the interpreter running Stepswitch.
+Its environment comes first on PATH: a virtual environment (with VIRTUAL_ENV) or a conda
+environment (with CONDA_PREFIX), so `python`, `pip` and the test runner are the project's.
 
 A task's worktree (`<checkout>/.stepswitch/wt/<id>`) holds no `.venv`, because environments are
 never copied into it. For a worktree, the checkout it was made from is searched next: for the
 `.venv`, and for interpreter paths configured relative to the repository. When the
 interpreter's environment lives outside the working tree and the tree has a `src/` directory,
-that directory goes first on PYTHONPATH. Otherwise an editable install of the original
-checkout would import the checkout's code instead of the task's.
+that directory goes first on PYTHONPATH. A task worktree without one (a flat layout, with the
+package at the top level) goes first itself. Otherwise an editable install of the original
+checkout would import the checkout's code instead of the task's, whenever the tests start
+from a script (Django's `tests/runtests.py`, a console script) rather than `python -m`.
 
 `run` never raises: a program that cannot start gives exit code 127 and a timeout gives 124
 after the whole process tree is killed. Commands get no stdin and, apart from acceptance
@@ -451,13 +455,26 @@ def _within(path: str | Path, root: Path) -> bool:
     return Path(path).absolute().is_relative_to(Path(root).absolute())
 
 
+def conda_prefix(python: str | Path) -> Path | None:
+    """The conda environment an interpreter belongs to (`<env>/bin/python`, or
+    `<env>/python.exe` on Windows, next to `<env>/conda-meta`), if any."""
+    exe = Path(python)
+    if not exe.is_absolute():
+        return None
+    for env in (exe.parent.parent, exe.parent):
+        if (env / "conda-meta").is_dir():
+            return env
+    return None
+
+
 def project_overrides(
     python: str, repo: Path | None = None, *, base: Mapping[str, str] | None = None
 ) -> dict[str, str]:
     """The variables project commands need on top of `base` (default: this process's
-    environment): the interpreter's venv first on PATH (with VIRTUAL_ENV), and for a working
-    tree `repo` with a `src/` directory and an interpreter outside it, that `src/` first on
-    PYTHONPATH (see the module docstring)."""
+    environment): the interpreter's environment first on PATH (with VIRTUAL_ENV for a venv,
+    CONDA_PREFIX for a conda environment), and for a working tree `repo` with an interpreter
+    outside it, the tree's code first on PYTHONPATH: its `src/` directory, or a task worktree
+    itself when it has none (see the module docstring)."""
     source = os.environ if base is None else base
     found: dict[str, str] = {}
     exe = Path(python)
@@ -465,9 +482,22 @@ def project_overrides(
     if exe.is_absolute() and (venv / "pyvenv.cfg").is_file():
         found["VIRTUAL_ENV"] = str(venv)
         found["PATH"] = str(exe.parent) + os.pathsep + source.get("PATH", "")
-    if repo is not None and (Path(repo) / "src").is_dir() and not _within(python, Path(repo)):
-        paths = [str(Path(repo).absolute() / "src"), source.get("PYTHONPATH", "")]
-        found["PYTHONPATH"] = os.pathsep.join(part for part in paths if part)
+    elif (conda := conda_prefix(exe)) is not None:
+        programs = (
+            [conda / "bin"]
+            if exe.parent == conda / "bin"
+            else [conda, conda / "Library" / "bin", conda / "Scripts"]
+        )
+        found["CONDA_PREFIX"] = str(conda)
+        found["PATH"] = os.pathsep.join([*map(str, programs), source.get("PATH", "")])
+    if repo is not None and not _within(python, Path(repo)):
+        tree = Path(repo).absolute()
+        first = tree / "src" if (tree / "src").is_dir() else None
+        if first is None and source_checkout(tree) is not None:
+            first = tree  # a flat layout: the checkout's editable install points elsewhere
+        if first is not None:
+            paths = [str(first), source.get("PYTHONPATH", "")]
+            found["PYTHONPATH"] = os.pathsep.join(part for part in paths if part)
     return found
 
 

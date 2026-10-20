@@ -31,10 +31,16 @@ guess would change the wrong lines:
   a unified `@@ -l,c +l,c @@` header (its line is then a hint), a missing `*** End Patch`.
   `*** End of File` prefers a match at the end of the file and falls back to the hunk's match
   elsewhere, as the Python reference does.
+- Lenient with a note (ADR 0041, ADR 0042): when a hunk's old lines are not in the file and every
+  one starts with the read view's `<line>:<hash>|`, they are read without it (rows of `read`
+  pasted into the patch). A hunk whose old lines are still not found goes to a near match: the
+  one place where its other lines are found and only removed lines differ, at most NEAR_LINES of
+  them, each nearly the file's line (difflib ratio NEAR_RATIO). The note names the file's lines.
 - Strict: a hunk whose old text matches more than once ahead of the search position, with no
   `@@` line to tell the matches apart, is refused (the references take the first match). So is
-  a file that cannot be found or created. Deleting and moving files is refused: the edit tool
-  changes content only.
+  a near match in a context line or at more than one place, and a file that cannot be found or
+  created. A refusal names the closest place and the lines that differ there. Deleting and
+  moving files is refused: the edit tool changes content only.
 - A hunk with only added lines goes after its `@@` line, as in the Python reference; without
   one, at the end of the file, as in the Rust reference.
 - In order: a file named twice is changed by its second section as the first left it.
@@ -43,18 +49,24 @@ guess would change the wrong lines:
 
 from __future__ import annotations
 
+import difflib
 import re
+from collections import Counter, defaultdict
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from stepswitch.context import edits as E
 
 BEGIN = "*** Begin Patch"
 END = "*** End Patch"
+NEAR_LINES = 2  # removed lines a near match may find different in the file
+NEAR_RATIO = 0.85  # how alike each of them must be to the file's line (difflib ratio)
+SHOWN_DIFFERENCES = 6  # differing lines a refusal lists
 _FILE_MARKERS = ("*** Add File:", "*** Update File:", "*** Delete File:")
 _HEREDOC_RE = re.compile(r"^\s*(?:\S*apply_?patch\s*)?<<-?\s*['\"]?(\w+)['\"]?\s*$")
 _UNIFIED_HUNK_RE = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
+_ROW_PREFIX_RE = re.compile(r"^\s*\d+:[a-z]{2}\|")  # a row of the read view: `<line>:<hash>|`
 
 
 class PatchError(E.EditError):
@@ -289,11 +301,161 @@ def _find_anchor(lines: list[str], wanted: str, start: int) -> int | None:
             (i for i in range(start, len(lines)) if lines[i].translate(E._FOLD).strip() == folded),
             None,
         )
+    if found is None and _ROW_PREFIX_RE.match(wanted):
+        return _find_anchor(lines, _ROW_PREFIX_RE.sub("", wanted, count=1), start)
     return found
 
 
-def _hunk_ops(doc: E.TextDoc, change: FileChange) -> list[E.Op]:
-    """The hunks of one update as anchored edits, searched forward through the file."""
+def _loose(text: str) -> str:
+    """A line as the loosest match compares it (`edits._matches`, level 2)."""
+    return E._content(text).translate(E._FOLD).strip()
+
+
+def _without_row_prefixes(hunk: Hunk) -> Hunk | None:
+    """The hunk without the read view's `<line>:<hash>|` prefixes, when every line it expects in
+    the file has one (rows of `read` pasted into the patch); None otherwise."""
+    if not hunk.old or not all(_ROW_PREFIX_RE.match(line) for line in hunk.old):
+        return None
+
+    def cut(line: str) -> str:
+        return _ROW_PREFIX_RE.sub("", line, count=1)
+
+    return replace(hunk, old=[cut(line) for line in hunk.old], new=[cut(line) for line in hunk.new])
+
+
+@dataclass
+class _Place:
+    """Where a hunk's old lines could be in the file."""
+
+    start: int  # 0-based first line
+    shared: int  # non-blank old lines found there
+    differing: list[int]  # indexes in `Hunk.old` of the lines that differ there
+
+
+def _places(lines: list[str], old: list[str], start: int) -> list[_Place]:
+    """The places at or after `start` where some of a hunk's old lines are found, compared as the
+    loosest match compares them, closest first. Blank lines are compared but place nothing."""
+    keys = [_loose(line) for line in lines]
+    wanted = [_loose(line) for line in old]
+    where: dict[str, list[int]] = defaultdict(list)
+    for index in range(start, len(lines)):
+        if keys[index]:
+            where[keys[index]].append(index)
+    votes: Counter[int] = Counter()
+    for offset, key in enumerate(wanted):
+        if not key:
+            continue
+        for index in where.get(key, []):
+            if index - offset >= start:
+                votes[index - offset] += 1
+    places = []
+    for first, shared in votes.items():
+        differing = [
+            offset
+            for offset, key in enumerate(wanted)
+            if first + offset >= len(lines) or keys[first + offset] != key
+        ]
+        places.append(_Place(first, shared, differing))
+    places.sort(key=lambda place: (-place.shared, len(place.differing), place.start))
+    return places
+
+
+def _near_places(lines: list[str], hunk: Hunk, places: list[_Place]) -> list[_Place]:
+    """The places where only removed lines differ, at most NEAR_LINES of them, each nearly the
+    file's line, and at least as many of the hunk's lines are found as differ."""
+    context = {in_old for in_old, _ in hunk.context}
+    size = len(hunk.old)
+    near = []
+    for place in places:
+        if (
+            not place.differing
+            or len(place.differing) > NEAR_LINES
+            or place.start + size > len(lines)
+            or place.shared < max(1, size // 2, len(place.differing))
+            or any(offset in context for offset in place.differing)
+        ):
+            continue
+        ratios = (
+            difflib.SequenceMatcher(
+                None, _loose(hunk.old[offset]), _loose(lines[place.start + offset])
+            ).ratio()
+            for offset in place.differing
+        )
+        if all(ratio >= NEAR_RATIO for ratio in ratios):
+            near.append(place)
+    return near
+
+
+def _near_note(label: str, lines: list[str], hunk: Hunk, place: _Place) -> str:
+    slips = "; ".join(
+        f"line {place.start + offset + 1} of the file is "
+        f"`{E._content(lines[place.start + offset])}`, the patch's - line is "
+        f"`{E._content(hunk.old[offset])}`"
+        for offset in place.differing
+    )
+    return (
+        f"[{label}: applied at lines {place.start + 1}-{place.start + len(hunk.old)}, the one "
+        f"place its lines nearly match: {slips}. Check that the change is the one you meant.]"
+    )
+
+
+def _refusal(
+    label: str,
+    lines: list[str],
+    hashes: list[str],
+    hunk: Hunk,
+    position: int,
+    stripped: bool,
+    places: list[_Place],
+    near: list[_Place],
+) -> PatchError:
+    """Why a hunk's old lines were not found: where they are when they come before the search
+    position, otherwise the closest place and the lines that differ there."""
+    head = f"{label}: its context and - lines are not in the file after line {position}"
+    if stripped:
+        head += " (read without the read view's line:hash| prefixes)"
+    earlier = E.find_lines(lines, hunk.old, 0)[0] if position else []
+    if earlier:
+        return PatchError(
+            f"{head}: they are at line {earlier[0]}, above the previous hunk. Hunks must follow "
+            "the file's order. Nothing was changed."
+        )
+    head += ". Copy them from the file as it is now. Nothing was changed."
+    size = len(hunk.old)
+    if len(near) > 1:
+        shown = ", ".join(f"{place.start + 1}-{place.start + size}" for place in near[:4])
+        return PatchError(
+            f"{head} They nearly match {len(near)} places (lines {shown}); add context lines or "
+            "an `@@ <line>` header that tells them apart."
+        )
+    if not places:
+        return PatchError(f"{head} None of its lines is in the file after line {position}.")
+    best = places[0]
+    context = {in_old for in_old, _ in hunk.context}
+    rows = []
+    for offset in best.differing[:SHOWN_DIFFERENCES]:
+        number = best.start + offset + 1
+        have = f"`{E._content(lines[number - 1])}`" if number <= len(lines) else "(past its end)"
+        kind = "context" if offset in context else "-"
+        rows.append(
+            f"  line {number} of the file: {have}\n"
+            f"  the patch's line ({kind}): `{E._content(hunk.old[offset])}`"
+        )
+    if len(best.differing) > SHOWN_DIFFERENCES:
+        rows.append(f"  ... and {len(best.differing) - SHOWN_DIFFERENCES} more")
+    count = len(best.differing)
+    last = min(len(lines), best.start + size)
+    low, high = max(1, best.start), min(len(lines), last + 1)
+    return PatchError(
+        f"{head} The closest place is lines {best.start + 1}-{last}; {count} "
+        f"{'line differs' if count == 1 else 'lines differ'}:\n" + "\n".join(rows) + "\n"
+        f"Lines {low}-{high} are now:\n{E.render(lines, hashes, low, high)}"
+    )
+
+
+def _hunk_ops(doc: E.TextDoc, change: FileChange, notes: list[str] | None = None) -> list[E.Op]:
+    """The hunks of one update as anchored edits, searched forward through the file. A note is
+    added to `notes` for each hunk read without row prefixes or placed at a near match."""
     hashes = E.line_hashes(doc.lines)
     lines = doc.lines
     if not lines and all(not hunk.old and hunk.anchor is None for hunk in change.hunks):
@@ -320,19 +482,21 @@ def _hunk_ops(doc: E.TextDoc, change: FileChange) -> list[E.Op]:
             position = len(lines)
             continue
         matches, level = E.find_lines(lines, hunk.old, position)
+        stripped = False
+        if not matches and (bare := _without_row_prefixes(hunk)) is not None:
+            hunk, stripped = bare, True
+            matches, level = E.find_lines(lines, hunk.old, position)
         found = [n - 1 for n in matches]  # 0-based
         loose = level > 0
+        differing: list[int] = []
         if hunk.at_end:
             found = [i for i in found if i + len(hunk.old) == len(lines)] or found
         if not found:
-            first = hunk.old[0].strip() if hunk.old else ""
-            near = next((i for i, line in enumerate(lines) if first and line.strip() == first), 0)
-            low, high = max(1, near - 1), min(len(lines), near + len(hunk.old) + 2)
-            raise PatchError(
-                f"{label}: its context and - lines are not in the file after line {position}. "
-                "Copy them from the file as it is now. Nothing was changed. "
-                f"Lines {low}-{high} are now:\n{E.render(lines, hashes, low, high)}"
-            )
+            places = _places(lines, hunk.old, position)
+            near = _near_places(lines, hunk, places)
+            if len(near) != 1:
+                raise _refusal(label, lines, hashes, hunk, position, stripped, places, near)
+            found, loose, differing = [near[0].start], True, near[0].differing
         if len(found) > 1 and hunk.anchor is None:
             if hunk.line is not None:
                 found = [min(found, key=lambda i: abs(i + 1 - int(hunk.line or 0)))]
@@ -348,7 +512,10 @@ def _hunk_ops(doc: E.TextDoc, change: FileChange) -> list[E.Op]:
         end = start + len(hunk.old) - 1
         new = list(hunk.new)
         if loose:
-            new = E._reindent(lines[start : end + 1], hunk.old, new)
+            # The indentation the file adds or lacks, from the lines that match.
+            same = [offset for offset in range(len(hunk.old)) if offset not in differing]
+            have = [lines[start + offset] for offset in same]
+            new = E._reindent(have, [hunk.old[offset] for offset in same], new)
             if not new and hunk.new:
                 raise PatchError(
                     f"{label}: lines {start + 1}-{end + 1} match only with other indentation, "
@@ -356,6 +523,13 @@ def _hunk_ops(doc: E.TextDoc, change: FileChange) -> list[E.Op]:
                 )
         for in_old, in_new in hunk.context:
             new[in_new] = lines[start + in_old]  # the file's own copy of a context line
+        if notes is not None and stripped:
+            notes.append(
+                f"[{label}: read without the read view's line:hash| prefixes; a patch line is "
+                "the file's text only]"
+            )
+        if notes is not None and differing:
+            notes.append(_near_note(label, lines, hunk, _Place(start, 0, differing)))
         ops.append(
             E.Op(
                 "replace",
@@ -379,13 +553,15 @@ def _whole(new: list[str]) -> E.Op:
 
 
 def plan(
-    changes: list[FileChange], resolve: Callable[[str, bool], tuple[Path, str]]
+    changes: list[FileChange],
+    resolve: Callable[[str, bool], tuple[Path, str]],
+    notes: list[str] | None = None,
 ) -> list[Planned]:
     """Check every file of a patch and compute its new content; write nothing.
 
     `resolve(path, existing)` gives the file's absolute path and display path; `existing` says
     the patch changes a file that should already be there. Hunks are found by their text, so no
-    anchor shown earlier is needed or checked."""
+    anchor shown earlier is needed or checked. Notes on lenient readings go to `notes`."""
     planned: dict[Path, Planned] = {}
     for change in changes:
         if change.kind == "delete":
@@ -414,7 +590,7 @@ def plan(
         if not change.hunks:
             raise PatchError(f"{display}: the update has no hunks. Nothing was changed.")
         base = earlier.new if earlier is not None else E.TextDoc.decode(path.read_bytes(), display)
-        ops = _hunk_ops(base, change)
+        ops = _hunk_ops(base, change, notes)
         if ops and ops[0].kind == "whole":
             new = E.TextDoc(list(ops[0].lines), [], base.newline, base.bom)
             new.endings = [base.newline] * len(new.lines)

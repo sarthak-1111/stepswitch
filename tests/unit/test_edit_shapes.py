@@ -442,6 +442,89 @@ def test_a_refused_patch_changes_nothing(box: T.Toolbox, root: Path) -> None:
     assert sorted(p.name for p in (root / "secrets").iterdir()) == ["key.txt"]
 
 
+FIX_HUNK = [
+    "     if per_page < 1:",
+    '         raise ValueError("per_page must be at least 1")',
+    "-    start = number * per_page",
+    f"+{FIXED_LINE}",
+    "     return list(results[start : start + per_page])",
+]
+
+
+def test_a_near_match_in_removed_lines_is_taken_with_a_note(box: T.Toolbox, root: Path) -> None:
+    # Phase 12 (ADR 0041): a removed line copied with a small slip, every context line right.
+    slipped = [
+        row.replace("-    start = number * per_page", "-    start = number * per_page,")
+        for row in FIX_HUNK
+    ]
+    done = edit(box, {"patch": begin("*** Update File: pager.py", "@@", *slipped)})
+    assert not done.is_error, done.text
+    assert text(root) == FIXED
+    assert "line 12 of the file is `    start = number * per_page`" in done.text
+    assert "the patch's - line is `    start = number * per_page,`" in done.text
+
+
+def test_a_refusal_names_the_closest_place_and_the_differing_line(
+    box: T.Toolbox, root: Path
+) -> None:
+    # A context line that differs is never guessed: it says what the file holds.
+    wrong = [row.replace("at least 1", "at least one") for row in FIX_HUNK]
+    refused = edit(box, {"patch": begin("*** Update File: pager.py", "@@", *wrong)})
+    assert refused.is_error and text(root) == PAGER
+    assert "The closest place is lines 10-13; 1 line differs:" in refused.text
+    assert 'line 11 of the file: `        raise ValueError("per_page must be at least 1")`' in (
+        refused.text
+    )
+    assert '(context): `        raise ValueError("per_page must be at least one")`' in refused.text
+
+
+def test_the_read_views_line_prefixes_are_dropped_from_patch_lines(
+    box: T.Toolbox, root: Path
+) -> None:
+    rows = read(box, "pager.py")
+    line, digest = rows["    start = number * per_page"]
+    before, before_hash = rows['        raise ValueError("per_page must be at least 1")']
+    pasted = begin(
+        "*** Update File: pager.py",
+        "@@",
+        f' {before}:{before_hash}|        raise ValueError("per_page must be at least 1")',
+        f"-{line}:{digest}|    start = number * per_page",
+        f"+{FIXED_LINE}",
+    )
+    done = edit(box, {"patch": pasted})
+    assert not done.is_error, done.text
+    assert text(root) == FIXED
+    assert "line:hash| prefixes" in done.text
+
+
+def test_a_near_match_at_two_places_or_without_context_is_refused(
+    box: T.Toolbox, root: Path
+) -> None:
+    (root / "pairs.py").write_text("a = 1\nb = 2,\na = 1\nb = 2,\n", encoding="utf-8")
+    twice = begin("*** Update File: pairs.py", "@@", " a = 1", "-b = 2", "+b = 3")
+    refused = edit(box, {"patch": twice})
+    assert refused.is_error and "They nearly match 2 places (lines 1-2, 3-4)" in refused.text
+    alone = begin("*** Update File: pairs.py", "@@", "-b = 22,", "+b = 3")
+    assert edit(box, {"patch": alone}).is_error  # one line, nothing found around it
+    assert text(root, "pairs.py") == "a = 1\nb = 2,\na = 1\nb = 2,\n"
+
+
+def test_a_hunk_above_the_previous_one_is_explained(box: T.Toolbox, root: Path) -> None:
+    backwards = begin(
+        "*** Update File: pager.py",
+        "@@",
+        "-    start = number * per_page",
+        f"+{FIXED_LINE}",
+        "@@",
+        "     if number < 1:",
+        '-        raise ValueError("page numbers start at 1")',
+        '+        raise ValueError("pages start at 1")',
+    )
+    refused = edit(box, {"patch": backwards})
+    assert refused.is_error and text(root) == PAGER
+    assert "they are at line 8, above the previous hunk" in refused.text
+
+
 def test_hunks_are_found_forward_and_an_at_line_tells_twins_apart(
     box: T.Toolbox, root: Path
 ) -> None:

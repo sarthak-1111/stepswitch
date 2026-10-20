@@ -702,7 +702,40 @@ def _gate_impacted_tests(run: _Run) -> GateResult:
     argv = _tests_argv(run, base, args, default)
     result = run.execute(argv, extra_env=selection.env)
     what = f"impacted tests ({selection.mode})"
-    return _pytest_result("impacted_tests", result, what, pytest=_is_pytest(argv), **details)
+    outcome = _pytest_result("impacted_tests", result, what, pytest=_is_pytest(argv), **details)
+    if selection.mode == "testmon":  # its data file belongs to the working tree
+        return outcome
+    return _with_preexisting(run, outcome, result, argv)
+
+
+def _with_preexisting(
+    run: _Run, outcome: GateResult, result: commands.CommandResult, argv: list[str]
+) -> GateResult:
+    """A failed test gate names the failing tests that fail at the base commit too
+    (`stepswitch.verify.baseline`). It still fails: a task is often to fix such a test."""
+    from stepswitch.verify import baseline
+    from stepswitch.workers.tools import failing_tests
+
+    if outcome.status != "failed" or result.timed_out or result.seconds > baseline.MAX_SECONDS:
+        return outcome
+    failing, unnamed = failing_tests(result.output)
+    found = baseline.for_worktree(run.repo, run.base)
+    if not failing or unnamed or found is None:
+        return outcome
+    before = found.failing(
+        argv,
+        env_for=lambda path: commands.project_env(run.python, repo=path),
+        summarize=failing_tests,
+        timeout=run.timeout,
+    )
+    new, old = baseline.compare(failing, before)
+    if old:
+        outcome.details["preexisting"] = old
+        outcome.details["new_failures"] = new
+        outcome.summary += (
+            f" ({len(old)} of the failing tests also fail at the base commit, before the change)"
+        )
+    return outcome
 
 
 def _gate_full_tests(run: _Run) -> GateResult:
@@ -713,6 +746,7 @@ def _gate_full_tests(run: _Run) -> GateResult:
         argv = _tests_argv(run, base, [], default)
         result = run.execute(argv)
         outcome = _pytest_result("full_tests", result, "test suite", pytest=_is_pytest(argv))
+        outcome = _with_preexisting(run, outcome, result, argv)
         details.update(outcome.details)
         if outcome.status != "passed":
             outcome.details = details
