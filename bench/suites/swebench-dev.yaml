@@ -1,0 +1,19 @@
+# Development set for SWE-bench work (ADR 0042): six SWE-bench Verified instances from the
+# same two repositories as SWE-bench Verified Mini and outside it, for tuning only. They were
+# picked with a fixed seed, one per difficulty band where one exists outside Mini: django
+# under 15 minutes, 15 minutes to an hour, and 1 to 4 hours; sphinx under 15 minutes and two
+# of 15 minutes to an hour (no sphinx instance of 1 to 4 hours is left outside Mini).
+schema: 1
+name: swebench-dev
+kind: swebench
+description: Six SWE-bench Verified instances outside the Mini subset, for tuning.
+dataset:
+  name: SWE-bench/SWE-bench_Verified
+  split: test
+instances:
+  - django__django-12741
+  - django__django-12858
+  - django__django-14631
+  - sphinx-doc__sphinx-8459
+  - sphinx-doc__sphinx-9602
+  - sphinx-doc__sphinx-10614

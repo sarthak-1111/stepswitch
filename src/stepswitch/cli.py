@@ -1585,8 +1585,9 @@ def bench_run(
             help="Comma-separated contestants: `router`, `best-of-n`, worker ids,"
             " `harness:<name>` (an external harness through ssw proxy, routed among the"
             " router pool), `native:<harness>:<model>` (the harness alone on its own login and"
-            " model: a frontier baseline; its usage counts against that account), or"
-            " `fake:oracle`/`fake:noop`.",
+            " model: a frontier baseline; its usage counts against that account),"
+            " `fake:oracle`/`fake:noop`, or for SWE-bench suites `mini-swe-agent:<worker>`"
+            " (the reference agent on that worker's model).",
         ),
     ] = None,
     seeds: Annotated[int, typer.Option("--seeds", min=1, help="Repetitions per task.")] = 1,
@@ -1765,6 +1766,7 @@ def _check_contestants(
         if adapter.executable(harness_settings(state.config, name)[0]) is None:
             raise ValueError(str(HarnessMissing(adapter)))
     named = [c.name for c in contestants if c.worker is not None and c.fake is None]
+    named += [c.name.split(":", 1)[1] for c in contestants if c.name.startswith("mini-swe-agent:")]
     named += list(pool or [])
     if not named:
         return

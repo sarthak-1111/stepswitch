@@ -4,11 +4,15 @@ A suite is `bench/suites/<name>.yaml` in the project, or a built-in suite shippe
 package (`stepswitch/_bench/`), or any YAML file given by path. Task paths (`repo`, `golden`)
 are relative to the directory that holds `bench/`, so a suite and its repositories move
 together.
+
+A suite of kind `swebench` lists instance ids of a SWE-bench dataset (`dataset: {name, split}`,
+`instances: [...]`) instead of tasks; `stepswitch.bench.swebench` runs it (ADR 0042).
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import re
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +25,9 @@ TRACKS = ("general", "science")
 REQUIRED_KEYS = ("id", "repo", "instruction", "acceptance", "track", "tags")
 # Paths an agent must not change to pass: they are restored before the acceptance commands.
 DEFAULT_PROTECTED = ("tests/",)
+TASKS = "tasks"
+SWEBENCH = "swebench"
+_INSTANCE_RE = re.compile(r"^[A-Za-z0-9_.-]+__[A-Za-z0-9_.-]+-\d+$")
 
 
 class SuiteError(ValueError):
@@ -47,6 +54,9 @@ class Suite:
     path: Path
     tasks: tuple[BenchTask, ...]
     protected: tuple[str, ...] = DEFAULT_PROTECTED
+    kind: str = TASKS
+    # A `swebench` suite's dataset: {"name": ..., "split": ...}.
+    dataset: dict[str, Any] | None = None
 
     def select(self, ids: list[str] | None) -> Suite:
         if not ids:
@@ -55,13 +65,7 @@ class Suite:
         missing = [task_id for task_id in ids if task_id not in known]
         if missing:
             raise SuiteError(f"unknown task(s) in {self.name}: {', '.join(missing)}")
-        return Suite(
-            self.name,
-            self.description,
-            self.path,
-            tuple(known[task_id] for task_id in ids),
-            self.protected,
-        )
+        return replace(self, tasks=tuple(known[task_id] for task_id in ids))
 
 
 def suite_path(name: str, root: Path) -> Path:
@@ -99,6 +103,41 @@ def _resolve(home: Path, value: str, *, packaged: bool) -> Path:
     return (home / relative).resolve()
 
 
+def _swebench_suite(path: Path, data: dict[str, Any]) -> Suite:
+    """A suite of SWE-bench instance ids; the instances' rows come from the dataset."""
+    dataset = data.get("dataset")
+    if not isinstance(dataset, dict) or not dataset.get("name"):
+        raise SuiteError(f"{path.name}: a swebench suite needs `dataset: {{name, split}}`")
+    ids = [str(item) for item in data.get("instances") or []]
+    if not ids:
+        raise SuiteError(f"{path.name}: no instances")
+    bad = [item for item in ids if not _INSTANCE_RE.match(item)]
+    if bad:
+        raise SuiteError(f"{path.name}: not instance ids: {', '.join(bad[:5])}")
+    if len(set(ids)) != len(ids):
+        raise SuiteError(f"{path.name}: duplicate instance ids")
+    tasks = tuple(
+        BenchTask(
+            id=item,
+            repo=path.parent,
+            instruction="",
+            acceptance=(),
+            track="general",
+            tags=(),
+        )
+        for item in ids
+    )
+    return Suite(
+        name=str(data.get("name") or path.stem),
+        description=str(data.get("description") or ""),
+        path=path,
+        tasks=tasks,
+        protected=(),
+        kind=SWEBENCH,
+        dataset={"name": str(dataset["name"]), "split": str(dataset.get("split") or "test")},
+    )
+
+
 def load_suite(name: str, root: Path) -> Suite:
     path = suite_path(name, root)
     data = YAML(typ="safe", pure=True).load(path.read_text(encoding="utf-8")) or {}
@@ -106,6 +145,11 @@ def load_suite(name: str, root: Path) -> Suite:
         raise SuiteError(f"{path.name}: expected a mapping at the top level")
     if data.get("schema", 1) != 1:
         raise SuiteError(f"{path.name}: unsupported schema {data.get('schema')!r}")
+    kind = data.get("kind", TASKS)
+    if kind == SWEBENCH:
+        return _swebench_suite(path, data)
+    if kind != TASKS:
+        raise SuiteError(f"{path.name}: unknown suite kind {kind!r}")
     home = _home(path)
     packaged = path.parent.parent.name == "_bench"
     tasks = []

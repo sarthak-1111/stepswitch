@@ -137,6 +137,8 @@ ALLOWED_IDENTIFIERS = (
     "huggingface-hub",
     "huggingface-cli",
     "openai-harmony",
+    # the chat-completions provider prefix of litellm model names (mini-SWE-agent, ADR 0042)
+    "openai/",
     # protocol headers of the chat-completions and messages formats
     "openai-version",
     "openai-organization",
@@ -204,10 +206,11 @@ def repo_text_files(root: Path = ROOT) -> list[Path]:
 
 
 def company_name_hits(text: str, hashes: frozenset[str] = COMPANY_NAME_HASHES) -> list[str]:
-    text = text.lower()
+    # URLs go first, whole: an allowed identifier inside one must not split it.
+    text = URL_RE.sub(" ", text.lower())
     for identifier in ALLOWED_IDENTIFIERS:
         text = text.replace(identifier, " ")
-    text = ORG_ID_RE.sub(" ", URL_RE.sub(" ", text))
+    text = ORG_ID_RE.sub(" ", text)
     words = WORD_RE.findall(text)
     hits: list[str] = []
     for index, word in enumerate(words):

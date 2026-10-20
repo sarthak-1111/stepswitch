@@ -59,6 +59,19 @@ def wilson_interval(
     return Interval(max(0.0, center - half), min(1.0, center + half), confidence, WILSON)
 
 
+def mcnemar_exact(first_only: int, second_only: int) -> float:
+    """Two-sided exact McNemar p-value for paired outcomes: `first_only` pairs where only the
+    first passed, `second_only` where only the second did (the pairs where both or neither
+    passed say nothing about the difference). 1.0 when no pair differs."""
+    if first_only < 0 or second_only < 0:
+        raise ValueError("pair counts cannot be negative")
+    n = first_only + second_only
+    if n == 0:
+        return 1.0
+    tail = sum(math.comb(n, k) for k in range(min(first_only, second_only) + 1)) / 2.0**n
+    return min(1.0, 2.0 * tail)
+
+
 def bootstrap_ci(
     groups: Sequence[Sequence[float]],
     *,

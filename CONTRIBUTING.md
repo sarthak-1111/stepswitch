@@ -75,7 +75,9 @@ server. They are skipped, with the reason, when what they need is missing.
   3. The compatibility matrix is generated from probe results, never written by hand.
 - **Add a bench task.** A task is an entry in a suite file under `bench/suites/` (the
   instruction, the acceptance command, the track and tags) and a small repository under
-  `bench/repos/<name>/`.
+  `bench/repos/<name>/`. A SWE-bench suite (`kind: swebench`) lists instance ids of a dataset
+  instead: the rows are fetched when the suite runs and are never committed, and the official
+  harness grades each run in a Linux container (ADR 0042).
 - **Add an API codec or an engine adapter.** Both sit behind small interfaces in
   `stepswitch.compat` and `stepswitch.serve`. Use the mock-server conformance tests as
   templates.

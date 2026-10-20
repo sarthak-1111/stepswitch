@@ -52,12 +52,14 @@ from typing import Any, Literal
 from stepswitch import __version__, paths
 from stepswitch.bench import fakes, native, preflight, workspace
 from stepswitch.bench.report import MANIFEST_FILE, RESULTS_FILE, write_report
-from stepswitch.bench.suites import BenchTask, Suite
+from stepswitch.bench.suites import SWEBENCH, BenchTask, Suite
 from stepswitch.core.task import Budgets, TaskResult, TaskSpec
 from stepswitch.verify import commands
 
 ROUTER = "router"
 RELAY = "relay"
+MINI_PREFIX = "mini-swe-agent:"  # the reference agent of SWE-bench suites (bench.swebench)
+GOLD = "gold"  # a SWE-bench suite's reference patches, graded as a contestant (ADR 0042)
 HARNESS_PREFIX = "harness:"
 BEST_OF_N = "best-of-n"
 POOLED = frozenset({ROUTER, BEST_OF_N})
@@ -109,6 +111,12 @@ def parse_contestants(text: str | None) -> list[Contestant]:
         elif name.startswith(native.PREFIX):
             harness, model = native.parse(name)
             contestants.append(Contestant(name, harness=harness, native=model))
+        elif name.startswith(MINI_PREFIX):
+            if not name.removeprefix(MINI_PREFIX):
+                raise ValueError(f"{name}: give the worker, as {MINI_PREFIX}<endpoint>/<model>")
+            contestants.append(Contestant(name))  # SWE-bench suites only (ADR 0042)
+        elif name == GOLD:
+            contestants.append(Contestant(name))  # SWE-bench suites only (ADR 0042)
         else:
             contestants.append(Contestant(name, worker=name))
     if not contestants:
@@ -203,6 +211,7 @@ def canary_workers(contestants: Sequence[Contestant], pool: Sequence[str] | None
     worker contestant's own worker (fakes have no server to check)."""
     ids = list(pool or []) if any(c.pooled for c in contestants) else []
     ids += [c.worker for c in contestants if c.worker is not None and c.fake is None]
+    ids += [c.name.removeprefix(MINI_PREFIX) for c in contestants if c.name.startswith(MINI_PREFIX)]
     return list(dict.fromkeys(ids))
 
 
@@ -614,6 +623,20 @@ def run_bench(
     if out_dir.resolve().is_relative_to(work.resolve()):
         # The work area is deleted after the run and would take the results with it.
         raise ValueError(f"the results directory {out_dir} is inside the bench work area {work}")
+    if suite.kind == SWEBENCH:
+        return _run_swebench(
+            suite,
+            contestants,
+            root=root,
+            out_dir=out_dir,
+            options=options,
+            config=config,
+            egress=egress,
+            command=command,
+            echo=echo,
+        )
+    if any(c.name.startswith(MINI_PREFIX) or c.name == GOLD for c in contestants):
+        raise ValueError(f"{MINI_PREFIX}<worker> and {GOLD} contestants run SWE-bench suites only")
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest: dict[str, Any] = {
         "schema": 1,
@@ -697,6 +720,50 @@ def run_bench(
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
     write_report(out_dir)
     return out_dir
+
+
+def _run_swebench(
+    suite: Suite,
+    contestants: Sequence[Contestant],
+    *,
+    root: Path,
+    out_dir: Path,
+    options: BenchOptions,
+    config: Any,
+    egress: Any,
+    command: str | None,
+    echo: Callable[[str], None],
+) -> Path:
+    """A SWE-bench suite (`stepswitch.bench.swebench`), after the canary check."""
+    from stepswitch.bench import swebench
+
+    if options.relay or options.learning != "off" or not options.optimize:
+        raise ValueError("SWE-bench suites run with the defaults: no relay, learning or baseline")
+    settings = swebench.SwebenchOptions(
+        seeds=options.seeds,
+        max_steps=options.max_steps,
+        budget_seconds=options.budgets.wall_seconds,
+        budget_tokens=options.budgets.tokens,
+        review=options.review,
+        router_pool=list(options.router_pool) if options.router_pool else None,
+        keep=options.keep,
+    )
+    swebench.check_contestants(contestants, settings, config)
+    if options.preflight:
+        report = _preflight(contestants, options.router_pool, root, config, egress, echo)
+        settings.preflight = report
+        if report.get("ok") is False:
+            raise preflight.PreflightFailed(preflight.failure_message(report))
+    return swebench.run_suite(
+        suite,
+        contestants,
+        root=root,
+        out_dir=out_dir,
+        options=settings,
+        config=config,
+        command=command,
+        echo=echo,
+    )
 
 
 def _harness_versions(names: Sequence[str], config: Any) -> dict[str, str | None]:

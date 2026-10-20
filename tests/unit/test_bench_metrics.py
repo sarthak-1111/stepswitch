@@ -12,6 +12,7 @@ from stepswitch.bench.metrics import (
     WILSON,
     bootstrap_ci,
     bootstrap_ratio_ci,
+    mcnemar_exact,
     quantile,
     summarize,
     wilson_interval,
@@ -36,6 +37,16 @@ def test_wilson_interval_matches_the_published_value() -> None:
     zero = wilson_interval(0, 10)
     assert (round(zero.low, 4), round(zero.high, 4)) == (0.0, 0.2775)
     assert math.isnan(wilson_interval(0, 0).low)
+
+
+def test_exact_mcnemar_is_the_two_sided_binomial_test_on_discordant_pairs() -> None:
+    # 1 against 9 discordant pairs: 2 * (C(10,0) + C(10,1)) / 2**10 = 22/1024.
+    assert mcnemar_exact(1, 9) == pytest.approx(22 / 1024)
+    assert mcnemar_exact(9, 1) == mcnemar_exact(1, 9)
+    assert mcnemar_exact(0, 6) == pytest.approx(2 / 64)  # 0 against 6: 2 * 1/64
+    assert mcnemar_exact(5, 5) == 1.0 and mcnemar_exact(0, 0) == 1.0
+    with pytest.raises(ValueError):
+        mcnemar_exact(-1, 2)
 
 
 def test_cluster_bootstrap_matches_the_exact_resampling_distribution() -> None:

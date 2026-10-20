@@ -1,0 +1,65 @@
+# SWE-bench Verified Mini (ADR 0042): the 50 instances of the published subset
+# MariusHobbhahn/swe-bench-verified-mini (checked 2026-10-20), 25 from django and 25 from
+# sphinx. The subset was chosen by its authors to match the full SWE-bench Verified set's
+# distribution of difficulty and resolve rates, with small container images. Every id is an
+# instance of SWE-bench/SWE-bench_Verified, whose rows the bench fetches at run time.
+#
+# This is the test set: claims are measured here, once, after tuning on swebench-dev.
+schema: 1
+name: swebench-verified-mini
+kind: swebench
+description: SWE-bench Verified Mini, 50 real issues from django and sphinx, graded by the official harness.
+dataset:
+  name: SWE-bench/SWE-bench_Verified
+  split: test
+instances:
+  - django__django-11790
+  - django__django-11815
+  - django__django-11848
+  - django__django-11880
+  - django__django-11885
+  - django__django-11951
+  - django__django-11964
+  - django__django-11999
+  - django__django-12039
+  - django__django-12050
+  - django__django-12143
+  - django__django-12155
+  - django__django-12193
+  - django__django-12209
+  - django__django-12262
+  - django__django-12273
+  - django__django-12276
+  - django__django-12304
+  - django__django-12308
+  - django__django-12325
+  - django__django-12406
+  - django__django-12708
+  - django__django-12713
+  - django__django-12774
+  - django__django-9296
+  - sphinx-doc__sphinx-10323
+  - sphinx-doc__sphinx-10435
+  - sphinx-doc__sphinx-10466
+  - sphinx-doc__sphinx-10673
+  - sphinx-doc__sphinx-11510
+  - sphinx-doc__sphinx-7590
+  - sphinx-doc__sphinx-7748
+  - sphinx-doc__sphinx-7757
+  - sphinx-doc__sphinx-7985
+  - sphinx-doc__sphinx-8035
+  - sphinx-doc__sphinx-8056
+  - sphinx-doc__sphinx-8265
+  - sphinx-doc__sphinx-8269
+  - sphinx-doc__sphinx-8475
+  - sphinx-doc__sphinx-8548
+  - sphinx-doc__sphinx-8551
+  - sphinx-doc__sphinx-8638
+  - sphinx-doc__sphinx-8721
+  - sphinx-doc__sphinx-9229
+  - sphinx-doc__sphinx-9230
+  - sphinx-doc__sphinx-9281
+  - sphinx-doc__sphinx-9320
+  - sphinx-doc__sphinx-9367
+  - sphinx-doc__sphinx-9461
+  - sphinx-doc__sphinx-9698
