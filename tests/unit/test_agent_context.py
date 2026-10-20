@@ -505,10 +505,12 @@ def test_role_budgets_and_effort_go_to_reasoning_workers_only(tmp_path: Path) ->
     assert loop.run().status == "done"
     requests = thinker.model.requests  # type: ignore[union-attr]
     plan, navigate = requests[0], requests[1]
-    assert (plan.effort, plan.max_output_tokens) == ("high", 1200)
-    assert (navigate.effort, navigate.max_output_tokens) == ("medium", 2048)
+    # The task's difficulty is 2 (an easy task): plan and work steps run at low effort
+    # (ADR 0037; tests/unit/test_task_effort.py covers the other bands).
+    assert (plan.effort, plan.max_output_tokens) == ("low", 1200)
+    assert (navigate.effort, navigate.max_output_tokens) == ("low", 2048)
     # every work step of the transcript has one effort, so the prompt prefix stays cacheable
-    assert {r.effort for r in requests if r.tools} == {"medium"}
+    assert {r.effort for r in requests if r.tools} == {"low"}
     plain = scripted("a/m", "t2", sequence([read("calc.py"), FINISH]))
     loop = build(tmp_path / "plain", [plain], FileToolbox(SMALL))
     assert loop.run().status == "done"

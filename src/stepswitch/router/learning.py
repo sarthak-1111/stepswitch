@@ -42,6 +42,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from stepswitch.router.budgets import difficulty_band  # shared with the budgets (ADR 0037)
 from stepswitch.router.features import TaskFeatures
 
 BANDIT_KEY = "bandit"
@@ -123,10 +124,6 @@ def reward(success: bool, seconds: float, tokens: int, settings: LearningSetting
     time_cost, token_cost = normalized_costs(seconds, tokens, settings)
     value = (1.0 if success else 0.0) - settings.lambda_time * time_cost
     return round(value - settings.mu_tokens * token_cost, 6)
-
-
-def difficulty_band(difficulty: int) -> str:
-    return "easy" if difficulty <= 2 else ("medium" if difficulty == 3 else "hard")
 
 
 def context_band(tokens: int) -> str:

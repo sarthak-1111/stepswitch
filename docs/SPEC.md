@@ -515,7 +515,7 @@ on by default): no code reuse and no adapter.
 | TK7 | Handoff briefs | HANDOFF v0.1 on model switches (§9). |
 | TK8 | Constrained decoding | JSON Schema or grammar constraints for classifier, router, reviewer, handoff, fallback tool protocol. |
 | TK9 | Hybrid search | T0 embeddings + ripgrep to read fewer files. |
-| TK10 | Per-role budgets | max tokens and reasoning effort per role (low for navigation, high for planning). |
+| TK10 | Per-role budgets | max tokens and reasoning effort per role; the plan step's and the work steps' effort follow the task's difficulty band, with one work effort per task, raised by an escalation (ADR 0024, ADR 0037). |
 | TK11 | Prompt compression | optional extra, docs only, never code: the LLMLingua-2 small checkpoint only (the default LLMLingua model is a 7B GPU model), local model path, off by default, enabled only if the bench shows a gain. |
 | TK12 | Token ledger | per task, step, model and day, in SQLite and the dashboard. |
 

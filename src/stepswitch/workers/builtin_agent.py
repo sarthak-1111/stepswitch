@@ -365,6 +365,8 @@ class AgentLoop:
     # Steps asked again through the fallback tool protocol after the engine could not parse
     # the tool call the model generated (ADR 0035).
     tool_fallbacks: int = 0
+    # Escalations so far: each raises the work steps' effort one level (ADR 0037).
+    effort_raised: int = 0
     compactions: int = 0
     relayed: bool = False
     registry: PrefixRegistry = field(default_factory=PrefixRegistry)
@@ -419,7 +421,14 @@ class AgentLoop:
 
     def _budget(self, step_type: str, spec: WorkerSpec | None) -> RoleBudget:
         tier = spec.tier if spec is not None else "t1"
-        return role_budget(step_type, tier, self.config, optimize=self.optimize)
+        return role_budget(
+            step_type,
+            tier,
+            self.config,
+            optimize=self.optimize,
+            difficulty=self.features.difficulty,
+            raised=self.effort_raised,
+        )
 
     def _effort(self, budget: RoleBudget, spec: WorkerSpec | None) -> Any:
         """The step's reasoning effort, for workers that reason (TK10)."""
@@ -742,6 +751,7 @@ class AgentLoop:
             model=spec.model,
             tool_calls=calls,
             text=message.text_content()[:400],
+            effort=request.effort,
             finish_reason=response.finish_reason,
             usage={k: v for k, v in fields.items()},
             wall_seconds=round(wall, 3),
@@ -1415,6 +1425,7 @@ class AgentLoop:
             return LoopOutcome("stopped", "budget_escalations", detail=why)
         move = self.ladder.escalate(why)
         self.budget.escalate()
+        self.effort_raised += 1
         self.trajectory.emit("escalation", step=self.step, **(move or {}))
         self.echo(f"  escalate: {why}")
         return None

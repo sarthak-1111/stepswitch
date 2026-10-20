@@ -18,6 +18,11 @@ counts:
     max_output_tokens = 3000
     effort = "high"
 
+Given the task's difficulty (ADR 0037), the plan step's effort and the work steps' effort
+follow its band (`BAND_EFFORT`), unless the project set them. The work steps' effort is still
+one per task, so it is fixed when the task starts. Only an escalation raises it: one level per
+escalation, up to `RAISE_LIMIT`.
+
 The unoptimized baseline (`ssw bench run --baseline`) uses `BASELINE`: the Phase 2 output sizes
 and no effort setting.
 """
@@ -60,6 +65,21 @@ BASELINE: dict[str, RoleBudget] = {
     "write-text": RoleBudget(400),
 }
 TEXT_STEPS = frozenset({"plan", "review", "summarize", "write-text"})
+# ADR 0037: plan and work effort by the task's difficulty band (the learning router's bands).
+BAND_EFFORT = {"easy": "low", "medium": "medium", "hard": "high"}
+RAISE_LIMIT = "high"
+
+
+def difficulty_band(difficulty: int) -> str:
+    """easy (1-2), medium (3) or hard (4-5), as `router.learning` groups difficulties."""
+    return "easy" if difficulty <= 2 else ("medium" if difficulty == 3 else "hard")
+
+
+def _raise(effort: str, levels: int) -> str:
+    if levels <= 0 or effort not in EFFORTS:
+        return effort
+    index = min(EFFORTS.index(effort) + levels, EFFORTS.index(RAISE_LIMIT))
+    return EFFORTS[max(index, EFFORTS.index(effort))]
 
 
 def _overrides(config: Any) -> Mapping[str, Any]:
@@ -70,14 +90,22 @@ def _overrides(config: Any) -> Mapping[str, Any]:
 
 
 def role_budget(
-    step_type: str, tier: str | None, config: Any = None, *, optimize: bool = True
+    step_type: str,
+    tier: str | None,
+    config: Any = None,
+    *,
+    optimize: bool = True,
+    difficulty: int | None = None,
+    raised: int = 0,
 ) -> RoleBudget:
-    """The budget of one step on a worker of `tier`."""
+    """The budget of one step on a worker of `tier`, for a task of `difficulty` (1 to 5) whose
+    work effort was `raised` by that many escalations."""
     table = DEFAULTS if optimize else BASELINE
     budget = table.get(step_type, RoleBudget(2048, "medium" if optimize else None))
     if optimize:
         roles = _overrides(config)
         override = roles.get(step_type)
+        explicit = isinstance(override, Mapping) and override.get("effort") in EFFORTS
         if isinstance(override, Mapping):
             tokens = override.get("max_output_tokens")
             effort = override.get("effort")
@@ -91,10 +119,16 @@ def role_budget(
         if step_type in WORK_STEPS:
             shared = roles.get(WORK_EFFORT_STEP)
             effort = shared.get("effort") if isinstance(shared, Mapping) else None
+            explicit = effort in EFFORTS
             budget = replace(
                 budget,
-                effort=str(effort) if effort in EFFORTS else DEFAULTS[WORK_EFFORT_STEP].effort,
+                effort=str(effort) if explicit else DEFAULTS[WORK_EFFORT_STEP].effort,
             )
+        if difficulty is not None and not explicit and step_type in WORK_STEPS | {"plan"}:
+            effort = BAND_EFFORT[difficulty_band(difficulty)]
+            if step_type in WORK_STEPS:
+                effort = _raise(effort, raised)
+            budget = replace(budget, effort=effort)
     if tier == "cpu" and step_type not in TEXT_STEPS:
         budget = replace(budget, max_output_tokens=min(budget.max_output_tokens, CPU_OUTPUT_CAP))
     return budget
