@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "suite": "dev",
+  "suite_file": "dev.yaml",
+  "command": "ssw bench run --suite dev --workers native:claude-code:claude-sonnet-5-5,native:claude-code:claude-opus-5-5 --seeds 2 --budget-seconds 900.0",
+  "started": "2026-10-20T03:05:55+00:00",
+  "finished": "2026-10-20T03:14:27+00:00",
+  "hardware": {
+    "os": "Windows",
+    "arch": "x86_64",
+    "cpu_cores": 32,
+    "ram_gb": 1098.43,
+    "gpus": 4,
+    "gpu_memory_gb": [
+      51.53,
+      48.31,
+      51.53,
+      51.53
+    ]
+  },
+  "version": "0.1.0.dev0",
+  "commit": "f58577271a8a",
+  "seeds": [
+    0,
+    1
+  ],
+  "contestants": [
+    "native:claude-code:claude-sonnet-5-5",
+    "native:claude-code:claude-opus-5-5"
+  ],
+  "tasks": [
+    "invoice-line-rounding",
+    "contacts-quoted-fields",
+    "retry-max-delay",
+    "shared-email-normalizer",
+    "voigt-lorentzian-width",
+    "resample-decreasing-grid"
+  ],
+  "review": true,
+  "prices": null,
+  "router_pool": null,
+  "optimize": true,
+  "scoring": "passes when every acceptance command exits with 0 on a fresh copy with the run's diff applied and the suite's protected paths restored",
+  "harnesses": {
+    "claude-code": "2.1.296 (Claude Code)"
+  },
+  "isolated_harnesses": true,
+  "preflight": {
+    "ok": true,
+    "workers": {}
+  }
+}

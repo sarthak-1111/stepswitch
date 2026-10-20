@@ -1,0 +1,99 @@
+{
+  "command": "ssw bench run --suite dev --workers native:claude-code:claude-sonnet-5-5,native:claude-code:claude-opus-5-5 --seeds 2 --budget-seconds 900.0",
+  "commit": "f58577271a8a",
+  "contestants": [
+    {
+      "cache_hit_rate": 0.9022542693749739,
+      "cached_input_tokens": 733004,
+      "ci": {
+        "confidence": 0.95,
+        "high": 1.0,
+        "low": 1.0,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "native:claude-code:claude-sonnet-5-5",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 0.0,
+      "input_tokens": 812414,
+      "median_hosted_tokens": 72763.5,
+      "median_tokens": 72763.5,
+      "median_uncached_tokens": 7616.5,
+      "median_wall_seconds": 12.718,
+      "output_tokens": 14024,
+      "pass_rate": 1.0,
+      "passed": 12,
+      "rank": 1,
+      "reference_cost": null,
+      "runs": 12,
+      "statuses": {
+        "done": 12
+      },
+      "tasks": 6,
+      "tests_modified": 0
+    },
+    {
+      "cache_hit_rate": 0.9115619558595501,
+      "cached_input_tokens": 1223967,
+      "ci": {
+        "confidence": 0.95,
+        "high": 1.0,
+        "low": 1.0,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "native:claude-code:claude-opus-5-5",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 0.0,
+      "input_tokens": 1342714,
+      "median_hosted_tokens": 96377.5,
+      "median_tokens": 96377.5,
+      "median_uncached_tokens": 9925.0,
+      "median_wall_seconds": 22.8285,
+      "output_tokens": 20009,
+      "pass_rate": 1.0,
+      "passed": 12,
+      "rank": 2,
+      "reference_cost": null,
+      "runs": 12,
+      "statuses": {
+        "done": 12
+      },
+      "tasks": 6,
+      "tests_modified": 0
+    }
+  ],
+  "date": "2026-10-20T03:14:27+00:00",
+  "hardware": {
+    "arch": "x86_64",
+    "cpu_cores": 32,
+    "gpu_memory_gb": [
+      51.53,
+      48.31,
+      51.53,
+      51.53
+    ],
+    "gpus": 4,
+    "os": "Windows",
+    "ram_gb": 1098.43
+  },
+  "interval": {
+    "confidence": 0.95,
+    "resamples": 10000,
+    "seed": 0
+  },
+  "prices": null,
+  "results_file": "results.jsonl",
+  "router_pool": null,
+  "runs": 24,
+  "schema": 1,
+  "scoring": "passes when every acceptance command exits with 0 on a fresh copy with the run's diff applied and the suite's protected paths restored",
+  "seeds": [
+    0,
+    1
+  ],
+  "sources": null,
+  "suite": "dev",
+  "tasks": 6,
+  "version": "0.1.0.dev0"
+}

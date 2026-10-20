@@ -519,6 +519,8 @@ claims:
       - {key: sections.comparison.opus.claimed.percent, label: fewer tokens than Claude Code on Opus, unit: "%", digits: 1}
       - {key: sections.comparison.sonnet.uncached_more_percent, label: more uncached tokens than Claude Code on Sonnet, unit: "%", digits: 1}
       - {key: sections.comparison.opus.uncached_more_percent, label: more uncached tokens than Claude Code on Opus, unit: "%", digits: 1}
+      - {key: sections.comparison.sonnet.uncached_fewer_percent, label: fewer uncached tokens than Claude Code on Sonnet, unit: "%", digits: 1}
+      - {key: sections.comparison.opus.uncached_fewer_percent, label: fewer uncached tokens than Claude Code on Opus, unit: "%", digits: 1}
     status: failing
 
   - id: C-023
@@ -588,4 +590,41 @@ claims:
     readme_numbers:
       - {key: sections.comparison.proxy.claimed.percent, label: fewer uncached tokens than Claude Code on the same local models, unit: "%", digits: 1}
       - {key: sections.comparison.proxy.tokens.percent, label: fewer tokens in all, unit: "%", digits: 1}
+    status: pending
+
+  - id: C-025
+    text: "On the mini suites, Stepswitch on local models uses fewer uncached tokens per task than Claude Code on Sonnet 5.5 and on Opus 5.5."
+    scope: >-
+      The runs of C-021: the mini bench suites, every task of both with at least the seeds
+      `min_seeds` asks for, Stepswitch as the `router` contestant on local models only and
+      Claude Code as the `native:claude-code:<model>` contestant (ADR 0034). Uncached tokens are
+      the input tokens a server did not serve from its prompt cache, plus the output tokens
+      (ADR 0028); for a native run they are what its harness reports per model. C-022 failed on
+      this measure with the Phase 11 runs (ADR 0036). This claim was registered before the
+      router's confirmatory run, against the native runs of Phase 11 (ADR 0040). Every compared
+      run of a contestant on local models passed the bench's canary check (ADR 0037).
+    proof: >-
+      Bench evidence on the mini suites: the ratio of uncached tokens per task, with its 95%
+      cluster-bootstrap interval over tasks lying below one for each frontier model; the
+      router's hosted tokens are zero.
+    kind: bench
+    phase: 12
+    tests:
+      - tests/claims/test_c025_frontier_uncached.py::test_local_router_uses_fewer_uncached_tokens_than_claude_code
+    thresholds:
+      contestant: router
+      baselines:
+        sonnet: {contestant: "native:claude-code:claude-sonnet-5-5", model: claude-sonnet-5-5}
+        opus: {contestant: "native:claude-code:claude-opus-5-5", model: claude-opus-5-5}
+      measure: uncached
+      significant: true
+      hosted_tokens_max: 0
+      preflight: true
+      min_seeds: 2
+      max_excluded_share: 0.1
+      confidence_level: 0.95
+    evidence: [claims/evidence/C-025.json]
+    readme_numbers:
+      - {key: sections.comparison.sonnet.claimed.percent, label: fewer uncached tokens than Claude Code on Sonnet, unit: "%", digits: 1}
+      - {key: sections.comparison.opus.claimed.percent, label: fewer uncached tokens than Claude Code on Opus, unit: "%", digits: 1}
     status: pending

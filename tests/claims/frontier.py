@@ -334,8 +334,10 @@ def tokens_comparison(limits: Mapping[str, Any]) -> tuple[dict[str, Any], list[s
     baseline, over the shared task runs, significantly with the `significant` threshold, and
     sends at most `hosted_tokens_max` tokens to hosted models when that threshold is set. Both
     measures are reported whichever is claimed; `uncached_more_percent` is how many percent
-    more uncached tokens the Stepswitch contestant used (ADR 0036). `per_task_run` holds each
-    contestant's means over the shared task runs, which the README results table shows."""
+    more uncached tokens the Stepswitch contestant used (ADR 0036), set only when it used more,
+    and `uncached_fewer_percent` how many percent fewer, set only when it used fewer.
+    `per_task_run` holds each contestant's means over the shared task runs, which the README
+    results table shows."""
     confidence = float(limits.get("confidence_level", metrics.DEFAULT_CONFIDENCE))
     measure_name = str(limits["measure"])
     measure = MEASURES[measure_name]
@@ -380,13 +382,14 @@ def tokens_comparison(limits: Mapping[str, Any]) -> tuple[dict[str, Any], list[s
     for role in baselines:
         claimed = ratio(token_clusters(comp, role, measure), confidence)
         fewer_uncached = ratio(token_clusters(comp, role, uncached), confidence)
+        fewer = fewer_uncached["percent"]
         report[role] = {
             "claimed": {"measure": measure_name, **claimed},
             "tokens": ratio(token_clusters(comp, role, tokens), confidence),
             "uncached": fewer_uncached,
-            "uncached_more_percent": (
-                -fewer_uncached["percent"] if fewer_uncached["percent"] is not None else None
-            ),
+            # One of the two, so the README never shows a negative "more" or "fewer".
+            "uncached_more_percent": -fewer if fewer is not None and fewer < 0 else None,
+            "uncached_fewer_percent": fewer if fewer is not None and fewer > 0 else None,
         }
         if claimed["percent"] is None or claimed["percent"] <= 0:
             comp.problems.append(f"{role}: {claimed['percent']}% fewer {measure_name} tokens")
