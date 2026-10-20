@@ -1,0 +1,91 @@
+# Development suite (ADR 0037): tasks for tuning the agent, kept apart from the mini suites so
+# that changes are never tuned on the tasks that claims are measured on. Its repositories are
+# used by no other suite. It mixes general-track and science-track tasks in the proportions of
+# the mini suites.
+#
+# repo:       directory copied for the agent, relative to the checkout root.
+# acceptance: shell-free commands run from the repository root; a leading "python" means the
+#             project's interpreter. The task passes when every command exits with 0.
+# golden:     reference solution as a unified diff relative to the repository root, kept outside
+#             the repository so agents never see it. It never touches tests/.
+# tags:       kind (bugfix, feature, refactor, config, docs), language, difficulty
+#             (d1 one line in one obvious place, d2 a few lines or the right place among several
+#             files, d3 a small design decision or two to three files), then topics.
+#
+# Science-track repositories carry a science.toml (docs/science-toml.md), as in mini-science.
+# tests/unit/test_bench_suites.py checks that each task fails before its golden patch and passes
+# after it.
+schema: 1
+name: dev
+description: Tuning tasks on repositories no other suite uses; general and science track.
+tasks:
+  - id: invoice-line-rounding
+    repo: bench/repos/invoice-lines
+    instruction: >-
+      Discounted invoice lines come out a cent too high: a 9.99 lamp with a 15% discount totals
+      8.50, but it should be 8.49. A line's total is its price times its quantity less the
+      discount, rounded half up to a whole cent. Fix the totals.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/invoice-line-rounding.patch
+    track: general
+    tags: [bugfix, python, d1, rounding, integers]
+
+  - id: contacts-quoted-fields
+    repo: bench/repos/contact-import
+    instruction: >-
+      read_contacts() in contacts/importer.py breaks on real address-book exports. A quoted
+      name such as "Lee, Ann" is split at its comma, and a file saved by a spreadsheet program,
+      which starts with a UTF-8 byte-order mark, fails with a KeyError. Read these files as the
+      CSV they are.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/contacts-quoted-fields.patch
+    track: general
+    tags: [bugfix, python, d2, csv, unicode]
+
+  - id: retry-max-delay
+    repo: bench/repos/retry-policy
+    instruction: >-
+      Add an optional max_delay to RetryPolicy in retry/policy.py. No wait from delays() may be
+      longer than max_delay seconds, and run_with_retries() must use the capped waits. Without
+      max_delay the waits stay as they are. A max_delay shorter than base_delay is a mistake:
+      creating such a policy raises ValueError.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/retry-max-delay.patch
+    track: general
+    tags: [feature, python, d2, dataclasses]
+
+  - id: shared-email-normalizer
+    repo: bench/repos/member-desk
+    instruction: >-
+      desk/signup.py and desk/lookup.py each have a private helper that normalizes e-mail
+      addresses, and the two disagree: lookup does not strip spaces, so a member who signed up
+      cannot always be found. Replace both helpers with one public function, normalize_email(),
+      in a new module desk/emails.py (strip surrounding whitespace, then lowercase), and use it
+      in both modules.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/shared-email-normalizer.patch
+    track: general
+    tags: [refactor, python, d2, multi-file, new-file]
+
+  - id: voigt-lorentzian-width
+    repo: bench/repos/line-width
+    instruction: >-
+      voigt_fwhm() in widths/shapes.py gives widths that are too small whenever a line has a
+      Lorentzian part: a pure Lorentzian with half width gamma = 1 has a full width of 2.0, but
+      the function returns about 1.0. Find the cause and fix it.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/voigt-lorentzian-width.patch
+    track: science
+    tags: [bugfix, python, d1, numpy, spectroscopy]
+
+  - id: resample-decreasing-grid
+    repo: bench/repos/grid-resample
+    instruction: >-
+      resample() in regrid/resample.py should accept points recorded in decreasing order and
+      give NaN outside the measured range, as its docstring says. It does neither: points in
+      decreasing order give wrong values, and new points outside the range get the value at the
+      nearest end. Fix it.
+    acceptance: ["python -m pytest -q"]
+    golden: bench/golden/resample-decreasing-grid.patch
+    track: science
+    tags: [bugfix, python, d2, numpy, interpolation]

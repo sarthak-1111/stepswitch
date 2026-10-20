@@ -1,8 +1,9 @@
 """The built-in bench suites (SPEC §16): schema, bundled repositories, golden patches.
 
 mini-general holds general-track tasks; mini-science holds science-track tasks on synthetic
-numerical code (SPEC §6.2). Every check runs for both suites, and every task is checked end to
-end. In a git-initialized copy of its repository at least one acceptance command fails; after
+numerical code (SPEC §6.2); dev holds tuning tasks of both tracks on repositories that no mini
+suite uses (ADR 0037). Every check runs for every suite, and every task is checked end to end.
+In a git-initialized copy of its repository at least one acceptance command fails; after
 `git apply` of the golden patch every acceptance command passes. Acceptance commands run with
 the interpreter running these tests ("python" means the project's interpreter), without
 bytecode or pytest cache files, so nothing is written into the source tree.
@@ -60,16 +61,18 @@ COMMAND_TIMEOUT = 120.0
 
 @dataclass(frozen=True)
 class SuiteRules:
-    track: str
+    track: str | None  # None: general and science tasks both belong
     min_tasks: int
     max_tasks: int | None = None  # None: no upper limit
 
 
+TRACKS = {"general", "science"}
 # SPEC §16: mini-general has 10-20 small tasks; mini-science has synthetic numerical tasks, at
-# least 5 of them (scripts/phase_check.py, Phase 3).
+# least 5 of them (scripts/phase_check.py, Phase 3). dev holds the tuning tasks (ADR 0037).
 SUITES = {
     "mini-general": SuiteRules(track="general", min_tasks=10, max_tasks=20),
     "mini-science": SuiteRules(track="science", min_tasks=5),
+    "dev": SuiteRules(track=None, min_tasks=4, max_tasks=12),
 }
 
 # Tempting wrong fixes: editing a protected value instead of the code that misuses it.
@@ -81,6 +84,13 @@ WRONG_FIXES = [
         "NM_PER_M = 1e9",
         "NM_PER_M = 1e7",
         id="wavenumber-to-wavelength",
+    ),
+    pytest.param(
+        "voigt-lorentzian-width",
+        "widths/constants.py",
+        "VOIGT_A = 0.5346",
+        "VOIGT_A = 1.0692",
+        id="voigt-lorentzian-width",
     ),
 ]
 
@@ -171,8 +181,8 @@ def test_suite_file_schema(suite: str) -> None:
             continue
         if not isinstance(task["id"], str) or not ID_RE.match(task["id"]):
             problems.append(f"{name}: id must be kebab-case")
-        if task["track"] != rules.track:
-            problems.append(f"{name}: track must be {rules.track!r}")
+        if task["track"] not in TRACKS or rules.track not in (None, task["track"]):
+            problems.append(f"{name}: track must be {rules.track or ' or '.join(sorted(TRACKS))}")
         if not isinstance(task["instruction"], str) or not task["instruction"].strip():
             problems.append(f"{name}: empty instruction")
         acceptance = task["acceptance"]
@@ -195,6 +205,13 @@ def test_suite_file_schema(suite: str) -> None:
         if task["golden"] != f"{GOLDEN}/{task['id']}.patch":
             problems.append(f"{name}: golden must be {GOLDEN}/{task['id']}.patch")
     assert not problems, "\n".join(problems)
+
+
+def test_the_dev_suite_shares_no_repository_with_the_mini_suites() -> None:
+    # Tuning on dev must not tune on the tasks the claims are measured on (ADR 0037).
+    measured = {task.get("repo") for suite, task in CASES if suite.startswith("mini-")}
+    shared = sorted({str(task.get("repo")) for task in TASKS["dev"]} & measured)
+    assert TASKS["dev"] and not shared, f"dev shares repositories with the mini suites: {shared}"
 
 
 def test_task_ids_are_unique_across_suites() -> None:

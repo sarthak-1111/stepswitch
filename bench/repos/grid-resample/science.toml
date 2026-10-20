@@ -1,0 +1,12 @@
+# Science-track checks: reference runs compared with tests/golden/.
+
+[[golden]]
+case = "falling-wavenumbers"
+command = ["{python}", "-m", "regrid", "{case}/input.json", "{output}/resampled.json"]
+
+[[golden.quantities]]
+name = "y"
+file = "resampled.json"
+mode = "elementwise"
+rtol = 1e-9
+atol = 1e-12

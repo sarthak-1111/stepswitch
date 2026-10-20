@@ -1,0 +1,27 @@
+# Science-track checks: reference runs compared with tests/golden/, and protected values.
+
+[[golden]]
+case = "mixed-lines"
+command = ["{python}", "-m", "widths", "{case}/input.json", "{output}/widths.json"]
+
+[[golden.quantities]]
+name = "gaussian"
+file = "widths.json"
+mode = "elementwise"
+rtol = 1e-9
+
+[[golden.quantities]]
+name = "lorentzian"
+file = "widths.json"
+mode = "elementwise"
+rtol = 1e-9
+
+[[golden.quantities]]
+name = "voigt"
+file = "widths.json"
+mode = "elementwise"
+rtol = 1e-9
+
+[[protected]]
+file = "widths/constants.py"
+names = ["FWHM_PER_SIGMA", "VOIGT_A", "VOIGT_B"]

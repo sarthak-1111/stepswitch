@@ -1,0 +1,38 @@
+diff --git a/contacts/importer.py b/contacts/importer.py
+index ae344ac..daaaa7b 100644
+--- a/contacts/importer.py
++++ b/contacts/importer.py
+@@ -2,6 +2,7 @@
+ 
+ from __future__ import annotations
+ 
++import csv
+ from pathlib import Path
+ 
+ from contacts.model import Contact
+@@ -9,15 +10,19 @@ from contacts.model import Contact
+ 
+ def read_contacts(path: Path) -> list[Contact]:
+     """The contacts in the file, in file order. Blank lines are skipped."""
+-    rows = path.read_text(encoding="utf-8").splitlines()
+-    header = [field.strip() for field in rows[0].split(",")]
++    # utf-8-sig drops the byte-order mark that spreadsheet programs write first.
++    with path.open(encoding="utf-8-sig", newline="") as handle:
++        rows = list(csv.DictReader(handle))
+     contacts = []
+-    for row in rows[1:]:
+-        if not row.strip():
++    for values in rows:
++        if not any((value or "").strip() for value in values.values()):
+             continue
+-        values = dict(zip(header, (value.strip() for value in row.split(",")), strict=False))
+         contacts.append(
+-            Contact(name=values["name"], email=values["email"], phone=values.get("phone", ""))
++            Contact(
++                name=(values.get("name") or "").strip(),
++                email=(values.get("email") or "").strip(),
++                phone=(values.get("phone") or "").strip(),
++            )
+         )
+     return contacts
+ 

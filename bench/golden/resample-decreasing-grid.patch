@@ -1,0 +1,11 @@
+diff --git a/regrid/resample.py b/regrid/resample.py
+index 4b1744b..056ecef 100644
+--- a/regrid/resample.py
++++ b/regrid/resample.py
+@@ -18,4 +18,5 @@ def resample(x: ArrayLike, y: ArrayLike, new_x: ArrayLike) -> NDArray[np.float64
+     new_x = np.asarray(new_x, dtype=float)
+     if x.shape != y.shape:
+         raise ValueError("x and y must have the same shape")
+-    return np.interp(new_x, x, y)
++    order = np.argsort(x)  # np.interp needs increasing x
++    return np.interp(new_x, x[order], y[order], left=np.nan, right=np.nan)

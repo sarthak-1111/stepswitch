@@ -1,0 +1,60 @@
+diff --git a/desk/emails.py b/desk/emails.py
+new file mode 100644
+index 0000000..7d45407
+--- /dev/null
++++ b/desk/emails.py
+@@ -0,0 +1,8 @@
++"""E-mail addresses as the register files them."""
++
++from __future__ import annotations
++
++
++def normalize_email(email: str) -> str:
++    """The address without surrounding whitespace, in lower case."""
++    return email.strip().lower()
+diff --git a/desk/lookup.py b/desk/lookup.py
+index 024f330..8226bb2 100644
+--- a/desk/lookup.py
++++ b/desk/lookup.py
+@@ -2,16 +2,13 @@
+ 
+ from __future__ import annotations
+ 
++from desk.emails import normalize_email
+ from desk.members import Register
+ 
+ 
+-def _canonical(address: str) -> str:
+-    return address.lower()
+-
+-
+ def find_member(register: Register, email: str) -> str | None:
+     """The member's name, or None when the address is not registered."""
+-    return register.members.get(_canonical(email))
++    return register.members.get(normalize_email(email))
+ 
+ 
+ def is_member(register: Register, email: str) -> bool:
+diff --git a/desk/signup.py b/desk/signup.py
+index 87f8ea7..e46eb01 100644
+--- a/desk/signup.py
++++ b/desk/signup.py
+@@ -2,16 +2,13 @@
+ 
+ from __future__ import annotations
+ 
++from desk.emails import normalize_email
+ from desk.members import Register
+ 
+ 
+-def _clean_email(email: str) -> str:
+-    return email.strip().lower()
+-
+-
+ def sign_up(register: Register, name: str, email: str) -> str:
+     """Add a member and return the address they are filed under."""
+-    key = _clean_email(email)
++    key = normalize_email(email)
+     if "@" not in key:
+         raise ValueError(f"not an e-mail address: {email!r}")
+     if key in register.members:

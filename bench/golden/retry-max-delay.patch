@@ -1,0 +1,36 @@
+diff --git a/retry/policy.py b/retry/policy.py
+index f5e7bed..d848d4f 100644
+--- a/retry/policy.py
++++ b/retry/policy.py
+@@ -15,12 +15,13 @@ class RetryPolicy:
+     """How often to try an action and how long to wait between tries.
+ 
+     The first retry waits `base_delay` seconds; each later wait is `factor` times the one
+-    before it.
++    before it, but never more than `max_delay` seconds when that is set.
+     """
+ 
+     attempts: int = 3
+     base_delay: float = 0.5
+     factor: float = 2.0
++    max_delay: float | None = None
+ 
+     def __post_init__(self) -> None:
+         if self.attempts < 1:
+@@ -29,10 +30,15 @@ class RetryPolicy:
+             raise ValueError("base_delay must not be negative")
+         if self.factor < 1:
+             raise ValueError("factor must be at least 1")
++        if self.max_delay is not None and self.max_delay < self.base_delay:
++            raise ValueError("max_delay must not be shorter than base_delay")
+ 
+     def delays(self) -> list[float]:
+         """The waits before the second and every later try, in seconds."""
+-        return [self.base_delay * self.factor**n for n in range(self.attempts - 1)]
++        waits = [self.base_delay * self.factor**n for n in range(self.attempts - 1)]
++        if self.max_delay is None:
++            return waits
++        return [min(wait, self.max_delay) for wait in waits]
+ 
+ 
+ def run_with_retries(

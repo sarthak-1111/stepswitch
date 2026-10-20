@@ -1,0 +1,11 @@
+diff --git a/invoices/lines.py b/invoices/lines.py
+index 0559aac..156fb95 100644
+--- a/invoices/lines.py
++++ b/invoices/lines.py
+@@ -25,5 +25,4 @@ def line_total(line: Line) -> int:
+     A total that falls between two whole cents is rounded half up: 1.5 cents become 2.
+     """
+     gross = line.unit_cents * line.quantity
+-    discount = gross * line.discount_percent // 100
+-    return gross - discount
++    return (gross * (100 - line.discount_percent) + 50) // 100

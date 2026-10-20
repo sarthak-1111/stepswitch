@@ -1,0 +1,13 @@
+diff --git a/widths/shapes.py b/widths/shapes.py
+index 937e78e..31dab33 100644
+--- a/widths/shapes.py
++++ b/widths/shapes.py
+@@ -15,7 +15,7 @@ def gaussian_fwhm(sigma: ArrayLike) -> NDArray[np.float64]:
+ 
+ def lorentzian_fwhm(gamma: ArrayLike) -> NDArray[np.float64]:
+     """FWHM of a Lorentzian whose half width at half maximum is `gamma`."""
+-    return np.asarray(gamma, dtype=float)
++    return 2.0 * np.asarray(gamma, dtype=float)
+ 
+ 
+ def voigt_fwhm(sigma: ArrayLike, gamma: ArrayLike) -> NDArray[np.float64]:
