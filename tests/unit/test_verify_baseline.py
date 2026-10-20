@@ -80,7 +80,7 @@ def test_the_test_tool_tells_new_failures_from_old_ones(task: tuple[Path, str]) 
     checkout = worktree.parent / f"{worktree.name}{baseline.SUFFIX}"
     assert (checkout / "calc.py").read_text(encoding="utf-8") == CALC  # the base commit
 
-    (worktree / "calc.py").write_text(CALC, encoding="utf-8")
+    (worktree / "calc.py").write_text(CALC.replace("a + b", "b + a"), encoding="utf-8")
     fixed = box.execute("test", {"selector": "tests/test_calc.py"})
     assert fixed.data["ok"] is False and fixed.data["failing"] == []  # still a failing test
     assert fixed.data["preexisting"] == [service]
@@ -88,6 +88,21 @@ def test_the_test_tool_tells_new_failures_from_old_ones(task: tuple[Path, str]) 
 
     baseline.release(worktree)
     assert not checkout.exists()
+
+
+def test_before_any_change_every_failure_is_in_the_repository(task: tuple[Path, str]) -> None:
+    """No base checkout is needed while no file differs from the base commit (ADR 0042)."""
+    worktree, base = task
+    service = "tests/test_calc.py::test_needs_a_service"
+    found = toolbox(worktree, base).execute("test", {"selector": "tests"})
+    assert found.data["ok"] is False and found.data["failing"] == []
+    assert found.data["preexisting"] == [service]
+    assert "no file differs from the base commit: every failure here happens before" in found.text
+    assert not (worktree.parent / f"{worktree.name}{baseline.SUFFIX}").exists()
+    (worktree / "notes.txt").write_text("scratch\n", encoding="utf-8")  # an added file counts
+    added = toolbox(worktree, base).execute("test", {"selector": "tests"})
+    assert "no file differs" not in added.text and added.data["preexisting"] == [service]
+    baseline.release(worktree)
 
 
 def test_without_a_base_failures_are_reported_as_before(task: tuple[Path, str]) -> None:

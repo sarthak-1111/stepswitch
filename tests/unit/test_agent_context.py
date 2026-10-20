@@ -272,6 +272,27 @@ def test_the_rolling_summary_replaces_old_turns_at_sixty_percent(tmp_path: Path)
     assert len(lines) == len(loop.handoffs)
 
 
+class OldFailures(FileToolbox):
+    """Its tests fail only where they fail at the base commit, reported as the real `test`
+    tool reports a failed run: not as a tool error."""
+
+    def execute(self, name: str, arguments: Mapping[str, Any] | str) -> ToolOutput:
+        output = super().execute(name, arguments)
+        if name == "test":
+            output.is_error = False
+            output.data.update(failing=[], preexisting=["tests/test_x.py::test_old"])
+        return output
+
+
+def test_the_work_log_says_when_every_failure_is_an_old_one(tmp_path: Path) -> None:
+    """A brief must not send the worker after failures it did not cause (ADR 0042)."""
+    toolbox = OldFailures(SMALL, tests=((False, "tests failed: 1 failed"),))
+    script = sequence([Action(tool="test", arguments={}), FINISH])
+    loop = build(tmp_path, [scripted("a/m", "t2", script)], toolbox)
+    loop.run()
+    assert any(entry.endswith("every failure also at the base commit") for entry in loop.work_log)
+
+
 PASS = [read(name, start=start, end=start + 19) for name in "abc" for start in (1, 21, 41, 61)]
 EDIT_A = Action(tool="edit", arguments={"path": "a", "edits": []})
 

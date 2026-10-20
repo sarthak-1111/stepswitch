@@ -72,7 +72,11 @@ server and the same instances, the difference between the two is the orchestrato
      found there apart. They never pass because of them: a task is often to fix a test that
      fails at the base commit, and a first version that passed such runs let an unfixed bug
      through (`tests/unit/test_verify_baseline.py`). A run without named failures, or longer
-     than ten minutes, is not compared.
+     than ten minutes, is not compared. While no file differs from the base commit, the `test`
+     tool says that every failure happens before any change, with no second run, and the work
+     log that briefs are written from says so too: a dev run that saw 126 failures before its
+     first edit (two of them unnamed, so not compared) spent its steps on the test setup
+     instead of the issue.
    - `test` without a selector runs only the test files that import the change when the suite
      has more than 200 test files, and asks for a selector when none does.
    - Patches (ADR 0041, item 5): the read view's `<line>:<hash>|` prefixes are dropped when

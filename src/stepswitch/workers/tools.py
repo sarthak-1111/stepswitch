@@ -1378,11 +1378,24 @@ class Toolbox:
         if result.timed_out:
             status = f"timed out after {self.test_timeout:g} s"
         # Failures that also happen at the base commit are told apart, never passed over: a task
-        # is often to fix one of them.
-        new, old = self._preexisting(status, summary, argv, result.duration_s)
+        # is often to fix one of them. While no file differs from the base commit, every failure
+        # is one of them, named or not: a dev run that saw 126 failures before its first edit,
+        # two of them unnamed, set out to fix the test setup instead of the issue (ADR 0042).
+        unchanged = status == "failed" and bool(summary.failing) and self._unchanged()
+        new: list[str]
+        old: list[str]
+        if unchanged:
+            new, old = [], list(summary.failing)
+        else:
+            new, old = self._preexisting(status, summary, argv, result.duration_s)
         head = f"tests {status} (exit {result.exit_code}, {result.duration_s:.1f} s)"
         lines = [*notes, head + (f": {shown}" if shown else "")]
-        if old and not new:
+        if unchanged:
+            lines.append(
+                "no file differs from the base commit: every failure here happens before any"
+                " change of yours"
+            )
+        elif old and not new:
             lines.append("every failing test also fails at the base commit, before your change")
         if new:
             lines.append("failing:" if not old else "failing since your change:")
@@ -1418,6 +1431,14 @@ class Toolbox:
         if old:
             data["preexisting"] = old
         return ToolOutput("\n".join(lines), data=data)
+
+    def _unchanged(self) -> bool:
+        """Whether the worktree still matches the base commit: no file changed or added."""
+        if self.base is None:
+            return False
+        from stepswitch.verify import commands
+
+        return commands.changed_files(self.root, self.base) == []
 
     def _preexisting(
         self, status: str, summary: TestSummary, argv: Sequence[str], seconds: float

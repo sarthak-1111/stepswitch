@@ -1388,6 +1388,8 @@ class AgentLoop:
             failing = [str(item) for item in data.get("failing") or []][:5]
             if failing:
                 entry += ": " + ", ".join(failing)
+            elif data.get("preexisting"):
+                entry += ", every failure also at the base commit"
         elif tool == "run":
             entry = f"ran `{str(data.get('command'))[:120]}`: exit {data.get('exit_code')}"
         else:
