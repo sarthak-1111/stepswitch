@@ -4,6 +4,138 @@ Newest phase first. Each phase records what was done, what research changed, ope
 actions that only the maintainer can take. Phase checks: `uv run python scripts/phase_check.py N`
 (one phase) or `--upto N` (phases 0 to N).
 
+## Phase 11: Frontier comparison
+
+Status: done on 2026-10-20. `scripts/phase_check.py 11` passes 6 of 6 checks.
+`uv run pytest -q`: 2028 passed, 6 skipped (among them the tests that need a small model on a
+local server). `ssw prove --quick --phase 11` (1,038 s): twenty-two claims passing, C-021 to
+C-023 among them for the first time, and C-016 pending CI.
+
+SPEC §23 has ten phases. This one was added after them, at the maintainer's request: compare
+Stepswitch on local models with Claude Code on Sonnet 5.5 and on Opus 5.5, for pass rate and
+tokens (ADR 0034).
+
+### Done
+
+- **Claims first.** C-021 to C-023 were registered, with their tests and thresholds, before
+  any comparison run:
+  - C-021: the router on local models passes as many task runs as Claude Code on each model;
+  - C-022: it uses fewer tokens per task (narrowed after the runs, below);
+  - C-023: Claude Code through `ssw proxy` on local models passes as many task runs.
+
+  The claim tests take each contestant's newest run per suite and compare the task runs all
+  contestants share. They need every task of both suites with at least two seeds. They leave
+  out infrastructure errors (usage limits, API errors, crashes), up to a tenth of the runs.
+  Intervals are 95% cluster bootstraps over tasks.
+- **Two new bench contestants** (`ssw bench run --workers`):
+  - `harness:<name>` runs an external harness through `ssw proxy` on the router's pool.
+  - `native:<harness>:<model>` runs the harness alone, on its own login and the named model.
+    It gets one session with the first-attempt prompt the built-in agent gets, and no gates or
+    retries. The bench's acceptance check scores it, as for every contestant.
+- **Native runs of Claude Code** are opt-in by name. They are kept away from the user's
+  setup:
+  - `--safe-mode`: no CLAUDE.md, skills, plugins, hooks or MCP servers;
+  - `--setting-sources project,local` and `--no-session-persistence`;
+  - auto memory off, and never a resumed session.
+
+  `start_native` refuses an adapter without native support, and offline settings. Harness
+  runs through the proxy are isolated the same way. A run that ends on a usage limit or an
+  API error, or with no result line, is an infrastructure error.
+- **What every row records now:** tokens per model and hosted tokens, meaning tokens sent to
+  a worker that is not local by the catalog's rule (SPEC §15).
+  - Stepswitch's counts come from its ledger. A native run's counts are what the harness
+    reports per model.
+  - A native row also records the harness version, the model it reported, its turns, tool
+    calls and reported cost.
+  - Leaderboards and the dashboard gain median uncached and median hosted tokens. Run
+    manifests record harness versions and which harness runs were isolated.
+- **Pilot** (`bench/results/2026-10-19-mini-general-native-pilot`): three general tasks, one
+  seed, both models. All 6 runs passed.
+  - Median tokens: 92,442 on Sonnet 5.5 and 95,522 on Opus 5.5, of which 8,850 and 10,142
+    were uncached.
+  - About 91% of their input came from the hosted prompt cache.
+  - Every run used the harness's own login, with no API key. None added a project entry or a
+    saved session to the user's state; this was checked by counting entries, not by reading
+    them.
+- **Runs**: both mini suites, 21 tasks, 2 seeds, so 42 task runs per contestant. The local
+  pool was gpt-oss:120b and qwen2.5:32b on this workstation's Ollama.
+
+  | Contestant | Passed | All tokens | Uncached | Hosted | Median wall |
+  |---|---:|---:|---:|---:|---:|
+  | Claude Code, Sonnet 5.5 | 42/42 | 3,082,370 | 327,510 | 3,082,370 | 16.3 s |
+  | Claude Code, Opus 5.5 | 42/42 | 3,944,626 | 394,194 | 3,944,626 | 21.0 s |
+  | Claude Code through `ssw proxy`, local | 42/42 | 6,175,582 | 1,794,730 | 0 | 67.7 s |
+  | Router, local, first run | 36/42 | 1,682,628 | 380,803 | 0 | 93.0 s |
+  | Router, local, rerun (ADR 0035) | 42/42 | 1,767,412 | 400,665 | 0 | 86.9 s |
+
+- **Router failures and their fix (ADR 0035):**
+  - Five of the first run's six failures were one engine error. Ollama could not parse a
+    gpt-oss tool call and returned HTTP 500. The client resent the same request twice, and the
+    agent failed over to qwen2.5:32b, which Ollama stopped at its repeat limit. That left no
+    worker. The sixth failure ran out of steps.
+  - Now the client does not resend such a request. The agent asks the same worker once more
+    through the fallback tool protocol.
+  - The single rerun the ADR allowed passed 42 of 42, with 8 fallbacks in 7 task runs. Both
+    runs are committed.
+- **Claims:**
+  - C-021 and C-023 pass: every contestant passed every task run.
+  - C-022 failed as registered. Stepswitch used 22.3% more uncached tokens than Claude Code on
+    Sonnet 5.5 (6.3% to 38.5% more) and 1.6% more than on Opus 5.5 (20.0% fewer to 16.4%
+    more). ADR 0036 narrows it to all tokens and adds a check that no token went to a hosted
+    model.
+  - Narrowed, C-022 passes: 42.7% fewer tokens than on Sonnet 5.5 (28.7% to 55.3%) and 55.2%
+    fewer than on Opus 5.5 (42.2% to 66.3%). The README shows the uncached result beside it.
+  - C-011 now reads the router rerun. It is the newest optimized run with the same setup as
+    C-011's baseline, which is the rule C-011's test follows. C-011's figure moved from 18.7%
+    to 17.8% fewer uncached tokens, and it still passes.
+  - C-018 failed on the first prove run, as it should have. The new claims' evidence recorded
+    the bench command where C-018 needs the prove command that recomputes every number. Their
+    evidence now records `ssw prove --claim`, with the bench command beside it, as C-011's
+    does.
+
+### What changed against the spec
+
+- SPEC §25 rules out claims of beating frontier models on the hardest tasks. The three claims
+  are scoped to the mini suites.
+- C-022 counts all tokens, not uncached tokens (ADR 0036).
+
+### Research
+
+- Claude Code 2.1.296 (RESEARCH, "Verified during Phase 11"):
+  - `--bare` needs an API key and skips the login.
+  - `--safe-mode` turns off CLAUDE.md, skills, plugins, hooks and MCP servers, and keeps the
+    login.
+  - CLAUDE.md is read from the working directory and every parent. Without safe mode, a bench
+    worktree inside a repository would read that repository's CLAUDE.md.
+  - The result line's `modelUsage` gives tokens per model.
+- Ollama 0.34.4 returns a tool call it cannot parse as HTTP 500, "error parsing tool call".
+
+### Open issues
+
+- **The mini suites are easy.** Every contestant passed every run, so C-021 and C-023 show
+  parity on easy tasks only. Next is a harder suite: a SWE-bench Verified subset, after its
+  license, format and harness needs are checked.
+- Native runs get one session and no gates or retries. Each tool runs as it ships, as ADR
+  0034 says, but a native run with the gates' retries would be a closer match.
+- The results hold for Claude Code 2.1.296, these model IDs, Ollama 0.34.4 and this
+  workstation.
+- **Uncached tokens.** The local server's cache served 78% to 84% of the router's input. The
+  hosted cache served about 91% of Claude Code's. Making the router's prompts more cacheable on
+  local servers is open work.
+- Claude Code through the proxy processed twice the tokens of native Claude Code, and its
+  local cache hit rate was 68% to 73%.
+- The local runs' median wall time was four to five times the native runs' on this machine.
+- qwen2.5:32b can still stop on Ollama's repeat limit.
+- Only the built-in agent falls back on an engine parse error; the proxy does not yet.
+- The dashboard's new columns are not built locally (Node 20.12).
+- The README's figure for uncached tokens against Opus 5.5 is a point estimate whose
+  interval includes zero.
+
+### Waiting on the maintainer
+
+- As in Phase 10: the public repository and CI for C-016, the package index and the `v0.1.0`
+  tag.
+
 ## Phase 10: Launch polish
 
 Status: done on 2026-10-19. `scripts/phase_check.py 10` passes 8 of 8 checks.
