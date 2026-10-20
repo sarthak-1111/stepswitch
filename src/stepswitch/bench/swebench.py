@@ -73,6 +73,30 @@ DOCKER_CLI_VERSION = "27.0.3"
 RUNTIME_PYTHON = "3.12"
 BUILDER_IMAGE = "python:3.12-slim-bookworm"
 CONTAINER_PREFIX = "ssw-swe-"
+# The containers of a run carry this label with its results directory's name: after an
+# interruption, `--resume` removes those still running, whose agent would keep calling the
+# model server beside the resumed run.
+RUN_LABEL = "stepswitch.bench.run"
+# What must be the same for a run to continue an interrupted one in the same directory.
+RESUME_KEYS = (
+    "suite",
+    "kind",
+    "seeds",
+    "contestants",
+    "tasks",
+    "review",
+    "router_pool",
+    "max_steps",
+    "budget_seconds",
+    "budget_tokens",
+    "source_sha256",
+    "dataset",
+    "harness",
+    "runtime",
+    "images",
+    "image_digests",
+    "scoring",
+)
 TESTBED = "/testbed"
 TESTBED_PYTHON = "/opt/miniconda3/envs/testbed/bin/python"
 DOCKER_HOST = "host.docker.internal"
@@ -615,6 +639,10 @@ def _container(kind: str, instance: str) -> str:
     return f"{CONTAINER_PREFIX}{kind}-{_slug(instance)[:60]}-{uuid.uuid4().hex[:6]}"
 
 
+def _label(run: str | None) -> list[str]:
+    return ["--label", f"{RUN_LABEL}={run}"] if run else []
+
+
 def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
@@ -656,6 +684,7 @@ class RouterSettings:
     budget_tokens: int | None = None
     review: bool = True
     keep_logs: Path | None = None
+    run: str | None = None  # the label of the run's containers
 
 
 def run_router(
@@ -697,7 +726,8 @@ def run_router(
     try:
         _check(
             docker(
-                ["run", "-d", "--name", name, "--add-host", f"{DOCKER_HOST}:host-gateway"]
+                ["run", "-d", "--name", name, *_label(settings.run)]
+                + ["--add-host", f"{DOCKER_HOST}:host-gateway"]
                 + ["-v", f"{deps_volume}:{DEPS_MOUNT}:ro", str(row["image"]), "sleep", "infinity"]
             ),
             f"starting {row['image']}",
@@ -793,6 +823,7 @@ def _count(value: Any) -> int:
 class MiniSettings:
     worker: str
     keep_logs: Path | None = None
+    run: str | None = None  # the label of the run's containers
 
 
 def mini_model(config: Any, worker: str) -> tuple[str, str]:
@@ -843,7 +874,8 @@ def run_mini(
         "MSWEA_COST_TRACKING": "ignore_errors",
         "MSWEA_CONFIGURED": "true",
     }
-    args = ["run", "--rm", "-i", "--name", name, "--add-host", f"{DOCKER_HOST}:host-gateway"]
+    args = ["run", "--rm", "-i", "--name", name, *_label(settings.run)]
+    args += ["--add-host", f"{DOCKER_HOST}:host-gateway"]
     args += ["-v", f"{SOCKET}:{SOCKET}", "-v", f"{harness_volume}:{HARNESS_MOUNT}:ro"]
     for key, value in env.items():
         args += ["-e", f"{key}={value}"]
@@ -978,11 +1010,14 @@ def grade(
     harness_volume: str,
     run_id: str,
     model: str,
+    run: str | None = None,
 ) -> dict[str, Any]:
     """The official harness's verdict on one prediction: resolved, and the report."""
     instance = str(row["instance_id"])
     if not patch.strip():
         return {"resolved": False, "empty_patch": True}
+    own = f"sweb.eval.{instance}.{run_id}"  # the harness's container, named by the run id
+    docker(["rm", "-f", own])  # left by an interrupted grade, it would block this one
     prediction = {"instance_id": instance, "model_name_or_path": model, "model_patch": patch}
     files = {
         "/work/dataset.json": json.dumps([row], ensure_ascii=False),
@@ -996,7 +1031,7 @@ def grade(
     )
     name = _container("grade", instance)
     done = docker(
-        ["run", "--rm", "-i", "--name", name, "-v", f"{SOCKET}:{SOCKET}"]
+        ["run", "--rm", "-i", "--name", name, *_label(run), "-v", f"{SOCKET}:{SOCKET}"]
         + ["-v", f"{harness_volume}:{HARNESS_MOUNT}:ro"]
         # The harness stops its containers with the Docker command line.
         + ["-e", f"PATH={HARNESS_MOUNT}/bin:/usr/local/bin:/usr/bin:/bin"]
@@ -1005,7 +1040,7 @@ def grade(
         timeout=GRADE_TIMEOUT_S + 900,
     )
     docker(["rm", "-f", name])
-    docker(["rm", "-f", f"sweb.eval.{instance}.{run_id}"])  # the harness's own, if it stayed
+    docker(["rm", "-f", own])  # if it stayed
     if not done.ok:
         return {
             "resolved": False,
@@ -1055,6 +1090,60 @@ class SwebenchOptions:
     keep: bool = False
     pull: bool = True
     preflight: dict[str, Any] = field(default_factory=lambda: {"ok": None, "skipped": True})
+    # Continue the interrupted run in the results directory (`--resume`).
+    resume: bool = False
+
+
+def resume(
+    out_dir: Path, manifest: dict[str, Any], docker: DockerRun, echo: Callable[[str], None]
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Continue the interrupted run in `out_dir`: its manifest, with this resumption recorded,
+    and its graded rows. The setup must be the same. The run's containers that are still there
+    are removed, and predictions that were never graded are dropped: those task runs start
+    again, and a graded task run never runs twice."""
+    old = json.loads((out_dir / MANIFEST_FILE).read_text(encoding="utf-8"))
+    if old.get("finished"):
+        raise SwebenchError(f"{out_dir.name} finished at {old['finished']}: nothing to resume")
+    differ = [key for key in RESUME_KEYS if old.get(key) != manifest.get(key)]
+    if differ:
+        raise SwebenchError(
+            f"cannot resume {out_dir.name}: its {', '.join(differ)} differ from this run's"
+        )
+    graded: list[dict[str, Any]] = []
+    results = out_dir / RESULTS_FILE
+    for line in results.read_text(encoding="utf-8").splitlines() if results.is_file() else []:
+        try:
+            graded.append(json.loads(line))
+        except ValueError:
+            continue  # a line the interruption cut short
+    kept = {(f"{_slug(str(r['contestant']))}-s{int(r['seed'])}", str(r["task"])) for r in graded}
+    for path in sorted((out_dir / PREDICTIONS_DIR).glob("*.jsonl")):
+        lines = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            try:
+                instance = str(json.loads(line)["instance_id"])
+            except (ValueError, KeyError, TypeError):
+                continue
+            if (path.stem, instance) in kept:
+                lines.append(line + "\n")
+        path.write_text("".join(lines), encoding="utf-8", newline="\n")
+    found = docker(["ps", "-aq", "--filter", f"label={RUN_LABEL}={out_dir.name}"])
+    stale = found.text().split() if found.ok else []
+    for container in stale:
+        docker(["rm", "-f", container])
+    old.setdefault("resumed", []).append(
+        {
+            "at": manifest.get("started"),
+            "command": manifest.get("command"),
+            "commit": manifest.get("commit"),
+            "preflight": manifest.get("preflight"),
+            "graded_before": len(graded),
+            "removed_containers": len(stale),
+        }
+    )
+    removed = f"; removed {len(stale)} of its containers" if stale else ""
+    echo(f"Resuming {out_dir.name}: {len(graded)} graded task runs are kept{removed}")
+    return old, graded
 
 
 def check_contestants(contestants: Sequence[Any], options: SwebenchOptions, config: Any) -> None:
@@ -1097,6 +1186,10 @@ def run_suite(
     """Run every contestant on every instance with every seed, grade each run; return the
     results directory."""
     check_contestants(contestants, options, config)
+    if (out_dir / MANIFEST_FILE).is_file() and not options.resume:
+        raise SwebenchError(
+            f"{out_dir} already holds a run: pass --resume to continue it, or choose another --out"
+        )
     docker = docker or Docker()
     dataset = suite.dataset or {}
     rows = rows or load_rows(
@@ -1160,14 +1253,22 @@ def run_suite(
     }
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = out_dir / MANIFEST_FILE
+    earlier: list[dict[str, Any]] = []
+    if options.resume and manifest_path.is_file():
+        manifest, earlier = resume(out_dir, manifest, docker, echo)
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
     results = out_dir / RESULTS_FILE
-    results.write_text("", encoding="utf-8")
+    results.write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in earlier),
+        encoding="utf-8",
+        newline="\n",
+    )
+    finished = {(str(r["contestant"]), str(r["task"]), int(r["seed"])) for r in earlier}
     logs = (
         paths.state_dir(root) / "bench" / "swebench-logs" / out_dir.name if options.keep else None
     )
     lock = threading.Lock()
-    tally = {"passed": 0, "done": 0}
+    tally = {"passed": sum(bool(row.get("passed")) for row in earlier), "done": len(earlier)}
 
     def finish(result_row: dict[str, Any], verdict: dict[str, Any]) -> None:
         result_row["passed"] = bool(verdict.get("resolved"))
@@ -1205,6 +1306,8 @@ def run_suite(
                 line = json.dumps(row, ensure_ascii=False)
                 for seed in range(options.seeds):
                     count += 1
+                    if (contestant.name, str(row["instance_id"]), seed) in finished:
+                        continue
                     echo(f"[{count}/{total}] {contestant.name} {row['instance_id']} seed {seed}")
                     if contestant.name == GOLD:
                         result_row, patch = gold_run(
@@ -1220,7 +1323,7 @@ def run_suite(
                             harness_volume=harness,
                             dataset_line=line,
                             config=config,
-                            settings=MiniSettings(worker=mini, keep_logs=logs),
+                            settings=MiniSettings(worker=mini, keep_logs=logs, run=out_dir.name),
                         )
                     else:
                         assert deps is not None
@@ -1246,6 +1349,7 @@ def run_suite(
                                 budget_tokens=options.budget_tokens,
                                 review=options.review,
                                 keep_logs=logs,
+                                run=out_dir.name,
                             ),
                         )
                     run_id = _slug(f"{out_dir.name}-{model}-s{seed}")[:80]
@@ -1260,7 +1364,13 @@ def run_suite(
                         model: str = model,
                     ) -> None:
                         verdict = grade(
-                            docker, row, patch, harness_volume=harness, run_id=run_id, model=model
+                            docker,
+                            row,
+                            patch,
+                            harness_volume=harness,
+                            run_id=run_id,
+                            model=model,
+                            run=out_dir.name,
                         )
                         result_row["patch_lines"] = len(patch.splitlines())
                         result_row["tests_modified"] = touches_tests(patch)

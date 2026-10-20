@@ -8,6 +8,7 @@ import re
 import shlex
 import tomllib
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -196,6 +197,14 @@ def test_mini_swe_agent_runs_swebench_suites_only(tmp_path: Path) -> None:
     assert gold[0].worker is None and runner.canary_workers(gold, None) == []
     with pytest.raises(ValueError, match="SWE-bench suites only"):
         runner.run_bench(suite, gold, root=tmp_path, out_dir=tmp_path / "out")
+    with pytest.raises(ValueError, match="--resume continues SWE-bench runs only"):
+        runner.run_bench(
+            suite,
+            contestants[:1],
+            root=tmp_path,
+            out_dir=tmp_path / "out",
+            options=runner.BenchOptions(resume=True),
+        )
 
 
 def test_the_gold_check_grades_the_reference_patch_without_an_agent(tmp_path: Path) -> None:
@@ -512,6 +521,74 @@ def test_the_suite_runs_both_contestants_and_grades_every_run(tmp_path: Path) ->
     # Only containers of this run: its own, and the harness's, named for this run's ids.
     harness = f"sweb.eval.{INSTANCE}.{out.name}-"
     assert all(name.startswith((S.CONTAINER_PREFIX, harness)) for name in removed)
+    started = [call for call in docker.calls if call[0] == "run" and "--name" in call]
+    agents = [call for call in started if "sleep" in call or "mini-extra" in call[-1]]
+    assert len(agents) == 2 and all(f"{S.RUN_LABEL}={out.name}" in call for call in agents)
+
+
+class StaleDocker(FakeDocker):
+    """Also lists one container that an interrupted run left."""
+
+    def __call__(
+        self, args: Sequence[str], *, stdin: bytes | None = None, timeout: float | None = None
+    ) -> S.Done:
+        if list(args[:2]) == ["ps", "-aq"]:
+            self.calls.append(list(args))
+            return S.Done(0, b"c0ffee\n", b"")
+        return super().__call__(args, stdin=stdin, timeout=timeout)
+
+
+def test_an_interrupted_run_resumes_and_no_graded_task_runs_twice(tmp_path: Path) -> None:
+    """A multi-day run survives an interruption (ADR 0042): its graded task runs are kept,
+    the others run, and the options must be the same."""
+    suite = load_suite(str(write_suite(tmp_path, [INSTANCE])), tmp_path)
+    contestants = runner.parse_contestants(f"router,{S.MINI_PREFIX}{LOCAL}")
+    rows = S.Rows("SWE-bench/SWE-bench_Verified", "test", "rev123", "now", {INSTANCE: ROW})
+    out = tmp_path / "results"
+    options = S.SwebenchOptions(seeds=1, router_pool=[LOCAL], max_steps=60)
+
+    def run(docker: FakeDocker, options: S.SwebenchOptions) -> None:
+        S.run_suite(
+            suite,
+            contestants,
+            root=ROOT,
+            out_dir=out,
+            options=options,
+            config=config(),
+            command="ssw bench run --suite swe",
+            echo=lambda message: None,
+            docker=docker,
+            rows=rows,
+            deps_requirements="pydantic==2.14.0\n",
+        )
+
+    run(FakeDocker(), options)
+    # The interruption: mini-SWE-agent's run was saved but not graded, and a line was cut.
+    results = out / "results.jsonl"
+    routed = next(line for line in results.read_text("utf-8").splitlines() if '"router"' in line)
+    results.write_text(routed + '\n{"cut', encoding="utf-8")
+    manifest = json.loads((out / "run.json").read_text("utf-8"))
+    (out / "run.json").write_text(json.dumps({**manifest, "finished": None}), encoding="utf-8")
+
+    with pytest.raises(S.SwebenchError, match="already holds a run"):
+        run(FakeDocker(), options)
+    with pytest.raises(S.SwebenchError, match="max_steps differ"):
+        run(FakeDocker(), replace(options, max_steps=80, resume=True))
+    docker = StaleDocker()
+    run(docker, replace(options, resume=True))
+    graded = [json.loads(line) for line in results.read_text("utf-8").splitlines()]
+    assert sorted(r["contestant"] for r in graded) == [f"{S.MINI_PREFIX}{LOCAL}", "router"]
+    assert not any(call[:2] == ["run", "-d"] for call in docker.calls)  # no second router run
+    assert ["ps", "-aq", "--filter", f"label={S.RUN_LABEL}={out.name}"] in docker.calls
+    assert ["rm", "-f", "c0ffee"] in docker.calls
+    for name in ("router-s0.jsonl", "mini-swe-agent-local-big-model-s0.jsonl"):
+        assert len((out / S.PREDICTIONS_DIR / name).read_text("utf-8").splitlines()) == 1
+    manifest = json.loads((out / "run.json").read_text("utf-8"))
+    assert manifest["finished"] and manifest["command"] == "ssw bench run --suite swe"
+    (resumed,) = manifest["resumed"]
+    assert resumed["graded_before"] == 1 and resumed["removed_containers"] == 1
+    with pytest.raises(S.SwebenchError, match="nothing to resume"):
+        run(FakeDocker(), replace(options, resume=True))
 
 
 def test_swebench_contestants_need_credential_free_local_workers() -> None:

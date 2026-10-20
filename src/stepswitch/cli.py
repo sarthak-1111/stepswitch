@@ -1667,6 +1667,14 @@ def bench_run(
             help="The learning router: off (default, reproducible), frozen or on.",
         ),
     ] = "off",
+    resume: Annotated[
+        bool,
+        typer.Option(
+            "--resume",
+            help="Continue the interrupted SWE-bench run in --out, with the same options: its"
+            " graded task runs are kept, and the others run.",
+        ),
+    ] = False,
 ) -> None:
     """Run a benchmark suite: every contestant on every task, once per seed."""
     import shlex
@@ -1698,6 +1706,8 @@ def bench_run(
         _check_contestants(state, contestants, [*(pool or []), *relay_pair])
         if (price_in is None) != (price_out is None):
             raise ValueError("give both --price-in and --price-out, or neither")
+        if resume and out is None:
+            raise ValueError("--resume needs --out, the directory of the run to continue")
         stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
         out_dir = out or state.root / "bench" / "results" / f"{selected.name}-{stamp}"
         options = runner.BenchOptions(
@@ -1713,6 +1723,7 @@ def bench_run(
             best_of=best_of,
             learning=learning,  # type: ignore[arg-type]  # checked above
             preflight=preflight,
+            resume=resume,
             prices=(
                 {"input_per_million": price_in, "output_per_million": price_out}
                 if price_in is not None and price_out is not None
@@ -1738,6 +1749,7 @@ def bench_run(
         args += ["--budget-seconds", str(budget_seconds)] if budget_seconds else []
         if options.prices:
             args += ["--price-in", str(price_in), "--price-out", str(price_out)]
+        args += ["--resume"] if resume else []
         command = "ssw bench run " + " ".join(shlex.quote(arg) for arg in args)
         result_dir = runner.run_bench(
             selected,

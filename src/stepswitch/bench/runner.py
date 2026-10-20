@@ -147,6 +147,8 @@ class BenchOptions:
     learning: Literal["on", "frozen", "off"] = "off"
     # The canary check before the first task (ADR 0037); False records it as skipped.
     preflight: bool = True
+    # Continue the interrupted SWE-bench run in the results directory.
+    resume: bool = False
 
 
 def _now() -> str:
@@ -637,6 +639,8 @@ def run_bench(
         )
     if any(c.name.startswith(MINI_PREFIX) or c.name == GOLD for c in contestants):
         raise ValueError(f"{MINI_PREFIX}<worker> and {GOLD} contestants run SWE-bench suites only")
+    if options.resume:
+        raise ValueError("--resume continues SWE-bench runs only")
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest: dict[str, Any] = {
         "schema": 1,
@@ -747,6 +751,7 @@ def _run_swebench(
         review=options.review,
         router_pool=list(options.router_pool) if options.router_pool else None,
         keep=options.keep,
+        resume=options.resume,
     )
     swebench.check_contestants(contestants, settings, config)
     if options.preflight:

@@ -91,6 +91,14 @@ server and the same instances, the difference between the two is the orchestrato
 8. **Containers and volumes.** The bench names what it creates `ssw-swe-*`, and the harness
    names its grading containers `sweb.eval.<id>.<run id>`. The bench removes only those.
    Instance images stay, because pulling them again is slow.
+9. **Interruptions.** A run of both contestants takes days, so `ssw bench run --resume --out
+   <dir>` continues an interrupted one. Every option that shapes a result must be the same
+   (the manifest's suite, contestants, tasks, seeds, limits, pool, source hash, dataset,
+   harness, runtime and images), and the first run's manifest is kept, with each resumption
+   recorded in it. A task run that was graded is never run again. One that was cut short
+   before its grade has no result, so it starts again, and its saved prediction is dropped.
+   The containers of a run carry a label with its directory's name; a resumption removes the
+   ones still there, whose agent would otherwise keep calling the model server.
 
 ## Consequences
 
