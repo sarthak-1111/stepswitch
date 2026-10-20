@@ -71,8 +71,8 @@ A — marks a value with no passing claim behind it.
 
 mini-SWE-agent ran with its own SWE-bench configuration for text actions
 (`swebench_backticks.yaml`) and its own step limit, so the model server had no tool call to
-parse. Stepswitch ran with the limits in the command below
-([ADR 0042](docs/decisions/0042-swebench-verified-mini.md)).
+parse. Stepswitch ran with the limits in the command below (see
+[the benchmark's decision record](docs/decisions/0042-swebench-verified-mini.md)).
 
 To run it yourself you need Docker and a model server:
 
