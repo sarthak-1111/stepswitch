@@ -152,6 +152,11 @@ class OllamaCodec(Codec):
         if fmt is not None:
             body["format"] = fmt
         options = _encode_options(request)
+        num_ctx = self.options.extra.get("num_ctx")
+        if num_ctx and "num_ctx" not in options:
+            # Every request sets the context (SPEC §4.2, ADR 0008): the worker's own, which the
+            # catalog puts in the codec options, unless the request names one.
+            options["num_ctx"] = int(num_ctx)
         if options:
             body["options"] = options
         think = self._encode_think(request, report)
@@ -168,6 +173,12 @@ class OllamaCodec(Codec):
             raise ModelError("invalid_response", "Ollama chat response is not an object", raw=body)
         if body.get("error"):
             raise ModelError("server", str(body["error"]), raw=body)
+        if body.get("done") is False:
+            # Ollama 0.34.4 answers so for a model that stopped working: no content, no counts
+            # and no done_reason (docs/RESEARCH.md, Phase 12). An empty answer it is not.
+            raise ModelError(
+                "server", "Ollama returned an incomplete reply (done is false)", raw=body
+            )
         model = _text(body.get("model")) or None
         message = body.get("message")
         parts: list[Part] = []

@@ -50,7 +50,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from stepswitch import __version__, paths
-from stepswitch.bench import fakes, native, workspace
+from stepswitch.bench import fakes, native, preflight, workspace
 from stepswitch.bench.report import MANIFEST_FILE, RESULTS_FILE, write_report
 from stepswitch.bench.suites import BenchTask, Suite
 from stepswitch.core.task import Budgets, TaskResult, TaskSpec
@@ -137,6 +137,8 @@ class BenchOptions:
     # The learning router (ADR 0026): off by default, so a run's routing does not depend on
     # what earlier tasks taught the project's state database.
     learning: Literal["on", "frozen", "off"] = "off"
+    # The canary check before the first task (ADR 0037); False records it as skipped.
+    preflight: bool = True
 
 
 def _now() -> str:
@@ -194,6 +196,39 @@ def _router_pool(
     if options.router_pool:
         catalog = catalog.subset(options.router_pool)
     return sorted(catalog.workers)
+
+
+def canary_workers(contestants: Sequence[Contestant], pool: Sequence[str] | None) -> list[str]:
+    """The local workers the contestants use: the router pool for pooled ones, and each
+    worker contestant's own worker (fakes have no server to check)."""
+    ids = list(pool or []) if any(c.pooled for c in contestants) else []
+    ids += [c.worker for c in contestants if c.worker is not None and c.fake is None]
+    return list(dict.fromkeys(ids))
+
+
+def _preflight(
+    contestants: Sequence[Contestant],
+    pool: Sequence[str] | None,
+    root: Path,
+    config: Any,
+    egress: Any,
+    echo: Callable[[str], None],
+) -> dict[str, Any]:
+    """The canary check of every local worker (`stepswitch.bench.preflight`)."""
+    ids = canary_workers(contestants, pool)
+    if not ids:
+        return {"ok": True, "workers": {}}
+    if config is None:
+        return {"ok": None, "skipped": "no configuration to reach the workers"}
+    from stepswitch.workers.catalog import Catalog
+
+    catalog = Catalog.from_config(config, root, egress=egress)
+    echo(f"Canary check: {len(ids)} worker(s)")
+    report = preflight.check_workers(catalog, ids)
+    for wid, record in report["workers"].items():
+        verdict = "ok" if record["ok"] else "FAILED"
+        echo(f"    {wid}: {verdict} ({record['seconds']} s)")
+    return report
 
 
 def _slug(name: str) -> str:
@@ -612,12 +647,19 @@ def run_bench(
 
         names = ", ".join(c.name for c in natives if c.harness == harness)
         echo(native.NOTICE.format(title=get_adapter(harness).title, names=names))
+    manifest["preflight"] = (
+        _preflight(contestants, manifest["router_pool"], root, config, egress, echo)
+        if options.preflight
+        else {"ok": None, "skipped": True}
+    )
     manifest_path = out_dir / MANIFEST_FILE
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
     results = out_dir / RESULTS_FILE
     results.write_text("", encoding="utf-8")
     handoffs = out_dir / HANDOFFS_FILE
     handoffs.unlink(missing_ok=True)
+    if manifest["preflight"].get("ok") is False:
+        raise preflight.PreflightFailed(preflight.failure_message(manifest["preflight"]))
     total = len(contestants) * len(suite.tasks) * options.seeds
     done = 0
     for contestant in contestants:

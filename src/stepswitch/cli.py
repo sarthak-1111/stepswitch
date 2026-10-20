@@ -1614,6 +1614,14 @@ def bench_run(
     keep: Annotated[
         bool, typer.Option("--keep", help="Keep the task workspaces under .stepswitch/bench.")
     ] = False,
+    preflight: Annotated[
+        bool,
+        typer.Option(
+            "--preflight/--no-preflight",
+            help="Ask every local worker for a canary word before the first task, and stop if"
+            " one answers wrong (recorded in run.json).",
+        ),
+    ] = True,
     router_pool: Annotated[
         str | None,
         typer.Option(
@@ -1697,6 +1705,7 @@ def bench_run(
             relay_step=relay_step,
             best_of=best_of,
             learning=learning,  # type: ignore[arg-type]  # checked above
+            preflight=preflight,
             prices=(
                 {"input_per_million": price_in, "output_per_million": price_out}
                 if price_in is not None and price_out is not None
@@ -1708,6 +1717,7 @@ def bench_run(
         args += ["--workers", ",".join(c.name for c in contestants), "--seeds", str(seeds)]
         args += ["--tasks", tasks] if tasks else []
         args += [] if review else ["--no-review"]
+        args += [] if preflight else ["--no-preflight"]
         args += ["--router-pool", ",".join(pool)] if pool else []
         args += ["--baseline"] if baseline else []
         args += (

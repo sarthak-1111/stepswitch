@@ -1586,7 +1586,7 @@ class AgentLoop:
             if self.spec.review and review_rounds < REVIEW_ROUNDS:
                 review_rounds += 1
                 review = self._review()
-                if review is not None and not review["approved"]:
+                if review is not None and review["approved"] is False:
                     self.messages.append(
                         Message.text(
                             "user",
@@ -1648,6 +1648,7 @@ class AgentLoop:
         if text is None:
             return None
         parsed = review_module.parse(text) if constrained else None
+        head = text.lstrip("*# \n").upper()
         if parsed is not None:
             reviewer = self.last_worker
             parsed.reviewer = reviewer
@@ -1656,14 +1657,26 @@ class AgentLoop:
             parsed.author_families = tuple(sorted(authors))
             self.review_result = parsed
             review = parsed.as_dict()
-        else:
-            head = text.lstrip("*# ").upper()
+        elif head.startswith(("APPROVE", "ISSUES")):
             review = {
-                "approved": not head.startswith("ISSUES"),
+                "approved": head.startswith("APPROVE"),
                 "text": text[:2000],
-                "parsed": head.startswith(("APPROVE", "ISSUES")),
+                "parsed": True,
                 "reviewer": self.last_worker,
             }
+        else:
+            # No verdict: an empty answer, or one that is neither the schema's JSON nor a line
+            # starting APPROVE or ISSUES. That is no review, and never an approval (ADR 0037).
+            reason = "the reviewer answered nothing" if not text.strip() else "no verdict found"
+            review = {
+                "approved": None,
+                "failed": True,
+                "reason": reason,
+                "text": text[:2000],
+                "parsed": False,
+                "reviewer": self.last_worker,
+            }
+            self.work_log.append(f"step {self.step}: no review took place ({reason})")
         self.last_review = review
         self.trajectory.emit("review", step=self.step, **review)
         return review
@@ -1671,6 +1684,8 @@ class AgentLoop:
     def review_change(self) -> review_module.Review | None:
         """Review this candidate's finished change (best-of-N selection and SPEC §8.5)."""
         self._review()
+        if self.last_review is not None and self.last_review.get("failed"):
+            return None  # no review took place
         if self.review_result is None and self.last_review is not None:
             approved = bool(self.last_review.get("approved"))
             text = str(self.last_review.get("text") or "")

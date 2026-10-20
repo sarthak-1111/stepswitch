@@ -505,6 +505,10 @@ def _endpoint_factory(
 
         target = Endpoint.from_config(endpoint, model=spec.model, fmt=spec.format)
         target.options.tool_parser = spec.tool_parser
+        if spec.format == "ollama-native" and spec.context:
+            # The server's context is the one the agent plans for, never its own default, which
+            # can differ per model and per machine (SPEC §4.2, ADR 0008, ADR 0037).
+            target.options.extra["num_ctx"] = int(spec.context)
         # A worker that forwards to a hosted service is remote, for the redactor too.
         target.local = spec.local
         if endpoint.engine_config and root is not None:
