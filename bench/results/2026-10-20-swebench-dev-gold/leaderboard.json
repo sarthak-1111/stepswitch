@@ -1,0 +1,56 @@
+{
+  "command": "ssw bench run --suite swebench-dev --workers gold --seeds 1",
+  "commit": "7359b1589030",
+  "contestants": [
+    {
+      "cache_hit_rate": null,
+      "cached_input_tokens": 0,
+      "ci": {
+        "confidence": 0.95,
+        "high": 1.0,
+        "low": 1.0,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "gold",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 0.0,
+      "input_tokens": 0,
+      "median_hosted_tokens": 0.0,
+      "median_tokens": 0.0,
+      "median_uncached_tokens": 0.0,
+      "median_wall_seconds": 0.0,
+      "output_tokens": 0,
+      "pass_rate": 1.0,
+      "passed": 6,
+      "rank": 1,
+      "reference_cost": null,
+      "runs": 6,
+      "statuses": {
+        "done": 6
+      },
+      "tasks": 6,
+      "tests_modified": 0
+    }
+  ],
+  "date": "2026-10-20T08:26:29+00:00",
+  "hardware": null,
+  "interval": {
+    "confidence": 0.95,
+    "resamples": 10000,
+    "seed": 0
+  },
+  "prices": null,
+  "results_file": "results.jsonl",
+  "router_pool": [],
+  "runs": 6,
+  "schema": 1,
+  "scoring": "passes when the official harness (swebench 5.0.2) resolves the instance with the run's patch: every FAIL_TO_PASS test passes and every PASS_TO_PASS test still passes",
+  "seeds": [
+    0
+  ],
+  "sources": null,
+  "suite": "swebench-dev",
+  "tasks": 6,
+  "version": "0.1.0.dev0"
+}
