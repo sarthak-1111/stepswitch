@@ -36,7 +36,7 @@ from typing import Any
 from ruamel.yaml import YAML
 
 ROOT = Path(__file__).resolve().parents[1]
-MAX_PHASE = 12
+MAX_PHASE = 13
 PHASE_TITLES = {
     0: "Research and design",
     1: "Foundation and compatibility core",
@@ -51,6 +51,7 @@ PHASE_TITLES = {
     10: "Launch polish",
     11: "Frontier comparison",
     12: "Launch readiness",
+    13: "Public benchmark",
 }
 SY = Path(sys.executable).with_name("ssw.exe" if os.name == "nt" else "ssw")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -1998,6 +1999,96 @@ def _p12_progress() -> tuple[bool, str]:
     return combine(
         (bool(text), "docs/PROGRESS.md has no `Phase 12: Launch readiness` section"),
         ("confirmatory" in text.lower(), "PROGRESS.md Phase 12 records no confirmatory run"),
+    )
+
+
+SWEBENCH_TEST = "bench/suites/swebench-verified-mini.yaml"
+SWEBENCH_DEV = "bench/suites/swebench-dev.yaml"
+SWEBENCH_CLAIMS = ("C-026", "C-027", "C-028")
+
+
+def _swebench_ids(path: str) -> list[str]:
+    data = YAML(typ="safe", pure=True).load(read(path) or "{}") or {}
+    return [str(item) for item in data.get("instances", [])] if data.get("kind") else []
+
+
+@check(13, "decision and research: ADR 0042 and the harness, image and agent notes")
+def _p13_decision() -> tuple[bool, str]:
+    adr = read("docs/decisions/0042-swebench-verified-mini.md")
+    research = section(read("docs/RESEARCH.md"), "Verified during Phase 13")
+    return combine(
+        (bool(adr), "docs/decisions/0042-swebench-verified-mini.md missing"),
+        ("confirmatory" in adr.lower() or "runs once" in adr, "ADR 0042 sets no single test run"),
+        ("gold" in adr.lower(), "ADR 0042 has no gold-patch check"),
+        ("swebench 5.0.2" in research, "RESEARCH.md has no Phase 13 notes on the harness"),
+        ("mini-SWE-agent" in research, "RESEARCH.md has no Phase 13 notes on mini-SWE-agent"),
+    )
+
+
+@check(13, "suites: SWE-bench Verified Mini (50 instances) and a disjoint dev set")
+def _p13_suites() -> tuple[bool, str]:
+    test, dev = _swebench_ids(SWEBENCH_TEST), _swebench_ids(SWEBENCH_DEV)
+    repos = {item.split("__", 1)[0] for item in test}
+    problems = combine(
+        (len(test) == 50 and len(set(test)) == 50, f"{SWEBENCH_TEST} lists {len(test)} ids"),
+        (repos == {"django", "sphinx-doc"}, f"the Mini ids come from {sorted(repos)}"),
+        (bool(dev), f"{SWEBENCH_DEV} lists no instances"),
+        (not set(test) & set(dev), "the dev set shares instances with the test set"),
+    )
+    if not problems[0]:
+        return problems
+    return untested_or_run(("bench_swebench",), "tests/unit/test_bench_swebench.py")
+
+
+@check(13, "agent: base-commit failures, impacted tests, code-shaped search, patch near matches")
+def _p13_agent_fixes() -> tuple[bool, str]:
+    return untested_or_run(
+        ("verify_baseline", "edit_shapes"),
+        "tests/unit/test_verify_baseline.py",
+        "tests/unit/test_edit_shapes.py",
+        "tests/unit/test_tools.py",
+        "tests/unit/test_verify_gates.py",
+    )
+
+
+@check(13, "results: the gold check and one confirmatory run of both contestants on Mini")
+def _p13_results() -> tuple[bool, str]:
+    gold = sorted(ROOT.glob("bench/results/*-swebench-gold/results.jsonl"))
+    runs = sorted(ROOT.glob("bench/results/*-swebench-mini-confirmatory/results.jsonl"))
+    if not gold or not runs:
+        return False, "no gold check or confirmatory run under bench/results/"
+    rows = [json.loads(line) for line in runs[-1].read_text("utf-8").splitlines() if line]
+    contestants = {row.get("contestant") for row in rows}
+    graded = [row for row in rows if not row.get("infra_error")]
+    return combine(
+        (len(runs) == 1, f"{len(runs)} confirmatory runs: the test set runs once"),
+        (len(contestants) == 2, f"contestants in the run: {sorted(map(str, contestants))}"),
+        (len(graded) == len(rows), f"{len(rows) - len(graded)} runs were not graded"),
+    )
+
+
+@check(13, "claims: the SWE-bench claims are registered and evidenced")
+def _p13_claims() -> tuple[bool, str]:
+    registry = YAML(typ="safe", pure=True).load(read("claims/claims.yaml") or "{}") or {}
+    claims = {c.get("id"): c for c in registry.get("claims", [])}
+    missing = [cid for cid in SWEBENCH_CLAIMS if cid not in claims]
+    unproven = [
+        cid
+        for cid in SWEBENCH_CLAIMS
+        if cid in claims and claims[cid].get("status") not in ("passing", "withdrawn")
+    ]
+    return combine(
+        (not missing, "claims not registered: " + ", ".join(missing)),
+        (not unproven, "claims neither passing nor withdrawn: " + ", ".join(unproven)),
+    )
+
+
+@check(13, "progress: PROGRESS.md records the SWE-bench runs")
+def _p13_progress() -> tuple[bool, str]:
+    text = section(read("docs/PROGRESS.md"), "Phase 13: Public benchmark")
+    return combine(
+        (bool(text), "docs/PROGRESS.md has no `Phase 13: Public benchmark` section"),
+        ("confirmatory" in text.lower(), "PROGRESS.md Phase 13 records no confirmatory run"),
     )
 
 

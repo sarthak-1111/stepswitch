@@ -4128,3 +4128,85 @@ derives from it), not from reading the chat template:
 - In the dev runs before the fix (`bench/results/2026-10-20-dev-router`) one such turn per task
   run, the nudge after a text answer, made 35% of the router's uncached input. The agent now
   avoids that turn when the tests passed after an edit (ADR 0024, ADR 0038 bookkeeping fix).
+
+## Verified during Phase 13
+
+### SWE-bench Verified and its Mini subset (checked 2026-10-20)
+
+Sources: the dataset `SWE-bench/SWE-bench_Verified` (split `test`, 500 rows) and the subset
+`MariusHobbhahn/swe-bench-verified-mini` (50 rows), read through the dataset hub's rows service
+(https://datasets-server.huggingface.co/rows, pages of at most 100 rows) and its API for the
+revision (https://huggingface.co/api/datasets/<name>, field `sha`).
+
+- The Mini subset has 50 instance ids, 25 from django and 25 from sphinx. Its authors chose it
+  to match the full Verified set's spread of difficulty and resolve rates with small images.
+  Every id is an instance of Verified; `bench/suites/swebench-verified-mini.yaml` lists them.
+- A row holds the repository, base commit, problem statement, hints, the gold patch, the test
+  patch and the FAIL_TO_PASS and PASS_TO_PASS test names. Only the problem statement reaches
+  an agent; the harness applies the test patch itself when it grades.
+- The rows are third-party text. The bench caches them in the state directory and records the
+  revision and a hash of the rows it used; it never commits them.
+
+### The SWE-bench harness (swebench 5.0.2, checked 2026-10-20)
+
+Sources: the package installed from PyPI into the harness volume (`swebench/cli/evaluate.py`,
+`swebench/harness/run_evaluation.py`, `harness/docker_utils.py`, `harness/constants`), and a
+graded run of one instance.
+
+- `swebench eval <dataset .json> -p preds.jsonl --run-id R -j N -t SECONDS -i ID` grades
+  predictions (`--gold` grades the reference patches). A prediction is a JSON line with
+  `instance_id`, `model_name_or_path` and `model_patch`.
+- The per-instance report is `logs/run_evaluation/<run id>/<model, "/" read as "__">/<id>/
+  report.json` under the working directory, with `resolved`, `patch_successfully_applied` and
+  `tests_status`. A summary `<model>.<run id>.json` goes to the report directory.
+- Instance images are `swebench/sweb.eval.x86_64.<id, "__" read as "_1776_">:latest`. They are
+  pulled when missing and never removed by `eval`.
+- Each graded instance runs in a container named `sweb.eval.<id>.<run id>`. The harness stops
+  and removes it by running the `docker` command line, so the grading container needs it on
+  `PATH`. Without it the grade still finished, but the container stayed up and the run exited
+  with an error.
+
+### SWE-bench instance images (checked 2026-10-20)
+
+Sources: `docker run` of the django and sphinx images of the dev and Mini instances.
+
+- `/testbed` is a checkout at the base commit, with one more empty commit on top. The task's
+  diff is taken against that `HEAD`.
+- The project's interpreter is `/opt/miniconda3/envs/testbed/bin/python`, a conda
+  environment (Python 3.6.13 for the django 3.1 instances), with the project installed in
+  editable mode by an `easy-install.pth` that points at `/testbed`. A worktree elsewhere
+  therefore imports `/testbed` unless `PYTHONPATH` puts the worktree first (ADR 0042).
+- django runs its own runner (`tests/runtests.py --settings=test_sqlite`), which takes dotted
+  labels (`backends.base.test_operations`), not file paths, and prints unittest output.
+  With the smoke task's change applied, its whole suite took 398 s: 12,598 tests passed, 3
+  failed, 2 errored and 1,048 were skipped. The import map chose 11 test files for that
+  change's two files, in 2.7 s.
+
+### mini-SWE-agent (2.4.6, checked 2026-10-20)
+
+Sources: the package installed from PyPI (`minisweagent/config/benchmarks/swebench.yaml`,
+`models/litellm_model.py`) and a run of one instance.
+
+- `mini-extra swebench --subset <dataset dir> --split test --filter '^<id>$' -o <out> -w 1 -m
+  <model> -c swebench.yaml -c <key>=<value>` runs instances. It writes `preds.json` and
+  `<id>/<id>.traj.json`, and submits an empty patch when a limit or an exception stops it.
+- The SWE-bench config: tool calling (one `bash` tool, parallel calls allowed), `step_limit`
+  250, `cost_limit` 3.0, 60 s per command, commands run in the instance's own container
+  through the `docker` command line (`environment_class: docker`).
+- A model without a price needs `MSWEA_COST_TRACKING=ignore_errors`.
+- Its dependency litellm, resolved to 1.106.0 on that day, imports the `mcp` package inside
+  `litellm.completion` without depending on it, so every call failed with
+  `ModuleNotFoundError: No module named 'mcp'` and the run submitted an empty patch. With
+  mcp 2.3.0 installed, a tool-calling completion against the local server worked. The harness
+  volume pins mini-swe-agent 2.4.6, litellm 1.106.0 and mcp 2.3.0.
+
+### Running the bench in Linux containers on a Windows host (checked 2026-10-20)
+
+- Docker Desktop's Linux containers reach the host's model server at `host.docker.internal`
+  with `--add-host host.docker.internal:host-gateway`. A container that starts others (the
+  harness, mini-SWE-agent) gets the host's socket at `/var/run/docker.sock` and a static
+  `docker` command line (27.0.3) from the harness volume.
+- The harness must not run under Windows Python: it writes the test patch with CRLF line ends
+  (swebench issue 652). The bench runs it in a Linux container.
+- The local model server (0.34.4) answers one request at a time, so task runs go one after
+  another; grading a run overlaps with the next run's agent.
