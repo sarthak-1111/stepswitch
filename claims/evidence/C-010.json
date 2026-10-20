@@ -9,7 +9,7 @@
   },
   "command": "uv run ssw prove --claim C-010",
   "mode": "quick",
-  "source_digest": "1461db4cc46d97d4a9f2d63e724f503021bd258215ddff14d79f48def548b4ef",
+  "source_digest": "d610d446de2b7cfad7cc09c649cbc5eb142026619c4ff16944eff403ca0625b4",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -21,34 +21,42 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-19T10:33:37+00:00",
+  "updated": "2026-10-19T23:49:26+00:00",
   "sections": {
     "handoffs": {
-      "recorded": "2026-10-19T10:33:37+00:00",
+      "recorded": "2026-10-19T23:49:26+00:00",
       "runs": [
         "2026-10-19-mini-general-best-of-n",
+        "2026-10-19-mini-general-local-comparison",
+        "2026-10-19-mini-general-native-pilot",
         "2026-10-19-mini-general-optimized",
         "2026-10-19-mini-general-optimized-v2",
         "2026-10-19-mini-general-relay",
         "2026-10-19-mini-science-best-of-n",
+        "2026-10-19-mini-science-local-comparison",
         "2026-10-19-mini-science-optimized",
         "2026-10-19-mini-science-optimized-v2",
-        "2026-10-19-mini-science-relay"
+        "2026-10-19-mini-science-relay",
+        "2026-10-20-mini-general-native",
+        "2026-10-20-mini-general-router",
+        "2026-10-20-mini-science-native",
+        "2026-10-20-mini-science-router"
       ],
-      "handoffs": 28,
+      "handoffs": 29,
       "per_suite": {
-        "mini-general": 17,
+        "mini-general": 18,
         "mini-science": 11
       },
       "reasons": {
+        "compaction": 1,
         "relay": 28
       },
       "schema_valid_fraction": 1.0,
       "max_tokens": 1213,
       "tokenizers": {
-        "mapped:gpt-oss": 28
+        "mapped:gpt-oss": 29
       },
-      "recounted": 28,
+      "recounted": 29,
       "problems": [],
       "missing_records": []
     }

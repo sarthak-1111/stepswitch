@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "mode": "quick",
-  "source_digest": "1461db4cc46d97d4a9f2d63e724f503021bd258215ddff14d79f48def548b4ef",
-  "created": "2026-10-19T10:43:26+00:00",
-  "duration_s": 886.81,
+  "source_digest": "d610d446de2b7cfad7cc09c649cbc5eb142026619c4ff16944eff403ca0625b4",
+  "created": "2026-10-20T00:00:46+00:00",
+  "duration_s": 1038.06,
   "platform": {
     "os": "windows",
     "machine": "amd64",
@@ -15,7 +15,7 @@
     "image_version": null
   },
   "selection": {
-    "phase": 10,
+    "phase": 11,
     "claims": [],
     "skip": []
   },
@@ -189,11 +189,35 @@
       },
       "parts": [],
       "notes": {}
+    },
+    "C-021": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c021_frontier_parity.py::test_local_router_passes_as_many_task_runs_as_claude_code": "passed"
+      },
+      "parts": [],
+      "notes": {}
+    },
+    "C-022": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c022_frontier_tokens.py::test_local_router_processes_fewer_tokens_than_claude_code": "passed"
+      },
+      "parts": [],
+      "notes": {}
+    },
+    "C-023": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c023_harness_parity.py::test_claude_code_on_local_models_passes_as_many_task_runs": "passed"
+      },
+      "parts": [],
+      "notes": {}
     }
   },
   "summary": {
     "pending": 1,
-    "passing": 19,
+    "passing": 22,
     "failing": 0
   }
 }

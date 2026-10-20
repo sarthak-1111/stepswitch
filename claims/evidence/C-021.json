@@ -1,0 +1,200 @@
+{
+  "claim": "C-021",
+  "text": "On the mini suites, Stepswitch on local models passes as many task runs as Claude Code on Sonnet 5.5 and on Opus 5.5.",
+  "scope": "The mini bench suites (mini-general and mini-science): every task of both, with at least the seeds `min_seeds` asks for. Stepswitch is the `router` contestant routing among local models only: no token reaches a hosted model. Claude Code is the `native:claude-code:<model>` contestant: one session per task run on the harness's own login, isolated from user customizations, with the prompt a harness run's first attempt gets (ADR 0034). Results hold for the versions recorded in each run (harness version, model IDs, local models, machine). Task runs whose run hit an infrastructure error (an API or server error, a usage limit) are left out for every contestant and listed in the evidence.",
+  "thresholds": {
+    "contestant": "router",
+    "baselines": {
+      "sonnet": {
+        "contestant": "native:claude-code:claude-sonnet-5-5",
+        "model": "claude-sonnet-5-5"
+      },
+      "opus": {
+        "contestant": "native:claude-code:claude-opus-5-5",
+        "model": "claude-opus-5-5"
+      }
+    },
+    "hosted_tokens_max": 0,
+    "min_seeds": 2,
+    "max_excluded_share": 0.1,
+    "confidence_level": 0.95
+  },
+  "command": "uv run ssw prove --claim C-021",
+  "mode": "quick",
+  "source_digest": "d610d446de2b7cfad7cc09c649cbc5eb142026619c4ff16944eff403ca0625b4",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-20T00:00:44+00:00",
+  "sections": {
+    "comparison": {
+      "recorded": "2026-10-20T00:00:44+00:00",
+      "confidence": 0.95,
+      "roles": {
+        "stepswitch": "router",
+        "sonnet": "native:claude-code:claude-sonnet-5-5",
+        "opus": "native:claude-code:claude-opus-5-5"
+      },
+      "runs": {
+        "router": {
+          "mini-general": "2026-10-20-mini-general-router",
+          "mini-science": "2026-10-20-mini-science-router"
+        },
+        "native:claude-code:claude-sonnet-5-5": {
+          "mini-general": "2026-10-20-mini-general-native",
+          "mini-science": "2026-10-20-mini-science-native"
+        },
+        "native:claude-code:claude-opus-5-5": {
+          "mini-general": "2026-10-20-mini-general-native",
+          "mini-science": "2026-10-20-mini-science-native"
+        }
+      },
+      "bench_commands": [
+        "uv run ssw bench run --suite <suite> --workers router,native:claude-code:claude-sonnet-5-5,native:claude-code:claude-opus-5-5 --seeds 2 --router-pool <local workers> ..."
+      ],
+      "task_runs": 42,
+      "excluded": [],
+      "hosted_tokens": 0,
+      "stepswitch": {
+        "contestant": "router",
+        "passed": 42,
+        "runs": 42,
+        "pass_rate_percent": 100.0,
+        "interval_percent": {
+          "low": 100.0,
+          "high": 100.0,
+          "method": "cluster bootstrap over tasks (percentile)"
+        }
+      },
+      "sonnet": {
+        "contestant": "native:claude-code:claude-sonnet-5-5",
+        "passed": 42,
+        "runs": 42,
+        "pass_rate_percent": 100.0,
+        "interval_percent": {
+          "low": 100.0,
+          "high": 100.0,
+          "method": "cluster bootstrap over tasks (percentile)"
+        },
+        "models": [
+          "claude-sonnet-5-5"
+        ],
+        "difference_percent": {
+          "mean": 0.0,
+          "interval": {
+            "low": 0.0,
+            "high": 0.0,
+            "method": "cluster bootstrap over tasks (percentile)"
+          },
+          "won": [],
+          "lost": []
+        }
+      },
+      "opus": {
+        "contestant": "native:claude-code:claude-opus-5-5",
+        "passed": 42,
+        "runs": 42,
+        "pass_rate_percent": 100.0,
+        "interval_percent": {
+          "low": 100.0,
+          "high": 100.0,
+          "method": "cluster bootstrap over tasks (percentile)"
+        },
+        "models": [
+          "claude-opus-5-5"
+        ],
+        "difference_percent": {
+          "mean": 0.0,
+          "interval": {
+            "low": 0.0,
+            "high": 0.0,
+            "method": "cluster bootstrap over tasks (percentile)"
+          },
+          "won": [],
+          "lost": []
+        }
+      },
+      "suites": {
+        "mini-general": {
+          "stepswitch": {
+            "contestant": "router",
+            "passed": 30,
+            "runs": 30,
+            "pass_rate_percent": 100.0,
+            "interval_percent": {
+              "low": 100.0,
+              "high": 100.0,
+              "method": "cluster bootstrap over tasks (percentile)"
+            }
+          },
+          "sonnet": {
+            "contestant": "native:claude-code:claude-sonnet-5-5",
+            "passed": 30,
+            "runs": 30,
+            "pass_rate_percent": 100.0,
+            "interval_percent": {
+              "low": 100.0,
+              "high": 100.0,
+              "method": "cluster bootstrap over tasks (percentile)"
+            }
+          },
+          "opus": {
+            "contestant": "native:claude-code:claude-opus-5-5",
+            "passed": 30,
+            "runs": 30,
+            "pass_rate_percent": 100.0,
+            "interval_percent": {
+              "low": 100.0,
+              "high": 100.0,
+              "method": "cluster bootstrap over tasks (percentile)"
+            }
+          }
+        },
+        "mini-science": {
+          "stepswitch": {
+            "contestant": "router",
+            "passed": 12,
+            "runs": 12,
+            "pass_rate_percent": 100.0,
+            "interval_percent": {
+              "low": 100.0,
+              "high": 100.0,
+              "method": "cluster bootstrap over tasks (percentile)"
+            }
+          },
+          "sonnet": {
+            "contestant": "native:claude-code:claude-sonnet-5-5",
+            "passed": 12,
+            "runs": 12,
+            "pass_rate_percent": 100.0,
+            "interval_percent": {
+              "low": 100.0,
+              "high": 100.0,
+              "method": "cluster bootstrap over tasks (percentile)"
+            }
+          },
+          "opus": {
+            "contestant": "native:claude-code:claude-opus-5-5",
+            "passed": 12,
+            "runs": 12,
+            "pass_rate_percent": 100.0,
+            "interval_percent": {
+              "low": 100.0,
+              "high": 100.0,
+              "method": "cluster bootstrap over tasks (percentile)"
+            }
+          }
+        }
+      },
+      "problems": []
+    }
+  }
+}

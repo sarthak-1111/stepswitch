@@ -431,7 +431,7 @@ claims:
       - {key: sections.comparison.stepswitch.pass_rate_percent, label: Stepswitch on local models passed, unit: "%", digits: 1}
       - {key: sections.comparison.sonnet.pass_rate_percent, label: Claude Code on Sonnet, unit: "%", digits: 1}
       - {key: sections.comparison.opus.pass_rate_percent, label: Claude Code on Opus, unit: "%", digits: 1}
-    status: pending
+    status: passing
 
   - id: C-022
     text: "On the mini suites, Stepswitch processes fewer tokens per task than Claude Code on Sonnet 5.5 and on Opus 5.5, counting cached tokens, and sends none to a hosted model."
@@ -468,7 +468,7 @@ claims:
       - {key: sections.comparison.opus.claimed.percent, label: fewer tokens than Claude Code on Opus, unit: "%", digits: 1}
       - {key: sections.comparison.sonnet.uncached_more_percent, label: more uncached tokens than Claude Code on Sonnet, unit: "%", digits: 1}
       - {key: sections.comparison.opus.uncached_more_percent, label: more uncached tokens than Claude Code on Opus, unit: "%", digits: 1}
-    status: pending
+    status: passing
 
   - id: C-023
     text: "On the mini suites, Claude Code through `ssw proxy` on local models passes as many task runs as Claude Code on Sonnet 5.5 and on Opus 5.5."
@@ -498,4 +498,4 @@ claims:
       - {key: sections.comparison.stepswitch.pass_rate_percent, label: Claude Code on local models passed, unit: "%", digits: 1}
       - {key: sections.comparison.sonnet.pass_rate_percent, label: Claude Code on Sonnet, unit: "%", digits: 1}
       - {key: sections.comparison.opus.pass_rate_percent, label: Claude Code on Opus, unit: "%", digits: 1}
-    status: pending
+    status: passing

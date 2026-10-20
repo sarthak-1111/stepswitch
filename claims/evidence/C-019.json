@@ -7,7 +7,7 @@
   },
   "command": "uv run ssw prove --claim C-019",
   "mode": "quick",
-  "source_digest": "1461db4cc46d97d4a9f2d63e724f503021bd258215ddff14d79f48def548b4ef",
+  "source_digest": "d610d446de2b7cfad7cc09c649cbc5eb142026619c4ff16944eff403ca0625b4",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -19,10 +19,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-19T10:43:11+00:00",
+  "updated": "2026-10-20T00:00:35+00:00",
   "sections": {
     "accounting": {
-      "recorded": "2026-10-19T10:43:11+00:00",
+      "recorded": "2026-10-20T00:00:35+00:00",
       "engine": "llama.cpp server",
       "runs": [
         {
@@ -46,12 +46,12 @@
           "ledger": {
             "input": 6456,
             "cached_input": 4597,
-            "output": 1442
+            "output": 1478
           },
           "server": {
             "input": 6456.0,
             "cached_input": 4597.0,
-            "output": 1442.0
+            "output": 1478.0
           },
           "relative_error": {
             "input": 0.0,
@@ -68,12 +68,12 @@
           "ledger": {
             "input": 13627,
             "cached_input": 10467,
-            "output": 874
+            "output": 971
           },
           "server": {
             "input": 13627.0,
             "cached_input": 10467.0,
-            "output": 874.0
+            "output": 971.0
           },
           "relative_error": {
             "input": 0.0,

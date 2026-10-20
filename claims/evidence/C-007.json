@@ -7,7 +7,7 @@
   },
   "command": "uv run ssw prove --claim C-007",
   "mode": "quick",
-  "source_digest": "1461db4cc46d97d4a9f2d63e724f503021bd258215ddff14d79f48def548b4ef",
+  "source_digest": "d610d446de2b7cfad7cc09c649cbc5eb142026619c4ff16944eff403ca0625b4",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -19,10 +19,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-19T10:33:09+00:00",
+  "updated": "2026-10-19T23:48:57+00:00",
   "sections": {
     "default_flow": {
-      "recorded": "2026-10-19T10:33:09+00:00",
+      "recorded": "2026-10-19T23:48:57+00:00",
       "flow": [
         {
           "argv": [
@@ -30,7 +30,7 @@
             "--help"
           ],
           "exit_code": 0,
-          "seconds": 0.68,
+          "seconds": 0.6,
           "stderr_tail": []
         },
         {
@@ -50,7 +50,7 @@
             "--json"
           ],
           "exit_code": 0,
-          "seconds": 1.26,
+          "seconds": 1.36,
           "stderr_tail": []
         },
         {
@@ -63,7 +63,7 @@
             "--json"
           ],
           "exit_code": 0,
-          "seconds": 0.93,
+          "seconds": 0.89,
           "stderr_tail": []
         },
         {
@@ -74,7 +74,7 @@
             "--json"
           ],
           "exit_code": 0,
-          "seconds": 0.87,
+          "seconds": 0.86,
           "stderr_tail": []
         },
         {
@@ -196,9 +196,9 @@
           "command": "ssw init --json",
           "kind": "process",
           "event": "subprocess.Popen",
-          "executable": "~\\AppData\\Local\\Programs\\Ollama\\ollama.EXE",
+          "executable": "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
           "argv": [
-            "~\\AppData\\Local\\Programs\\Ollama\\ollama.EXE",
+            "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
             "--version"
           ],
           "outbound": false
@@ -207,9 +207,9 @@
           "command": "ssw init --json",
           "kind": "process",
           "event": "subprocess.Popen",
-          "executable": "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
+          "executable": "~\\AppData\\Local\\Programs\\Ollama\\ollama.EXE",
           "argv": [
-            "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
+            "~\\AppData\\Local\\Programs\\Ollama\\ollama.EXE",
             "--version"
           ],
           "outbound": false
@@ -280,9 +280,9 @@
           "command": "ssw doctor --json",
           "kind": "process",
           "event": "subprocess.Popen",
-          "executable": "~\\AppData\\Local\\Programs\\Ollama\\ollama.EXE",
+          "executable": "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
           "argv": [
-            "~\\AppData\\Local\\Programs\\Ollama\\ollama.EXE",
+            "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
             "--version"
           ],
           "outbound": false
@@ -291,9 +291,9 @@
           "command": "ssw doctor --json",
           "kind": "process",
           "event": "subprocess.Popen",
-          "executable": "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
+          "executable": "~\\AppData\\Local\\Programs\\Ollama\\ollama.EXE",
           "argv": [
-            "C:\\WINDOWS\\system32\\nvidia-smi.EXE",
+            "~\\AppData\\Local\\Programs\\Ollama\\ollama.EXE",
             "--version"
           ],
           "outbound": false

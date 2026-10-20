@@ -10,7 +10,7 @@
   },
   "command": "uv run ssw prove --claim C-017",
   "mode": "quick",
-  "source_digest": "1461db4cc46d97d4a9f2d63e724f503021bd258215ddff14d79f48def548b4ef",
+  "source_digest": "d610d446de2b7cfad7cc09c649cbc5eb142026619c4ff16944eff403ca0625b4",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -22,10 +22,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-19T10:39:57+00:00",
+  "updated": "2026-10-19T23:56:46+00:00",
   "sections": {
     "quickstart": {
-      "recorded": "2026-10-19T10:39:57+00:00",
+      "recorded": "2026-10-19T23:56:46+00:00",
       "image": "python:3.12-slim",
       "image_digests": [
         "python@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1"
@@ -42,19 +42,19 @@
         "cgroup": {
           "memory.max": "8589934592",
           "memory.swap.max": "0",
-          "memory.peak": "8588734464"
+          "memory.peak": "8589934592"
         }
       },
       "usable_cpus": 8,
       "gpu_devices_visible": 0,
       "steps_seconds": {
-        "install": 28.1,
+        "install": 51.0,
         "init": 0.4,
-        "engine_install": 2.9,
-        "first_task": 155.9
+        "engine_install": 5.9,
+        "first_task": 153.8
       },
-      "total_seconds": 187.3,
-      "total_minutes": 3.12,
+      "total_seconds": 211.1,
+      "total_minutes": 3.52,
       "excluded": {
         "model_pull_seconds": 0.3,
         "model_files": "mounted read-only from the host's verified store",

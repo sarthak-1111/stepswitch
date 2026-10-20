@@ -11,7 +11,7 @@
   },
   "command": "uv run ssw prove --claim C-011",
   "mode": "quick",
-  "source_digest": "1461db4cc46d97d4a9f2d63e724f503021bd258215ddff14d79f48def548b4ef",
+  "source_digest": "d610d446de2b7cfad7cc09c649cbc5eb142026619c4ff16944eff403ca0625b4",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -23,10 +23,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-19T10:33:37+00:00",
+  "updated": "2026-10-19T23:49:26+00:00",
   "sections": {
     "comparison": {
-      "recorded": "2026-10-19T10:33:37+00:00",
+      "recorded": "2026-10-19T23:49:26+00:00",
       "suites": {
         "mini-general": {
           "baseline": {
@@ -41,29 +41,29 @@
             "uncached_tokens": 347371
           },
           "optimized": {
-            "run": "2026-10-19-mini-general-optimized-v2",
-            "commit": "bc398811e039",
+            "run": "2026-10-20-mini-general-router",
+            "commit": "c59bfc71d43a",
             "runs": 30,
-            "passed": 29,
-            "pass_rate": 0.9667,
-            "tokens": 1458622,
-            "input_tokens": 1373455,
-            "output_tokens": 85167,
-            "uncached_tokens": 289912
+            "passed": 30,
+            "pass_rate": 1.0,
+            "tokens": 1353700,
+            "input_tokens": 1276593,
+            "output_tokens": 77107,
+            "uncached_tokens": 286217
           },
-          "token_reduction_percent": 20.37,
+          "token_reduction_percent": 26.1,
           "token_reduction_interval": {
-            "low": -27.33,
-            "high": 52.0,
+            "low": -1.32,
+            "high": 44.57,
             "confidence": 0.95,
             "method": "cluster bootstrap over tasks (percentile)",
             "tasks": 15
           },
           "uncached_reduction": {
-            "percent": 16.54,
+            "percent": 17.6,
             "interval": {
-              "low": -3.17,
-              "high": 33.04,
+              "low": 7.24,
+              "high": 26.95,
               "confidence": 0.95,
               "method": "cluster bootstrap over tasks (percentile)",
               "tasks": 15
@@ -71,10 +71,10 @@
           },
           "claimed": {
             "measure": "uncached",
-            "percent": 16.54,
+            "percent": 17.6,
             "interval": {
-              "low": -3.17,
-              "high": 33.04,
+              "low": 7.24,
+              "high": 26.95,
               "confidence": 0.95,
               "method": "cluster bootstrap over tasks (percentile)",
               "tasks": 15
@@ -94,29 +94,29 @@
             "uncached_tokens": 140262
           },
           "optimized": {
-            "run": "2026-10-19-mini-science-optimized-v2",
-            "commit": "bc398811e039",
+            "run": "2026-10-20-mini-science-router",
+            "commit": "c386a9d8e322",
             "runs": 12,
             "passed": 12,
             "pass_rate": 1.0,
-            "tokens": 366677,
-            "input_tokens": 333173,
-            "output_tokens": 33504,
-            "uncached_tokens": 106506
+            "tokens": 413712,
+            "input_tokens": 383875,
+            "output_tokens": 29837,
+            "uncached_tokens": 114448
           },
-          "token_reduction_percent": 24.89,
+          "token_reduction_percent": 15.25,
           "token_reduction_interval": {
-            "low": 13.96,
-            "high": 33.98,
+            "low": -0.48,
+            "high": 28.52,
             "confidence": 0.95,
             "method": "cluster bootstrap over tasks (percentile)",
             "tasks": 6
           },
           "uncached_reduction": {
-            "percent": 24.07,
+            "percent": 18.4,
             "interval": {
-              "low": 14.73,
-              "high": 32.94,
+              "low": 3.57,
+              "high": 32.13,
               "confidence": 0.95,
               "method": "cluster bootstrap over tasks (percentile)",
               "tasks": 6
@@ -124,10 +124,10 @@
           },
           "claimed": {
             "measure": "uncached",
-            "percent": 24.07,
+            "percent": 18.4,
             "interval": {
-              "low": 14.73,
-              "high": 32.94,
+              "low": 3.57,
+              "high": 32.13,
               "confidence": 0.95,
               "method": "cluster bootstrap over tasks (percentile)",
               "tasks": 6
@@ -136,20 +136,20 @@
         }
       },
       "baseline_tokens": 2319889,
-      "optimized_tokens": 1825299,
-      "token_reduction_percent": 21.3,
+      "optimized_tokens": 1767412,
+      "token_reduction_percent": 23.8,
       "token_reduction_interval": {
-        "low": -13.63,
-        "high": 47.81,
+        "low": 2.69,
+        "high": 40.64,
         "confidence": 0.95,
         "method": "cluster bootstrap over tasks (percentile)",
         "tasks": 21
       },
       "uncached_reduction": {
-        "percent": 18.71,
+        "percent": 17.83,
         "interval": {
-          "low": 3.86,
-          "high": 30.85,
+          "low": 9.36,
+          "high": 25.92,
           "confidence": 0.95,
           "method": "cluster bootstrap over tasks (percentile)",
           "tasks": 21
@@ -157,10 +157,10 @@
       },
       "claimed": {
         "measure": "uncached",
-        "percent": 18.7,
+        "percent": 17.8,
         "interval": {
-          "low": 3.86,
-          "high": 30.85,
+          "low": 9.36,
+          "high": 25.92,
           "confidence": 0.95,
           "method": "cluster bootstrap over tasks (percentile)",
           "tasks": 21

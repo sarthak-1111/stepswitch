@@ -1,8 +1,8 @@
 # Prove report
 
 - Mode: quick
-- Created: 2026-10-19T10:43:26+00:00
-- Source digest: `1461db4cc46d97d4a9f2d63e724f503021bd258215ddff14d79f48def548b4ef`
+- Created: 2026-10-20T00:00:46+00:00
+- Source digest: `d610d446de2b7cfad7cc09c649cbc5eb142026619c4ff16944eff403ca0625b4`
 - Platform: windows amd64, Python 3.12.15
 
 | Claim | Status | Tests |
@@ -27,3 +27,6 @@
 | C-018 | passing | test_every_readme_number_has_evidence_and_command: passed |
 | C-019 | passing | test_ledger_matches_server_usage_within_one_percent: passed |
 | C-020 | passing | test_tiny_budgets_stop_with_status_and_bounded_overrun: passed |
+| C-021 | passing | test_local_router_passes_as_many_task_runs_as_claude_code: passed |
+| C-022 | passing | test_local_router_processes_fewer_tokens_than_claude_code: passed |
+| C-023 | passing | test_claude_code_on_local_models_passes_as_many_task_runs: passed |
