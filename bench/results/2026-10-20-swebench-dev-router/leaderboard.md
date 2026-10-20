@@ -1,0 +1,16 @@
+# Leaderboard: swebench-dev
+
+- Results: [`results.jsonl`](results.jsonl) (6 runs, 6 tasks, seeds [0])
+- Command: `ssw bench run --suite swebench-dev --workers router --seeds 1 --router-pool ws-ollama-local/gpt-oss:120b --max-steps 100 --budget-seconds 3600.0`
+- Hardware: not recorded
+- Date: 2026-10-20T15:12:55+00:00
+- Version: 0.1.0.dev0 (commit 0f9f52997a60)
+- Pass-rate intervals: 95%, cluster bootstrap over tasks (10,000 resamples, seed 0); Wilson score interval with one task.
+- Scoring: a run passes when the official harness (swebench 5.0.2) resolves the instance with the run's patch: every FAIL_TO_PASS test passes and every PASS_TO_PASS test still passes.
+- Router pool: `ws-ollama-local/gpt-oss:120b`
+
+| Rank | Contestant | Pass rate | 95% interval | Runs | Median wall (s) | Median tokens | Median uncached | Median hosted | GPU-s | Escalations | Cache hits | Changed tests | Reference cost |
+|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | router | 33% | 0% to 67% | 6 | 750.9 | 1,910,838 | 166,868 | 0 | 0.0 | 0% | 92% | 1 | - |
+
+![Pass rate by contestant](pass-rate.svg)

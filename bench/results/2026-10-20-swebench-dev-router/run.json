@@ -1,0 +1,80 @@
+{
+  "schema": 1,
+  "suite": "swebench-dev",
+  "suite_file": "swebench-dev.yaml",
+  "kind": "swebench",
+  "command": "ssw bench run --suite swebench-dev --workers router --seeds 1 --router-pool ws-ollama-local/gpt-oss:120b --max-steps 100 --budget-seconds 3600.0",
+  "started": "2026-10-20T13:56:18+00:00",
+  "finished": "2026-10-20T15:12:55+00:00",
+  "version": "0.1.0.dev0",
+  "commit": "0f9f52997a60",
+  "source_sha256": "700d5d4b1c8935f16058f663fa8d0073e7384a4d96aff8d760e47933be0b05fb",
+  "seeds": [
+    0
+  ],
+  "contestants": [
+    "router"
+  ],
+  "tasks": [
+    "django__django-12741",
+    "django__django-12858",
+    "django__django-14631",
+    "sphinx-doc__sphinx-8459",
+    "sphinx-doc__sphinx-9602",
+    "sphinx-doc__sphinx-10614"
+  ],
+  "review": true,
+  "router_pool": [
+    "ws-ollama-local/gpt-oss:120b"
+  ],
+  "max_steps": 100,
+  "budget_seconds": 3600.0,
+  "dataset": {
+    "name": "SWE-bench/SWE-bench_Verified",
+    "split": "test",
+    "revision": "78f471bf655a3137b2e8a75af1501690ec009ec3",
+    "fetched": "2026-10-20T07:49:32+00:00",
+    "rows_sha256": "13d89c94fe88c73f3c895e1a95b66d1aa9d9633fcf90c8a2740b37e595e7efdc"
+  },
+  "harness": {
+    "swebench": "5.0.2",
+    "mini_swe_agent": "2.4.6",
+    "litellm": "1.106.0",
+    "volume": "ssw-swe-harness-0a537ac83e08a5b6"
+  },
+  "runtime": {
+    "volume": "ssw-swe-deps-e7fd85592073bc6a",
+    "python": "3.12",
+    "gates": [
+      "impacted_tests"
+    ]
+  },
+  "images": [
+    "swebench/sweb.eval.x86_64.django_1776_django-12741:latest",
+    "swebench/sweb.eval.x86_64.django_1776_django-12858:latest",
+    "swebench/sweb.eval.x86_64.django_1776_django-14631:latest",
+    "swebench/sweb.eval.x86_64.sphinx-doc_1776_sphinx-10614:latest",
+    "swebench/sweb.eval.x86_64.sphinx-doc_1776_sphinx-8459:latest",
+    "swebench/sweb.eval.x86_64.sphinx-doc_1776_sphinx-9602:latest"
+  ],
+  "image_digests": {
+    "swebench/sweb.eval.x86_64.django_1776_django-12741:latest": "sha256:08e1eaac3d691871dadda2007635a13170536b6e4897698efb63e2dbcca96452",
+    "swebench/sweb.eval.x86_64.django_1776_django-12858:latest": "sha256:c9865ad6e7a0907fa9a449b6f7541a72904777036515d539b38186fe01e09f2b",
+    "swebench/sweb.eval.x86_64.django_1776_django-14631:latest": "sha256:bf4d29a9b9f54559d7a3ffadba03e462a97f8022cf536cb064b8804ed95cccc1",
+    "swebench/sweb.eval.x86_64.sphinx-doc_1776_sphinx-10614:latest": "sha256:455d642453b0c1ace5e25dd27f661d22c52a1d5d698b8344de1b5ebe40c077f8",
+    "swebench/sweb.eval.x86_64.sphinx-doc_1776_sphinx-8459:latest": "sha256:c2856c3d9bc3ad3015f6ed63a66621229393d3574bb546e64c1a5bbee7a2e572",
+    "swebench/sweb.eval.x86_64.sphinx-doc_1776_sphinx-9602:latest": "sha256:6e74f436abd59301ea0f4c01560fb3dc23a0c7d1c38cc14e24609401e172a3cb"
+  },
+  "preflight": {
+    "ok": true,
+    "prompt": "Reply with the single word READY and nothing else.",
+    "workers": {
+      "ws-ollama-local/gpt-oss:120b": {
+        "ok": true,
+        "seconds": 1.8,
+        "reply": "READY"
+      }
+    }
+  },
+  "scoring": "passes when the official harness (swebench 5.0.2) resolves the instance with the run's patch: every FAIL_TO_PASS test passes and every PASS_TO_PASS test still passes"
+}

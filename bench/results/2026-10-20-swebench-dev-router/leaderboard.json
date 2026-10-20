@@ -1,0 +1,59 @@
+{
+  "command": "ssw bench run --suite swebench-dev --workers router --seeds 1 --router-pool ws-ollama-local/gpt-oss:120b --max-steps 100 --budget-seconds 3600.0",
+  "commit": "0f9f52997a60",
+  "contestants": [
+    {
+      "cache_hit_rate": 0.9175836737907489,
+      "cached_input_tokens": 8484331,
+      "ci": {
+        "confidence": 0.95,
+        "high": 0.6666666666666666,
+        "low": 0.0,
+        "method": "cluster bootstrap over tasks (percentile)",
+        "resamples": 10000
+      },
+      "contestant": "router",
+      "escalation_rate": 0.0,
+      "gpu_seconds": 0.0,
+      "input_tokens": 9246384,
+      "median_hosted_tokens": 0.0,
+      "median_tokens": 1910838.0,
+      "median_uncached_tokens": 166868.0,
+      "median_wall_seconds": 750.875,
+      "output_tokens": 109473,
+      "pass_rate": 0.3333333333333333,
+      "passed": 2,
+      "rank": 1,
+      "reference_cost": null,
+      "runs": 6,
+      "statuses": {
+        "done": 3,
+        "stopped": 3
+      },
+      "tasks": 6,
+      "tests_modified": 1
+    }
+  ],
+  "date": "2026-10-20T15:12:55+00:00",
+  "hardware": null,
+  "interval": {
+    "confidence": 0.95,
+    "resamples": 10000,
+    "seed": 0
+  },
+  "prices": null,
+  "results_file": "results.jsonl",
+  "router_pool": [
+    "ws-ollama-local/gpt-oss:120b"
+  ],
+  "runs": 6,
+  "schema": 1,
+  "scoring": "passes when the official harness (swebench 5.0.2) resolves the instance with the run's patch: every FAIL_TO_PASS test passes and every PASS_TO_PASS test still passes",
+  "seeds": [
+    0
+  ],
+  "sources": null,
+  "suite": "swebench-dev",
+  "tasks": 6,
+  "version": "0.1.0.dev0"
+}
