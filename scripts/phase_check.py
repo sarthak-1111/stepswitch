@@ -272,15 +272,22 @@ def claims_check(phase: int) -> tuple[bool, str]:
     registry = load_registry()
     due_tests: dict[str, str] = {}
     due_claims: list[str] = []
+    withdrawn: list[str] = []
     for claim in registry.get("claims", []):
         parts = claim_parts(claim)
+        if claim.get("withdrawn_by"):
+            # Withdrawn claims are not proven (ADR 0041); the registry check covers them.
+            if any(part["phase"] == phase for part in parts):
+                withdrawn.append(claim["id"])
+            continue
         selected = [part for part in parts if part["phase"] == phase]
         for part in selected:
             due_tests.update({node: claim["id"] for node in part["tests"]})
         if selected and max(part["phase"] for part in parts) == phase:
             due_claims.append(claim["id"])
+    gone = f"; withdrawn: {', '.join(withdrawn)}" if withdrawn else ""
     if not due_tests:
-        return True, "no claims assigned to this phase"
+        return True, f"no claims assigned to this phase{gone}"
     label = ", ".join(sorted(set(due_tests.values())))
     report_path = ROOT / "claims" / "prove-report.json"
     if not report_path.is_file():
@@ -305,7 +312,7 @@ def claims_check(phase: int) -> tuple[bool, str]:
     ]
     problems = [f"tests not passed: {', '.join(failed)}"] if failed else []
     problems += [f"claims not passing: {', '.join(not_passing)}"] if not_passing else []
-    return not problems, "; ".join(problems) or f"{label} passing"
+    return not problems, "; ".join(problems) or f"{label} passing{gone}"
 
 
 for _phase in range(1, MAX_PHASE + 1):
@@ -552,7 +559,10 @@ def _p0_claims_registry() -> tuple[bool, str]:
     expected = [f"C-{n:03d}" for n in range(1, 21)]
     missing = [cid for cid in expected if cid not in claims]
     bad = [
-        cid for cid, c in claims.items() if c.get("status") not in {"pending", "passing", "failing"}
+        cid
+        for cid, c in claims.items()
+        if c.get("status") not in {"pending", "passing", "failing", "withdrawn"}
+        or (c.get("status") == "withdrawn") != bool(c.get("withdrawn_by"))
     ]
     problems = ([f"missing {', '.join(missing)}"] if missing else []) + (
         [f"bad status for {', '.join(bad)}"] if bad else []

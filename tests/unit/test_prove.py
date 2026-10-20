@@ -73,6 +73,26 @@ def test_select_by_phase_claim_and_skip() -> None:
         runner.select(REGISTRY, phase=None, claims=["C-999"], skip=[])
 
 
+def test_withdrawn_claims_are_never_selected_and_listed_by_id_only() -> None:
+    integrity = importlib.import_module("tests.claims.test_integrity")
+    registry = claims_module.load(ROOT)
+    for claim in registry["claims"]:
+        claim.pop("withdrawn_by", None)
+        claim["status"] = "passing" if claim["id"] in {"C-001", "C-002"} else "pending"
+    registry["claims"][1]["withdrawn_by"] = "docs/decisions/0041-x.md"  # C-002
+    registry["claims"][1]["status"] = "withdrawn"
+    assert "C-002" not in runner.select(registry, phase=None, claims=[], skip=[])
+    assert "C-002" not in runner.select(registry, phase=2, claims=[], skip=[])
+    with pytest.raises(ValueError, match="withdrawn claim"):
+        runner.select(registry, phase=None, claims=["C-002"], skip=[])
+    section = render_readme.render_claims_section(registry)
+    assert "<!-- claim:C-001 -->" in section and "<!-- claim:C-002 -->" not in section
+    assert "Withdrawn: **C-002** ([why](docs/decisions/0041-x.md))" in section
+    assert registry["claims"][1]["text"] not in section
+    assert not integrity.lint_public_text(section, registry)
+    assert not integrity.lint_readme_numbers(section, registry)
+
+
 @pytest.mark.parametrize(
     ("outcomes", "all_due", "status"),
     [
@@ -93,6 +113,7 @@ def test_render_section_lists_only_passing_claims_and_passes_the_lint() -> None:
     registry = claims_module.load(ROOT)
     for claim in registry["claims"]:
         claim["status"] = "pending"
+        claim.pop("withdrawn_by", None)
     assert render_readme.render_claims_section(registry) == (
         f"{render_readme.START}\n{render_readme.EMPTY}\n{render_readme.END}"
     )
@@ -254,7 +275,7 @@ def test_runner_end_to_end_on_a_mini_repository(tmp_path: Path) -> None:
     assert str(tmp_path) not in json.dumps(report)
     assert report["source_digest"] == source_digest(root)
     saved = json.loads((root / runner.REPORT_JSON).read_text(encoding="utf-8"))
-    assert saved["summary"] == {"pending": 2, "passing": 1, "failing": 1}
+    assert saved["summary"] == {"pending": 2, "passing": 1, "failing": 1, "withdrawn": 0}
     registry_text = (root / "claims" / "claims.yaml").read_text(encoding="utf-8")
     assert "# comment that must survive" in registry_text
     assert "# trailing comment" in registry_text

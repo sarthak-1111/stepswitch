@@ -1,7 +1,7 @@
 {
   "claim": "C-022",
   "text": "On the mini suites, Stepswitch processes fewer tokens per task than Claude Code on Sonnet 5.5 and on Opus 5.5, counting cached tokens, and sends none to a hosted model.",
-  "scope": "The runs of C-021. Tokens are input tokens with cached tokens included, plus output tokens; for a native run they are what its harness reports per model (ADR 0034). Registered first on uncached tokens, the claim failed there: Stepswitch used more uncached tokens than Claude Code on Sonnet 5.5, and as many as on Opus 5.5 (ADR 0036). Its fresh input matched Claude Code's; its output tokens were the difference (ADR 0037). The README shows that comparison beside this claim, and the evidence reports both measures. Every compared run of a contestant on local models passed the bench's canary check (ADR 0037).",
+  "scope": "The runs of C-021. Tokens are input tokens with cached tokens included, plus output tokens; for a native run they are what its harness reports per model (ADR 0034). Registered first on uncached tokens, the claim failed there: Stepswitch used more uncached tokens than Claude Code on Sonnet 5.5, and as many as on Opus 5.5 (ADR 0036). Its fresh input matched Claude Code's; its output tokens were the difference (ADR 0037). The README's results table shows uncached tokens per task run for every contestant (ADR 0039, ADR 0041), and the evidence reports both measures. Every compared run of a contestant on local models passed the bench's canary check (ADR 0037).",
   "thresholds": {
     "contestant": "router",
     "baselines": {
@@ -24,7 +24,7 @@
   },
   "command": "uv run ssw prove --claim C-022",
   "mode": "quick",
-  "source_digest": "ea5904526b5f036cc4cf1d1071316fb03f360272cfb74870871dba8366cfce38",
+  "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -36,10 +36,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-20T02:24:39+00:00",
+  "updated": "2026-10-20T05:54:04+00:00",
   "sections": {
     "comparison": {
-      "recorded": "2026-10-20T02:24:39+00:00",
+      "recorded": "2026-10-20T05:54:04+00:00",
       "confidence": 0.95,
       "measure": "tokens",
       "roles": {
@@ -49,8 +49,8 @@
       },
       "runs": {
         "router": {
-          "mini-general": "2026-10-20-mini-general-router",
-          "mini-science": "2026-10-20-mini-science-router"
+          "mini-general": "2026-10-20-mini-general-confirmatory",
+          "mini-science": "2026-10-20-mini-science-confirmatory"
         },
         "native:claude-code:claude-sonnet-5-5": {
           "mini-general": "2026-10-20-mini-general-native",
@@ -68,16 +68,46 @@
       "excluded": [],
       "preflight": {
         "router": {
-          "mini-general": {},
-          "mini-science": {}
+          "mini-general": {
+            "ok": true,
+            "prompt": "Reply with the single word READY and nothing else.",
+            "workers": {
+              "ws-ollama-local/gpt-oss:120b": {
+                "ok": true,
+                "seconds": 1.3,
+                "reply": "READY"
+              },
+              "ws-ollama-local/qwen2.5:32b": {
+                "ok": true,
+                "seconds": 0.2,
+                "reply": "READY"
+              }
+            }
+          },
+          "mini-science": {
+            "ok": true,
+            "prompt": "Reply with the single word READY and nothing else.",
+            "workers": {
+              "ws-ollama-local/gpt-oss:120b": {
+                "ok": true,
+                "seconds": 1.5,
+                "reply": "READY"
+              },
+              "ws-ollama-local/qwen2.5:32b": {
+                "ok": true,
+                "seconds": 0.2,
+                "reply": "READY"
+              }
+            }
+          }
         }
       },
       "hosted_tokens": 0,
       "totals": {
         "stepswitch": {
           "contestant": "router",
-          "tokens": 1767412,
-          "uncached_tokens": 400665,
+          "tokens": 1041308,
+          "uncached_tokens": 296068,
           "hosted_tokens": 0
         },
         "sonnet": {
@@ -93,12 +123,47 @@
           "hosted_tokens": 3944626
         }
       },
+      "passes": {
+        "stepswitch": {
+          "contestant": "router",
+          "passed": 41,
+          "runs": 42,
+          "pass_rate_percent": 97.6,
+          "interval_percent": {
+            "low": 92.9,
+            "high": 100.0,
+            "method": "cluster bootstrap over tasks (percentile)"
+          }
+        },
+        "sonnet": {
+          "contestant": "native:claude-code:claude-sonnet-5-5",
+          "passed": 42,
+          "runs": 42,
+          "pass_rate_percent": 100.0,
+          "interval_percent": {
+            "low": 100.0,
+            "high": 100.0,
+            "method": "cluster bootstrap over tasks (percentile)"
+          }
+        },
+        "opus": {
+          "contestant": "native:claude-code:claude-opus-5-5",
+          "passed": 42,
+          "runs": 42,
+          "pass_rate_percent": 100.0,
+          "interval_percent": {
+            "low": 100.0,
+            "high": 100.0,
+            "method": "cluster bootstrap over tasks (percentile)"
+          }
+        }
+      },
       "per_task_run": {
         "stepswitch": {
-          "tokens": 42081,
-          "uncached_tokens": 9540,
+          "tokens": 24793,
+          "uncached_tokens": 7049,
           "hosted_tokens": 0,
-          "minutes": 1.4
+          "minutes": 0.7
         },
         "sonnet": {
           "tokens": 73390,
@@ -116,87 +181,86 @@
       "sonnet": {
         "claimed": {
           "measure": "tokens",
-          "percent": 42.7,
-          "ours": 1767412,
+          "percent": 66.2,
+          "ours": 1041308,
           "theirs": 3082370,
           "interval": {
-            "low": 28.7,
-            "high": 55.3,
+            "low": 56.0,
+            "high": 74.8,
             "confidence": 0.95,
             "method": "cluster bootstrap over tasks (percentile)",
             "tasks": 21
           }
         },
         "tokens": {
-          "percent": 42.7,
-          "ours": 1767412,
+          "percent": 66.2,
+          "ours": 1041308,
           "theirs": 3082370,
           "interval": {
-            "low": 28.7,
-            "high": 55.3,
+            "low": 56.0,
+            "high": 74.8,
             "confidence": 0.95,
             "method": "cluster bootstrap over tasks (percentile)",
             "tasks": 21
           }
         },
         "uncached": {
-          "percent": -22.3,
-          "ours": 400665,
+          "percent": 9.6,
+          "ours": 296068,
           "theirs": 327510,
           "interval": {
-            "low": -38.5,
-            "high": -6.3,
+            "low": -11.7,
+            "high": 27.3,
             "confidence": 0.95,
             "method": "cluster bootstrap over tasks (percentile)",
             "tasks": 21
           }
         },
-        "uncached_more_percent": 22.3
+        "uncached_more_percent": null,
+        "uncached_fewer_percent": 9.6
       },
       "opus": {
         "claimed": {
           "measure": "tokens",
-          "percent": 55.2,
-          "ours": 1767412,
+          "percent": 73.6,
+          "ours": 1041308,
           "theirs": 3944626,
           "interval": {
-            "low": 42.2,
-            "high": 66.3,
+            "low": 65.8,
+            "high": 80.6,
             "confidence": 0.95,
             "method": "cluster bootstrap over tasks (percentile)",
             "tasks": 21
           }
         },
         "tokens": {
-          "percent": 55.2,
-          "ours": 1767412,
+          "percent": 73.6,
+          "ours": 1041308,
           "theirs": 3944626,
           "interval": {
-            "low": 42.2,
-            "high": 66.3,
+            "low": 65.8,
+            "high": 80.6,
             "confidence": 0.95,
             "method": "cluster bootstrap over tasks (percentile)",
             "tasks": 21
           }
         },
         "uncached": {
-          "percent": -1.6,
-          "ours": 400665,
+          "percent": 24.9,
+          "ours": 296068,
           "theirs": 394194,
           "interval": {
-            "low": -20.0,
-            "high": 16.4,
+            "low": 4.2,
+            "high": 42.4,
             "confidence": 0.95,
             "method": "cluster bootstrap over tasks (percentile)",
             "tasks": 21
           }
         },
-        "uncached_more_percent": 1.6
+        "uncached_more_percent": null,
+        "uncached_fewer_percent": 24.9
       },
-      "problems": [
-        "router: run 2026-10-20-mini-general-router has no passing canary check (preflight)",
-        "router: run 2026-10-20-mini-science-router has no passing canary check (preflight)"
-      ]
+      "problems": []
     }
   }
 }

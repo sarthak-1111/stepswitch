@@ -1,7 +1,7 @@
 {
   "claim": "C-023",
   "text": "On the mini suites, Claude Code through `ssw proxy` on local models passes as many task runs as Claude Code on Sonnet 5.5 and on Opus 5.5.",
-  "scope": "The mini bench suites as in C-021. Through the proxy is the `harness:claude-code` contestant: Claude Code, isolated the same way, with every model request routed among local models only, and Stepswitch's gates, retries and review around it (ADR 0029, ADR 0034).",
+  "scope": "The mini bench suites as in C-021. Through the proxy is the `harness:claude-code` contestant: Claude Code, isolated the same way, with every model request routed among local models only, and Stepswitch's gates, retries and review around it (ADR 0029, ADR 0034). Every compared run of a contestant on local models passed the bench's canary check (ADR 0037).",
   "thresholds": {
     "contestant": "harness:claude-code",
     "baselines": {
@@ -15,13 +15,14 @@
       }
     },
     "hosted_tokens_max": 0,
+    "preflight": true,
     "min_seeds": 2,
     "max_excluded_share": 0.1,
     "confidence_level": 0.95
   },
   "command": "uv run ssw prove --claim C-023",
   "mode": "quick",
-  "source_digest": "d610d446de2b7cfad7cc09c649cbc5eb142026619c4ff16944eff403ca0625b4",
+  "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -33,10 +34,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-20T00:00:45+00:00",
+  "updated": "2026-10-20T05:54:05+00:00",
   "sections": {
     "comparison": {
-      "recorded": "2026-10-20T00:00:45+00:00",
+      "recorded": "2026-10-20T05:54:05+00:00",
       "confidence": 0.95,
       "roles": {
         "stepswitch": "harness:claude-code",
@@ -45,8 +46,8 @@
       },
       "runs": {
         "harness:claude-code": {
-          "mini-general": "2026-10-19-mini-general-local-comparison",
-          "mini-science": "2026-10-19-mini-science-local-comparison"
+          "mini-general": "2026-10-20-mini-general-confirmatory",
+          "mini-science": "2026-10-20-mini-science-confirmatory"
         },
         "native:claude-code:claude-sonnet-5-5": {
           "mini-general": "2026-10-20-mini-general-native",
@@ -62,6 +63,42 @@
       ],
       "task_runs": 42,
       "excluded": [],
+      "preflight": {
+        "harness:claude-code": {
+          "mini-general": {
+            "ok": true,
+            "prompt": "Reply with the single word READY and nothing else.",
+            "workers": {
+              "ws-ollama-local/gpt-oss:120b": {
+                "ok": true,
+                "seconds": 1.3,
+                "reply": "READY"
+              },
+              "ws-ollama-local/qwen2.5:32b": {
+                "ok": true,
+                "seconds": 0.2,
+                "reply": "READY"
+              }
+            }
+          },
+          "mini-science": {
+            "ok": true,
+            "prompt": "Reply with the single word READY and nothing else.",
+            "workers": {
+              "ws-ollama-local/gpt-oss:120b": {
+                "ok": true,
+                "seconds": 1.5,
+                "reply": "READY"
+              },
+              "ws-ollama-local/qwen2.5:32b": {
+                "ok": true,
+                "seconds": 0.2,
+                "reply": "READY"
+              }
+            }
+          }
+        }
+      },
       "hosted_tokens": 0,
       "stepswitch": {
         "contestant": "harness:claude-code",
@@ -192,6 +229,61 @@
               "method": "cluster bootstrap over tasks (percentile)"
             }
           }
+        }
+      },
+      "passes": {
+        "stepswitch": {
+          "contestant": "harness:claude-code",
+          "passed": 42,
+          "runs": 42,
+          "pass_rate_percent": 100.0,
+          "interval_percent": {
+            "low": 100.0,
+            "high": 100.0,
+            "method": "cluster bootstrap over tasks (percentile)"
+          }
+        },
+        "sonnet": {
+          "contestant": "native:claude-code:claude-sonnet-5-5",
+          "passed": 42,
+          "runs": 42,
+          "pass_rate_percent": 100.0,
+          "interval_percent": {
+            "low": 100.0,
+            "high": 100.0,
+            "method": "cluster bootstrap over tasks (percentile)"
+          }
+        },
+        "opus": {
+          "contestant": "native:claude-code:claude-opus-5-5",
+          "passed": 42,
+          "runs": 42,
+          "pass_rate_percent": 100.0,
+          "interval_percent": {
+            "low": 100.0,
+            "high": 100.0,
+            "method": "cluster bootstrap over tasks (percentile)"
+          }
+        }
+      },
+      "per_task_run": {
+        "stepswitch": {
+          "tokens": 173130,
+          "uncached_tokens": 48200,
+          "hosted_tokens": 0,
+          "minutes": 2.8
+        },
+        "sonnet": {
+          "tokens": 73390,
+          "uncached_tokens": 7798,
+          "hosted_tokens": 73390,
+          "minutes": 0.3
+        },
+        "opus": {
+          "tokens": 93920,
+          "uncached_tokens": 9386,
+          "hosted_tokens": 93920,
+          "minutes": 0.4
         }
       },
       "problems": []

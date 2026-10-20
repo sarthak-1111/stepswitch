@@ -16,7 +16,8 @@
 #   parts       instead of `tests` when parts of a claim land in different phases
 #   thresholds  numbers the claim tests assert against
 #   evidence    JSON artifacts written by the claim tests (SPEC §18.2)
-#   status      pending | passing | failing (set by `ssw prove`, never by hand)
+#   withdrawn_by  the ADR that withdrew the claim: kept here, no longer proven (ADR 0041)
+#   status      pending | passing | failing | withdrawn (set by `ssw prove`, never by hand)
 
 version: 1
 
@@ -70,33 +71,33 @@ results:
       unit: "%"
       digits: 1
       cells:
-        - C-021:sections.comparison.stepswitch.pass_rate_percent
-        - C-023:sections.comparison.stepswitch.pass_rate_percent
-        - C-021:sections.comparison.sonnet.pass_rate_percent
-        - C-021:sections.comparison.opus.pass_rate_percent
+        - C-022:sections.comparison.passes.stepswitch.pass_rate_percent
+        - C-023:sections.comparison.passes.stepswitch.pass_rate_percent
+        - C-022:sections.comparison.passes.sonnet.pass_rate_percent
+        - C-022:sections.comparison.passes.opus.pass_rate_percent
     - label: Tokens per task run, cached included
       cells:
         - C-022:sections.comparison.per_task_run.stepswitch.tokens
-        - C-024:sections.comparison.per_task_run.proxy.tokens
+        - C-023:sections.comparison.per_task_run.stepswitch.tokens
         - C-022:sections.comparison.per_task_run.sonnet.tokens
         - C-022:sections.comparison.per_task_run.opus.tokens
     - label: Uncached tokens per task run
       cells:
         - C-022:sections.comparison.per_task_run.stepswitch.uncached_tokens
-        - C-024:sections.comparison.per_task_run.proxy.uncached_tokens
+        - C-023:sections.comparison.per_task_run.stepswitch.uncached_tokens
         - C-022:sections.comparison.per_task_run.sonnet.uncached_tokens
         - C-022:sections.comparison.per_task_run.opus.uncached_tokens
     - label: Tokens sent to hosted models per task run
       cells:
         - C-022:sections.comparison.per_task_run.stepswitch.hosted_tokens
-        - C-024:sections.comparison.per_task_run.proxy.hosted_tokens
+        - C-023:sections.comparison.per_task_run.stepswitch.hosted_tokens
         - C-022:sections.comparison.per_task_run.sonnet.hosted_tokens
         - C-022:sections.comparison.per_task_run.opus.hosted_tokens
     - label: Minutes per task run
       digits: 1
       cells:
         - C-022:sections.comparison.per_task_run.stepswitch.minutes
-        - C-024:sections.comparison.per_task_run.proxy.minutes
+        - C-023:sections.comparison.per_task_run.stepswitch.minutes
         - C-022:sections.comparison.per_task_run.sonnet.minutes
         - C-022:sections.comparison.per_task_run.opus.minutes
 
@@ -446,6 +447,7 @@ claims:
 
   - id: C-021
     text: "On the mini suites, Stepswitch on local models passes as many task runs as Claude Code on Sonnet 5.5 and on Opus 5.5."
+    withdrawn_by: docs/decisions/0041-claims-withdrawn-after-phase-12.md
     scope: >-
       The mini bench suites (mini-general and mini-science): every task of both, with at least the
       seeds `min_seeds` asks for. Stepswitch is the `router` contestant routing among local models only: no token
@@ -479,7 +481,7 @@ claims:
       - {key: sections.comparison.stepswitch.pass_rate_percent, label: Stepswitch on local models passed, unit: "%", digits: 1}
       - {key: sections.comparison.sonnet.pass_rate_percent, label: Claude Code on Sonnet, unit: "%", digits: 1}
       - {key: sections.comparison.opus.pass_rate_percent, label: Claude Code on Opus, unit: "%", digits: 1}
-    status: passing
+    status: withdrawn
 
   - id: C-022
     text: "On the mini suites, Stepswitch processes fewer tokens per task than Claude Code on Sonnet 5.5 and on Opus 5.5, counting cached tokens, and sends none to a hosted model."
@@ -490,8 +492,8 @@ claims:
       Registered first on uncached tokens, the claim failed there: Stepswitch used more
       uncached tokens than Claude Code on Sonnet 5.5, and as many as on Opus 5.5 (ADR 0036).
       Its fresh input matched Claude Code's; its output tokens were the difference (ADR 0037).
-      The README shows that comparison beside this claim, and the evidence reports both
-      measures. Every compared run of a contestant on local models passed the bench's canary
+      The README's results table shows uncached tokens per task run for every contestant
+      (ADR 0039, ADR 0041), and the evidence reports both measures. Every compared run of a contestant on local models passed the bench's canary
       check (ADR 0037).
     proof: >-
       Bench evidence on the mini suites: the ratio of tokens per task, with its 95%
@@ -517,11 +519,7 @@ claims:
     readme_numbers:
       - {key: sections.comparison.sonnet.claimed.percent, label: fewer tokens than Claude Code on Sonnet, unit: "%", digits: 1}
       - {key: sections.comparison.opus.claimed.percent, label: fewer tokens than Claude Code on Opus, unit: "%", digits: 1}
-      - {key: sections.comparison.sonnet.uncached_more_percent, label: more uncached tokens than Claude Code on Sonnet, unit: "%", digits: 1}
-      - {key: sections.comparison.opus.uncached_more_percent, label: more uncached tokens than Claude Code on Opus, unit: "%", digits: 1}
-      - {key: sections.comparison.sonnet.uncached_fewer_percent, label: fewer uncached tokens than Claude Code on Sonnet, unit: "%", digits: 1}
-      - {key: sections.comparison.opus.uncached_fewer_percent, label: fewer uncached tokens than Claude Code on Opus, unit: "%", digits: 1}
-    status: failing
+    status: passing
 
   - id: C-023
     text: "On the mini suites, Claude Code through `ssw proxy` on local models passes as many task runs as Claude Code on Sonnet 5.5 and on Opus 5.5."
@@ -558,6 +556,7 @@ claims:
 
   - id: C-024
     text: "On the mini suites, on the same local models, Stepswitch uses fewer uncached tokens per task than Claude Code through `ssw proxy`, and passes as many task runs."
+    withdrawn_by: docs/decisions/0041-claims-withdrawn-after-phase-12.md
     scope: >-
       The mini bench suites as in C-021. Both contestants run on the bench's router pool of
       local models, and no token reaches a hosted model: Stepswitch is the `router` contestant,
@@ -590,10 +589,11 @@ claims:
     readme_numbers:
       - {key: sections.comparison.proxy.claimed.percent, label: fewer uncached tokens than Claude Code on the same local models, unit: "%", digits: 1}
       - {key: sections.comparison.proxy.tokens.percent, label: fewer tokens in all, unit: "%", digits: 1}
-    status: pending
+    status: withdrawn
 
   - id: C-025
     text: "On the mini suites, Stepswitch on local models uses fewer uncached tokens per task than Claude Code on Sonnet 5.5 and on Opus 5.5."
+    withdrawn_by: docs/decisions/0041-claims-withdrawn-after-phase-12.md
     scope: >-
       The runs of C-021: the mini bench suites, every task of both with at least the seeds
       `min_seeds` asks for, Stepswitch as the `router` contestant on local models only and
@@ -627,4 +627,4 @@ claims:
     readme_numbers:
       - {key: sections.comparison.sonnet.claimed.percent, label: fewer uncached tokens than Claude Code on Sonnet, unit: "%", digits: 1}
       - {key: sections.comparison.opus.claimed.percent, label: fewer uncached tokens than Claude Code on Opus, unit: "%", digits: 1}
-    status: pending
+    status: withdrawn

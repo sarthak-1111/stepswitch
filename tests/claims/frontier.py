@@ -143,6 +143,28 @@ def pass_summary(comp: Comparison, role: str, keys: Sequence[Key], confidence: f
     }
 
 
+def measured(comp: Comparison, confidence: float) -> dict[str, Any]:
+    """Every role's pass summary and means per task run over the shared task runs: what the
+    README results table shows (ADR 0039), whatever the claim asserts."""
+    passes: dict[str, Any] = {}
+    per_task_run: dict[str, Any] = {}
+    n = len(comp.shared)
+    for role, contestant in comp.roles.items():
+        rows = comp.rows[contestant]
+        passes[role] = pass_summary(comp, role, comp.shared, confidence)
+        sums = {
+            "tokens": sum(tokens(rows[key]) for key in comp.shared),
+            "uncached_tokens": sum(uncached(rows[key]) for key in comp.shared),
+            "hosted_tokens": sum(int(rows[key].get("hosted_tokens") or 0) for key in comp.shared),
+        }
+        seconds = sum(float(rows[key].get("wall_seconds") or 0.0) for key in comp.shared)
+        per_task_run[role] = {
+            **{measure: round(total / n) for measure, total in sums.items()},
+            "minutes": round(seconds / n / 60, 1),
+        }
+    return {"passes": passes, "per_task_run": per_task_run}
+
+
 def models_seen(comp: Comparison, role: str) -> list[str]:
     rows = comp.rows[comp.roles[role]]
     return sorted({str(name) for key in comp.shared for name in rows[key].get("models") or {}})
@@ -294,6 +316,7 @@ def parity(limits: Mapping[str, Any]) -> tuple[dict[str, Any], list[str]]:
         }
         for suite in SUITES
     }
+    report.update(measured(comp, confidence))
     report["problems"] = comp.problems
     return report, comp.problems
 
@@ -336,8 +359,7 @@ def tokens_comparison(limits: Mapping[str, Any]) -> tuple[dict[str, Any], list[s
     measures are reported whichever is claimed; `uncached_more_percent` is how many percent
     more uncached tokens the Stepswitch contestant used (ADR 0036), set only when it used more,
     and `uncached_fewer_percent` how many percent fewer, set only when it used fewer.
-    `per_task_run` holds each contestant's means over the shared task runs, which the README
-    results table shows."""
+    `passes` and `per_task_run` are what the README results table shows (`measured`)."""
     confidence = float(limits.get("confidence_level", metrics.DEFAULT_CONFIDENCE))
     measure_name = str(limits["measure"])
     measure = MEASURES[measure_name]
@@ -365,20 +387,14 @@ def tokens_comparison(limits: Mapping[str, Any]) -> tuple[dict[str, Any], list[s
         report["hosted_tokens"] = check_hosted(comp, OURS, int(limits["hosted_tokens_max"]))
     for role in roles:
         rows = comp.rows[roles[role]]
-        sums = {
+        report.setdefault("totals", {})[role] = {
+            "contestant": roles[role],
             "tokens": sum(tokens(rows[key]) for key in comp.shared),
             "uncached_tokens": sum(uncached(rows[key]) for key in comp.shared),
             "hosted_tokens": sum(int(rows[key].get("hosted_tokens") or 0) for key in comp.shared),
         }
-        report.setdefault("totals", {})[role] = {"contestant": roles[role], **sums}
-        if comp.shared:
-            # Means over the shared task runs, for the README results table (ADR 0039).
-            n = len(comp.shared)
-            seconds = sum(float(rows[key].get("wall_seconds") or 0.0) for key in comp.shared)
-            report.setdefault("per_task_run", {})[role] = {
-                **{name: round(total / n) for name, total in sums.items()},
-                "minutes": round(seconds / n / 60, 1),
-            }
+    if comp.shared:
+        report.update(measured(comp, confidence))
     for role in baselines:
         claimed = ratio(token_clusters(comp, role, measure), confidence)
         fewer_uncached = ratio(token_clusters(comp, role, uncached), confidence)

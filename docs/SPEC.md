@@ -591,7 +591,10 @@ only claims whose tests currently pass.
 ### §18.1 Claims registry: `claims/claims.yaml`
 Each entry: `id`, `text` (exact public wording), `scope`, `kind`
 (`unit | integration | e2e | bench | probe | platform`), `tests` (pytest node IDs),
-`thresholds`, `evidence` (artifact paths), `phase`, `status` (`pending | passing | failing`).
+`thresholds`, `evidence` (artifact paths), `phase`, `status`
+(`pending | passing | failing | withdrawn`). A claim withdrawn by an ADR (`withdrawn_by`) keeps
+its entry, tests and evidence, is no longer proven, and is listed in the README by id only
+(ADR 0041).
 
 ### §18.2 Claim tests
 - Live in `tests/claims/`, marked `@pytest.mark.claim("C-0xx")`.

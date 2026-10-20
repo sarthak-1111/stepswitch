@@ -36,7 +36,7 @@ SPEC_PATH = ROOT / "docs" / "SPEC.md"
 CLAIM_ID_RE = re.compile(r"^C-\d{3}$")
 NODE_ID_RE = re.compile(r"^tests/claims/test_[a-z0-9_]+\.py::[A-Za-z_]\w*(::[A-Za-z_]\w*)?$")
 KINDS = {"unit", "integration", "e2e", "bench", "probe", "platform"}
-STATUSES = {"pending", "passing", "failing"}
+STATUSES = {"pending", "passing", "failing", "withdrawn"}
 REQUIRED_FIELDS = (
     "id",
     "text",
@@ -48,7 +48,7 @@ REQUIRED_FIELDS = (
     "evidence",
     "status",
 )
-OPTIONAL_FIELDS = ("tests", "parts", "narrowed_by", "readme_numbers")
+OPTIONAL_FIELDS = ("tests", "parts", "narrowed_by", "withdrawn_by", "readme_numbers")
 SPEC_CLAIM_IDS = [f"C-{n:03d}" for n in range(1, 21)]
 
 CLAIM_SPAN_RE = re.compile(r"<!--\s*claim:(C-\d{3})\s*-->(.*?)<!--\s*/claim\s*-->", re.S)
@@ -333,6 +333,10 @@ def test_registry_schema(registry: Registry) -> None:
             assert min(part["phase"] for part in claim["parts"]) == claim["phase"]
         if "narrowed_by" in claim:
             assert (ROOT / claim["narrowed_by"]).is_file(), f"{cid}: narrowing ADR missing"
+        # A withdrawn claim names the decision that withdrew it, and only it is withdrawn.
+        assert ("withdrawn_by" in claim) == (claim["status"] == "withdrawn"), f"{cid}: withdrawn"
+        if "withdrawn_by" in claim:
+            assert (ROOT / claim["withdrawn_by"]).is_file(), f"{cid}: withdrawing ADR missing"
         for number in claim.get("readme_numbers", []):
             assert set(number) <= {"key", "label", "unit", "digits"}, f"{cid}: {number}"
             assert re.fullmatch(r"[A-Za-z0-9_.]+", number["key"]), f"{cid}: number key"
@@ -461,6 +465,7 @@ def test_readme_results_spec(registry: Registry) -> None:
         for cell in row["cells"]:
             cid, _, key = cell.partition(":")
             assert cid in claims, f"{row['label']}: {cell} names no registered claim"
+            assert "withdrawn_by" not in claims[cid], f"{row['label']}: {cid} is withdrawn"
             assert re.fullmatch(r"[A-Za-z0-9_.]+", key), f"{row['label']}: {cell} key"
 
 

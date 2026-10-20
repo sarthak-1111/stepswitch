@@ -8,7 +8,8 @@ Status per claim: `failing` if any evaluated test failed or errored; `passing` i
 every part passed; otherwise `pending` (parts not due yet, or skipped as not applicable on this
 platform). Definitive results (passing, failing) are written back to claims.yaml; a pending
 result never overwrites an earlier definitive one, since "not applicable here" says nothing
-about other platforms. The README claims section is regenerated afterwards.
+about other platforms. Withdrawn claims (ADR 0041) are never run; their status is written as
+`withdrawn`. The README claims section is regenerated afterwards.
 """
 
 from __future__ import annotations
@@ -55,14 +56,21 @@ def platform_info() -> dict[str, Any]:
 def select(
     registry: dict[str, Any], *, phase: int | None, claims: Sequence[str], skip: Sequence[str]
 ) -> dict[str, dict[str, Any]]:
-    """Claim id -> {"parts": due parts, "all_due": bool} for the selected claims."""
+    """Claim id -> {"parts": due parts, "all_due": bool} for the selected claims. Withdrawn
+    claims are never selected (ADR 0041)."""
     known = {claim["id"]: claim for claim in registry["claims"]}
     unknown = [cid for cid in [*claims, *skip] if cid not in known]
     if unknown:
         raise ValueError(f"unknown claim id(s): {', '.join(unknown)}")
+    withdrawn = claims_module.withdrawn(registry)
+    asked = [cid for cid in claims if cid in withdrawn]
+    if asked:
+        raise ValueError(
+            "withdrawn claim(s): " + ", ".join(f"{cid} ({withdrawn[cid]})" for cid in asked)
+        )
     selected: dict[str, dict[str, Any]] = {}
     for cid, claim in known.items():
-        if cid in skip or (claims and cid not in claims):
+        if cid in skip or cid in withdrawn or (claims and cid not in claims):
             continue
         parts = claims_module.parts(claim)
         due = parts if claims or phase is None else [p for p in parts if p["phase"] <= phase]
@@ -188,6 +196,8 @@ def _markdown(report: dict[str, Any]) -> str:
             f"{node.rsplit('::', 1)[-1]}: {outcome}" for node, outcome in entry["tests"].items()
         )
         lines.append(f"| {cid} | {entry['status']} | {outcome_text or 'no tests yet'} |")
+    for cid, decision in sorted(report.get("withdrawn", {}).items()):
+        lines.append(f"| {cid} | withdrawn | not proven: {decision} |")
     return "\n".join(lines) + "\n"
 
 
@@ -209,6 +219,12 @@ def run(
     results, output = evaluate(
         root, selection, mode=mode, strict_missing=phase is not None or bool(claims)
     )
+    withdrawn = claims_module.withdrawn(registry)
+    summary = {
+        status: sum(1 for r in results.values() if r["status"] == status)
+        for status in claims_module.STATUSES
+    }
+    summary[claims_module.WITHDRAWN] = len(withdrawn)
     report: dict[str, Any] = {
         "schema": 1,
         "mode": mode,
@@ -218,10 +234,8 @@ def run(
         "platform": platform_info(),
         "selection": {"phase": phase, "claims": list(claims), "skip": list(skip)},
         "claims": results,
-        "summary": {
-            status: sum(1 for r in results.values() if r["status"] == status)
-            for status in claims_module.STATUSES
-        },
+        "withdrawn": withdrawn,
+        "summary": summary,
     }
     if any(entry["status"] == "failing" for entry in results.values()) and output.strip():
         echo("pytest output (last 60 lines):")
@@ -242,15 +256,16 @@ def run(
             for cid, entry in results.items()
             if entry["status"] != "pending" or current.get(cid) == "pending"
         }
+        updates.update({cid: claims_module.WITHDRAWN for cid in withdrawn})
         changed = claims_module.update_statuses(root, updates)
         if changed:
             echo(f"Updated claims.yaml: {', '.join(changed)}")
         if render_readme.update_readme(root):
             echo("Regenerated the README claims section and results table.")
         echo(f"Wrote {REPORT_JSON} and {REPORT_MD}")
-    summary = report["summary"]
+    gone = f", {summary['withdrawn']} withdrawn" if withdrawn else ""
     echo(
         f"{summary['passing']} passing, {summary['failing']} failing, "
-        f"{summary['pending']} pending ({report['duration_s']} s)"
+        f"{summary['pending']} pending{gone} ({report['duration_s']} s)"
     )
     return report

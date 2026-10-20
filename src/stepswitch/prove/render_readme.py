@@ -5,6 +5,8 @@ inside claim markers and a link to its evidence file. A claim's `readme_numbers`
 values after the link, each read from the claim's evidence file and wrapped in a `num` marker,
 so the integrity lint can check it against that file (SPEC §18.3 item 3, claim C-018).
 
+Withdrawn claims (ADR 0041) are listed after them by id, with a link to the decision.
+
 The results table (ADR 0039) is generated the same way from the registry's `results` spec: each
 cell names `<claim>:<evidence key>` and shows that value, in a `num` marker, only while the claim
 is passing and its evidence holds the key; any other cell shows a dash.
@@ -74,7 +76,7 @@ def render_claims_section(registry: Mapping[str, Any], evidence_dir: Path | None
     """The text from the start marker to the end marker, both included."""
     lines = []
     for claim in registry["claims"]:
-        if claim.get("status") != "passing":
+        if claim.get("status") != "passing" or claim.get("withdrawn_by"):
             continue
         cid = claim["id"]
         numbers = _numbers(claim, _evidence(evidence_dir, cid))
@@ -84,6 +86,12 @@ def render_claims_section(registry: Mapping[str, Any], evidence_dir: Path | None
             f"([evidence](claims/evidence/{cid}.json){extra})"
         )
     body = "\n".join(lines) if lines else EMPTY
+    gone = claims_module.withdrawn(registry)
+    if gone:
+        # Withdrawn claims stay visible by id, without their wording (ADR 0041).
+        body += "\n\nWithdrawn: " + ", ".join(
+            f"**{cid}** ([why]({decision}))" for cid, decision in gone.items()
+        )
     return f"{START}\n{body}\n{END}"
 
 

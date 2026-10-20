@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "mode": "quick",
-  "source_digest": "ea5904526b5f036cc4cf1d1071316fb03f360272cfb74870871dba8366cfce38",
-  "created": "2026-10-20T02:24:39+00:00",
-  "duration_s": 1.88,
+  "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
+  "created": "2026-10-20T05:54:05+00:00",
+  "duration_s": 3.06,
   "platform": {
     "os": "windows",
     "machine": "amd64",
@@ -17,25 +17,38 @@
   "selection": {
     "phase": null,
     "claims": [
-      "C-022"
+      "C-022",
+      "C-023"
     ],
     "skip": []
   },
   "claims": {
     "C-022": {
-      "status": "failing",
+      "status": "passing",
       "tests": {
-        "tests/claims/test_c022_frontier_tokens.py::test_local_router_processes_fewer_tokens_than_claude_code": "failed"
+        "tests/claims/test_c022_frontier_tokens.py::test_local_router_processes_fewer_tokens_than_claude_code": "passed"
       },
       "parts": [],
-      "notes": {
-        "tests/claims/test_c022_frontier_tokens.py::test_local_router_processes_fewer_tokens_than_claude_code": "tests\\claims\\test_c022_frontier_tokens.py:28: AssertionError"
-      }
+      "notes": {}
+    },
+    "C-023": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c023_harness_parity.py::test_claude_code_on_local_models_passes_as_many_task_runs": "passed"
+      },
+      "parts": [],
+      "notes": {}
     }
+  },
+  "withdrawn": {
+    "C-021": "docs/decisions/0041-claims-withdrawn-after-phase-12.md",
+    "C-024": "docs/decisions/0041-claims-withdrawn-after-phase-12.md",
+    "C-025": "docs/decisions/0041-claims-withdrawn-after-phase-12.md"
   },
   "summary": {
     "pending": 0,
-    "passing": 0,
-    "failing": 1
+    "passing": 2,
+    "failing": 0,
+    "withdrawn": 3
   }
 }

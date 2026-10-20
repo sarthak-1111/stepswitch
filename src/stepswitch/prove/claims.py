@@ -11,7 +11,8 @@ from typing import Any
 from ruamel.yaml import YAML
 
 REGISTRY_REL = "claims/claims.yaml"
-STATUSES = ("pending", "passing", "failing")
+STATUSES = ("pending", "passing", "failing", "withdrawn")
+WITHDRAWN = "withdrawn"
 
 
 def registry_path(root: Path) -> Path:
@@ -23,6 +24,16 @@ def load(root: Path) -> dict[str, Any]:
     if not isinstance(data, dict) or "claims" not in data:
         raise ValueError(f"{REGISTRY_REL} is not a claims registry")
     return data
+
+
+def withdrawn(registry: Mapping[str, Any]) -> dict[str, str]:
+    """Claim id -> the decision that withdrew it (ADR 0041). A withdrawn claim keeps its wording,
+    evidence and history in the registry, and is no longer proven or shown as a claim."""
+    return {
+        str(claim["id"]): str(claim["withdrawn_by"])
+        for claim in registry["claims"]
+        if claim.get("withdrawn_by")
+    }
 
 
 def parts(claim: Mapping[str, Any]) -> list[dict[str, Any]]:
