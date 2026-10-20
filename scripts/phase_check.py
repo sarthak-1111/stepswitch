@@ -36,7 +36,7 @@ from typing import Any
 from ruamel.yaml import YAML
 
 ROOT = Path(__file__).resolve().parents[1]
-MAX_PHASE = 11
+MAX_PHASE = 12
 PHASE_TITLES = {
     0: "Research and design",
     1: "Foundation and compatibility core",
@@ -50,6 +50,7 @@ PHASE_TITLES = {
     9: "Slow lane and zero-egress",
     10: "Launch polish",
     11: "Frontier comparison",
+    12: "Launch readiness",
 }
 SY = Path(sys.executable).with_name("ssw.exe" if os.name == "nt" else "ssw")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -1905,6 +1906,82 @@ def _p11_progress() -> tuple[bool, str]:
     return combine(
         (bool(text), "docs/PROGRESS.md has no `Phase 11: Frontier comparison` section"),
         ("pilot" in text.lower(), "PROGRESS.md Phase 11 does not record the pilot's usage"),
+    )
+
+
+# --------------------------------------------------------------------------------------------
+# Phase 12: launch readiness (ADR 0037)
+# --------------------------------------------------------------------------------------------
+
+DEV_SUITE = "bench/suites/dev.yaml"
+
+
+@check(12, "decision and research: ADR 0037 and ADR 0038, and the Ollama context finding")
+def _p12_decision() -> tuple[bool, str]:
+    adr = read("docs/decisions/0037-launch-readiness.md")
+    edits = read("docs/decisions/0038-edit-shapes.md")
+    research = section(read("docs/RESEARCH.md"), "Verified during Phase 12")
+    return combine(
+        (bool(adr), "docs/decisions/0037-launch-readiness.md missing"),
+        ("C-024" in adr and "confirmatory" in adr, "ADR 0037 registers no confirmatory claim"),
+        (bool(edits), "docs/decisions/0038-edit-shapes.md missing"),
+        ("num_ctx" in research, "RESEARCH.md has no Phase 12 notes on the Ollama context"),
+        ("Begin Patch" in research, "RESEARCH.md has no Phase 12 notes on the patch format"),
+    )
+
+
+@check(12, "integrity: incomplete replies fail, empty reviews approve nothing, canary, num_ctx")
+def _p12_integrity() -> tuple[bool, str]:
+    return untested_or_run(("launch_integrity",), "tests/unit/test_launch_integrity.py")
+
+
+@check(12, "edits: old and new text, begin-patch patches and empty defaults are accepted")
+def _p12_edit_shapes() -> tuple[bool, str]:
+    return untested_or_run(("edit_shapes",), "tests/unit/test_edit_shapes.py")
+
+
+@check(12, "effort: plan and work effort follow the task's difficulty, fixed within a task")
+def _p12_effort() -> tuple[bool, str]:
+    return untested_or_run(("task_effort",), "tests/unit/test_task_effort.py")
+
+
+@check(12, "dev suite: tuning tasks on repositories no mini suite uses")
+def _p12_dev_suite() -> tuple[bool, str]:
+    yaml = YAML(typ="safe", pure=True)
+    dev = yaml.load(read(DEV_SUITE) or "{}") or {}
+    dev_repos = {task.get("repo") for task in dev.get("tasks", [])}
+    shared: set[str] = set()
+    for name in ("mini-general", "mini-science"):
+        suite = yaml.load(read(f"bench/suites/{name}.yaml") or "{}") or {}
+        shared |= dev_repos & {task.get("repo") for task in suite.get("tasks", [])}
+    problems = combine(
+        (bool(dev_repos), f"{DEV_SUITE} has no tasks"),
+        (
+            not shared,
+            "the dev suite shares repositories with a mini suite: "
+            + ", ".join(sorted(str(repo) for repo in shared)),
+        ),
+    )
+    if not problems[0]:
+        return problems
+    return pytest_run("tests/unit/test_bench_suites.py")
+
+
+@check(12, "front page: the README's results table is generated from passing claims")
+def _p12_readme() -> tuple[bool, str]:
+    readme = read("README.md")
+    if "<!-- results:start -->" not in readme:
+        return False, "README.md has no generated results table (<!-- results:start -->)"
+    code, out, err = ssw("prove", "--render-readme", "--check")
+    return code == 0, (out + err).strip().splitlines()[-1] if (out + err).strip() else "ok"
+
+
+@check(12, "progress: PROGRESS.md records the confirmatory runs")
+def _p12_progress() -> tuple[bool, str]:
+    text = section(read("docs/PROGRESS.md"), "Phase 12: Launch readiness")
+    return combine(
+        (bool(text), "docs/PROGRESS.md has no `Phase 12: Launch readiness` section"),
+        ("confirmatory" in text.lower(), "PROGRESS.md Phase 12 records no confirmatory run"),
     )
 
 

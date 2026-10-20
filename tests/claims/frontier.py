@@ -15,6 +15,11 @@ without reporting) is left out for every contestant and listed in the evidence; 
 
 Pass rates carry 95% cluster-bootstrap intervals over tasks (the seeds of a task kept
 together), and the paired difference per task run carries one too (`stepswitch.bench.metrics`).
+
+With the `preflight` threshold, every compared run of a contestant on local models (any but
+`native:`) must have passed the bench's canary check (`run.json` `preflight`, ADR 0037): a
+model that answers nothing would otherwise go unnoticed. With `same_pool`, those runs must
+share one router pool.
 """
 
 from __future__ import annotations
@@ -57,6 +62,8 @@ class Comparison:
     roles: dict[str, str]  # role -> contestant
     rows: dict[str, dict[Key, Row]] = field(default_factory=dict)  # contestant -> rows
     runs: dict[str, dict[str, str]] = field(default_factory=dict)  # contestant -> suite -> run
+    # contestant -> suite -> that run's run.json
+    metas: dict[str, dict[str, dict[str, Any]]] = field(default_factory=dict)
     shared: list[Key] = field(default_factory=list)
     excluded: list[Key] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)
@@ -75,13 +82,14 @@ def compare(roles: Mapping[str, str], *, min_seeds: int, max_excluded_share: flo
     found = runs()
     comp = Comparison(dict(roles))
     for name in roles.values():
-        comp.rows[name], comp.runs[name] = {}, {}
+        comp.rows[name], comp.runs[name], comp.metas[name] = {}, {}, {}
         for suite in SUITES:
             run = newest_run(suite, name, found)
             if run is None:
                 comp.problems.append(f"{suite}: no bench run has the contestant {name}")
                 continue
             comp.runs[name][suite] = run.name
+            comp.metas[name][suite] = run.meta
             for row in run.rows:
                 if row.get("contestant") == name:
                     comp.rows[name][(suite, str(row["task"]), int(row["seed"]))] = row
@@ -141,8 +149,10 @@ def models_seen(comp: Comparison, role: str) -> list[str]:
 
 
 def check_models(comp: Comparison, baselines: Mapping[str, Mapping[str, str]]) -> None:
-    """Every compared run of a baseline used the model its claim names."""
+    """Every compared run of a baseline used the model its claim names, if it names one."""
     for role, spec in baselines.items():
+        if "model" not in spec:
+            continue
         rows = comp.rows[spec["contestant"]]
         wrong = [
             f"{suite}/{task} s{seed}"
@@ -155,6 +165,38 @@ def check_models(comp: Comparison, baselines: Mapping[str, Mapping[str, str]]) -
             comp.problems.append(
                 f"{role}: {len(wrong)} run(s) did not use {spec['model']}: {wrong[:5]}"
             )
+
+
+def local_contestants(comp: Comparison) -> list[str]:
+    """The compared contestants that run on local workers: every one but `native:` ones."""
+    return [name for name in comp.roles.values() if not name.startswith("native:")]
+
+
+def check_preflight(comp: Comparison) -> dict[str, dict[str, Any]]:
+    """Each local contestant's runs passed the bench's canary check; returns what they record."""
+    seen: dict[str, dict[str, Any]] = {}
+    for name in local_contestants(comp):
+        for suite, meta in comp.metas.get(name, {}).items():
+            preflight = meta.get("preflight") or {}
+            seen.setdefault(name, {})[suite] = preflight
+            if preflight.get("ok") is not True:
+                run = comp.runs[name][suite]
+                comp.problems.append(f"{name}: run {run} has no passing canary check (preflight)")
+    return seen
+
+
+def check_same_pool(comp: Comparison) -> dict[str, list[str]]:
+    """The local contestants' runs of each suite used one router pool; returns the pools."""
+    pools: dict[str, list[str]] = {}
+    for suite in SUITES:
+        found = {
+            name: tuple(sorted(comp.metas.get(name, {}).get(suite, {}).get("router_pool") or []))
+            for name in local_contestants(comp)
+        }
+        if len(set(found.values())) > 1:
+            comp.problems.append(f"{suite}: the contestants' runs used different router pools")
+        pools[suite] = sorted({worker for pool in found.values() for worker in pool})
+    return pools
 
 
 def check_hosted(comp: Comparison, role: str, most: int) -> int:
@@ -192,6 +234,14 @@ def bench_commands(limits: Mapping[str, Any]) -> list[str]:
     ]
 
 
+def check_runs(comp: Comparison, limits: Mapping[str, Any], report: dict[str, Any]) -> None:
+    """The `preflight` and `same_pool` thresholds, recorded in the report."""
+    if limits.get("preflight"):
+        report["preflight"] = check_preflight(comp)
+    if limits.get("same_pool"):
+        report["router_pools"] = check_same_pool(comp)
+
+
 def parity(limits: Mapping[str, Any]) -> tuple[dict[str, Any], list[str]]:
     """C-021 and C-023: the Stepswitch contestant passes at least as many shared task runs as
     each baseline, both suites together, and sends at most `hosted_tokens_max` tokens to hosted
@@ -215,6 +265,7 @@ def parity(limits: Mapping[str, Any]) -> tuple[dict[str, Any], list[str]]:
         report["problems"] = comp.problems
         return report, comp.problems
     check_models(comp, baselines)
+    check_runs(comp, limits, report)
     report["hosted_tokens"] = check_hosted(comp, OURS, int(limits["hosted_tokens_max"]))
     report[OURS] = pass_summary(comp, OURS, comp.shared, confidence)
     ours = comp.outcomes(OURS)
@@ -306,6 +357,7 @@ def tokens_comparison(limits: Mapping[str, Any]) -> tuple[dict[str, Any], list[s
         report["problems"] = comp.problems
         return report, comp.problems
     check_models(comp, baselines)
+    check_runs(comp, limits, report)
     if "hosted_tokens_max" in limits:
         report["hosted_tokens"] = check_hosted(comp, OURS, int(limits["hosted_tokens_max"]))
     for role in roles:

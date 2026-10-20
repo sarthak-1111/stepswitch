@@ -410,6 +410,8 @@ claims:
       versions recorded in each run (harness version, model IDs, local models, machine).
       Task runs whose run hit an infrastructure error (an API or server error, a usage limit)
       are left out for every contestant and listed in the evidence.
+      Every compared run of a contestant on local models passed the bench's canary check (ADR
+      0037).
     proof: >-
       Bench evidence on the mini suites: passes over the task runs the contestants share,
       both suites together, with each suite and 95% intervals in the evidence.
@@ -423,6 +425,7 @@ claims:
         sonnet: {contestant: "native:claude-code:claude-sonnet-5-5", model: claude-sonnet-5-5}
         opus: {contestant: "native:claude-code:claude-opus-5-5", model: claude-opus-5-5}
       hosted_tokens_max: 0
+      preflight: true
       min_seeds: 2
       max_excluded_share: 0.1
       confidence_level: 0.95
@@ -440,9 +443,11 @@ claims:
       The runs of C-021. Tokens are input tokens with cached tokens included, plus output
       tokens; for a native run they are what its harness reports per model (ADR 0034).
       Registered first on uncached tokens, the claim failed there: Stepswitch used more
-      uncached tokens than Claude Code on Sonnet 5.5, and as many as on Opus 5.5, because the
-      hosted prompt cache served more of Claude Code's input (ADR 0036). The README shows that
-      comparison beside this claim, and the evidence reports both measures.
+      uncached tokens than Claude Code on Sonnet 5.5, and as many as on Opus 5.5 (ADR 0036).
+      Its fresh input matched Claude Code's; its output tokens were the difference (ADR 0037).
+      The README shows that comparison beside this claim, and the evidence reports both
+      measures. Every compared run of a contestant on local models passed the bench's canary
+      check (ADR 0037).
     proof: >-
       Bench evidence on the mini suites: the ratio of tokens per task, with its 95%
       cluster-bootstrap interval over tasks lying below one for each frontier model; the
@@ -459,6 +464,7 @@ claims:
       measure: tokens
       significant: true
       hosted_tokens_max: 0
+      preflight: true
       min_seeds: 2
       max_excluded_share: 0.1
       confidence_level: 0.95
@@ -477,6 +483,8 @@ claims:
       contestant: Claude Code, isolated the same way, with every model request routed among
       local models only, and Stepswitch's gates, retries and review around it (ADR 0029, ADR
       0034).
+      Every compared run of a contestant on local models passed the bench's canary check (ADR
+      0037).
     proof: >-
       Bench evidence on the mini suites: passes over the task runs the contestants share,
       both suites together, with each suite and 95% intervals in the evidence.
@@ -490,6 +498,7 @@ claims:
         sonnet: {contestant: "native:claude-code:claude-sonnet-5-5", model: claude-sonnet-5-5}
         opus: {contestant: "native:claude-code:claude-opus-5-5", model: claude-opus-5-5}
       hosted_tokens_max: 0
+      preflight: true
       min_seeds: 2
       max_excluded_share: 0.1
       confidence_level: 0.95
@@ -499,3 +508,39 @@ claims:
       - {key: sections.comparison.sonnet.pass_rate_percent, label: Claude Code on Sonnet, unit: "%", digits: 1}
       - {key: sections.comparison.opus.pass_rate_percent, label: Claude Code on Opus, unit: "%", digits: 1}
     status: passing
+
+  - id: C-024
+    text: "On the mini suites, on the same local models, Stepswitch uses fewer uncached tokens per task than Claude Code through `ssw proxy`, and passes as many task runs."
+    scope: >-
+      The mini bench suites as in C-021. Both contestants run on the bench's router pool of
+      local models, and no token reaches a hosted model: Stepswitch is the `router` contestant,
+      and Claude Code is the `harness:claude-code` contestant, isolated as in C-023. Uncached
+      tokens are the input tokens the local server did not serve from its prompt cache, plus
+      the output tokens (ADR 0028). Registered before its confirmatory run (ADR 0037): every
+      compared run passed the bench's canary check, and the runs of both contestants used the
+      same router pool.
+    proof: >-
+      Bench evidence on the mini suites: the ratio of uncached tokens per task, with its 95%
+      cluster-bootstrap interval over tasks lying below one, and at least as many passing task
+      runs as Claude Code, over the task runs both contestants share.
+    kind: bench
+    phase: 12
+    tests:
+      - tests/claims/test_c024_same_local_models.py::test_router_uses_fewer_uncached_tokens_than_claude_code_on_the_same_models
+    thresholds:
+      contestant: router
+      baselines:
+        proxy: {contestant: "harness:claude-code"}
+      measure: uncached
+      significant: true
+      hosted_tokens_max: 0
+      preflight: true
+      same_pool: true
+      min_seeds: 2
+      max_excluded_share: 0.1
+      confidence_level: 0.95
+    evidence: [claims/evidence/C-024.json]
+    readme_numbers:
+      - {key: sections.comparison.proxy.claimed.percent, label: fewer uncached tokens than Claude Code on the same local models, unit: "%", digits: 1}
+      - {key: sections.comparison.proxy.tokens.percent, label: fewer tokens in all, unit: "%", digits: 1}
+    status: pending

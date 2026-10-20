@@ -94,8 +94,9 @@ def spec_claim_texts(spec_path: Path = SPEC_PATH) -> dict[str, str]:
     return texts
 
 
-# The phases of scripts/phase_check.py: SPEC §23's ten, then the frontier comparison (ADR 0034).
-MAX_PHASE = 11
+# The phases of scripts/phase_check.py: SPEC §23's ten, then the frontier comparison (ADR 0034)
+# and launch readiness (ADR 0037).
+MAX_PHASE = 12
 
 
 # --------------------------------------------------------------------------------------------
