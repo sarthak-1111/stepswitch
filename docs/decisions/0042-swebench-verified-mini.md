@@ -76,7 +76,10 @@ server and the same instances, the difference between the two is the orchestrato
      tool says that every failure happens before any change, with no second run, and the work
      log that briefs are written from says so too: a dev run that saw 126 failures before its
      first edit (two of them unnamed, so not compared) spent its steps on the test setup
-     instead of the issue.
+     instead of the issue. A failure that a run cannot name no longer keeps the others from
+     being compared: the named ones are, a failure counts as old only when the base commit's
+     run named it too, and the report says how many were left out. pytest ids whose
+     parameters hold spaces are now named.
    - `test` without a selector runs only the test files that import the change when the suite
      has more than 200 test files, and asks for a selector when none does.
    - Patches (ADR 0041, item 5): the read view's `<line>:<hash>|` prefixes are dropped when

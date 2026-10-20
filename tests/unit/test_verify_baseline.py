@@ -90,6 +90,36 @@ def test_the_test_tool_tells_new_failures_from_old_ones(task: tuple[Path, str]) 
     assert not checkout.exists()
 
 
+ODD = """\
+import pytest
+
+
+@pytest.mark.parametrize("value", ["x] y"])
+def test_odd(value):
+    assert value == "", "an id the summary cannot name"
+"""
+
+
+def test_named_failures_are_compared_when_others_cannot_be_named(
+    task: tuple[Path, str],
+) -> None:
+    """One unnamed failure no longer keeps the named ones from being compared (ADR 0042)."""
+    worktree, _ = task
+    project = worktree.parent.parent.parent  # the checkout the task's worktree came from
+    (project / "tests" / "test_odd.py").write_text(ODD, encoding="utf-8")
+    git(project, "add", "tests/test_odd.py")
+    git(project, "commit", "-q", "-m", "odd")
+    base = git(project, "rev-parse", "HEAD")
+    git(worktree, "checkout", "-q", "--detach", base)
+    service = "tests/test_calc.py::test_needs_a_service"
+    (worktree / "calc.py").write_text(CALC.replace("a + b", "b + a"), encoding="utf-8")
+    found = toolbox(worktree, base).execute("test", {"selector": "tests"})
+    assert found.data["failing"] == [] and found.data["preexisting"] == [service]
+    assert "every named failing test also fails at the base commit" in found.text
+    assert "1 more failing test(s) could not be named, so they were not compared" in found.text
+    baseline.release(worktree)
+
+
 def test_before_any_change_every_failure_is_in_the_repository(task: tuple[Path, str]) -> None:
     """No base checkout is needed while no file differs from the base commit (ADR 0042)."""
     worktree, base = task

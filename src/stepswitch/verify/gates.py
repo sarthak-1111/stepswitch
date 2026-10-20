@@ -720,7 +720,7 @@ def _with_preexisting(
         return outcome
     failing, unnamed = failing_tests(result.output)
     found = baseline.for_worktree(run.repo, run.base)
-    if not failing or unnamed or found is None:
+    if not failing or found is None:
         return outcome
     before = found.failing(
         argv,
@@ -732,9 +732,13 @@ def _with_preexisting(
     if old:
         outcome.details["preexisting"] = old
         outcome.details["new_failures"] = new
+        more = f"; {unnamed} more could not be named or compared" if unnamed else ""
         outcome.summary += (
-            f" ({len(old)} of the failing tests also fail at the base commit, before the change)"
+            f" ({len(old)} of the failing tests also fail at the base commit, before the"
+            f" change{more})"
         )
+        if unnamed:
+            outcome.details["unnamed_failures"] = unnamed
     return outcome
 
 

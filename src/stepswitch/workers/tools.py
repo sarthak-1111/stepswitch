@@ -303,7 +303,8 @@ _PYTEST_COUNTS = re.compile(
     r"(\d+) (passed|failed|errors?|skipped|xfailed|xpassed|deselected|warnings?|rerun)"
 )
 _PYTEST_FINAL = re.compile(r"^(?:=+ )?(?:\d+ \w+(?:, )?)+(?: in [\d.]+s)")
-_PYTEST_FAILED = re.compile(r"^(FAILED|ERROR) (\S+)(?: - (.*))?$")
+# A node id's parameters may hold spaces: `FAILED tests/t.py::test_x[a b] - assert 0`.
+_PYTEST_FAILED = re.compile(r"^(FAILED|ERROR) ([^\s\[]+(?:\[[^\]]*\])?)(?: - (.*))?$")
 _GO_FAIL = re.compile(r"^\s*--- FAIL: (\S+)")
 _CARGO_FAIL = re.compile(r"^test (\S+) \.\.\. FAILED")
 _CARGO_RESULT = re.compile(r"test result: \w+\. (\d+) passed; (\d+) failed; (\d+) ignored")
@@ -1388,6 +1389,7 @@ class Toolbox:
             new, old = [], list(summary.failing)
         else:
             new, old = self._preexisting(status, summary, argv, result.duration_s)
+        unnamed = summary.unnamed() if old and not unchanged else 0
         head = f"tests {status} (exit {result.exit_code}, {result.duration_s:.1f} s)"
         lines = [*notes, head + (f": {shown}" if shown else "")]
         if unchanged:
@@ -1396,13 +1398,19 @@ class Toolbox:
                 " change of yours"
             )
         elif old and not new:
-            lines.append("every failing test also fails at the base commit, before your change")
+            every = "every named failing test" if unnamed else "every failing test"
+            lines.append(f"{every} also fails at the base commit, before your change")
         if new:
             lines.append("failing:" if not old else "failing since your change:")
             lines += [f"  {test_id}" for test_id in new[:30]]
         if old:
             lines.append("failing at the base commit too, before your change:")
             lines += [f"  {test_id}" for test_id in old[:30]]
+        if unnamed:
+            lines.append(
+                f"{unnamed} more failing test(s) could not be named, so they were not compared"
+                " with the base commit"
+            )
         if summary.details:
             lines.append("details:")
             lines += [f"  {row}" for row in summary.details[:40]]
@@ -1443,14 +1451,13 @@ class Toolbox:
     def _preexisting(
         self, status: str, summary: TestSummary, argv: Sequence[str], seconds: float
     ) -> tuple[list[str], list[str]]:
-        """(new failures, failures the base commit has too) of a failed run whose failures are
-        all named (`stepswitch.verify.baseline`)."""
+        """(new failures, failures the base commit has too) of a failed run, by the failures
+        both runs name (`stepswitch.verify.baseline`)."""
         from stepswitch.verify import baseline
 
         if (
             status != "failed"
             or not summary.failing
-            or summary.unnamed()
             or seconds > baseline.MAX_SECONDS
             or self.base_env is None
         ):

@@ -8,8 +8,9 @@ So when a test run fails, the same command runs once more in a checkout of the b
 the failures both runs share are reported as pre-existing: the agent's `test` tool and the test
 gates list them apart. Nothing passes because of them, since a task is often to fix a test that
 fails at the base commit. A failure is compared by test id as `summarize_tests` reads it (pytest
-node ids, unittest labels). A run whose failures cannot all be named, or that took longer than
-`MAX_SECONDS`, is not compared.
+node ids, unittest labels), and it is pre-existing only when the base commit's run named it too:
+a failure that either run cannot name is not compared, and the report says how many there were.
+A run that took longer than `MAX_SECONDS` is not compared.
 
 The base checkout is a detached git worktree of the base commit beside the task's worktree
 (`<state>/wt/<id>-base`, so the project's environment treats it as the task's worktree is
@@ -65,8 +66,8 @@ class Baseline:
         summarize: Summarize,
         timeout: float,
     ) -> frozenset[str] | None:
-        """Ids of the tests that fail when `argv` runs at the base commit, or None when that
-        cannot be told (no checkout, or failures the summary cannot name)."""
+        """Ids of the named tests that fail when `argv` runs at the base commit, or None when
+        that cannot be told (no checkout, or the run did not start or end)."""
         key = tuple(argv)
         if key in self._failing:
             return self._failing[key]
@@ -77,8 +78,8 @@ class Baseline:
             commands.purge_stale_bytecode(checkout)
             result = commands.run(moved, cwd=checkout, timeout=timeout, env=dict(env_for(checkout)))
             if result.started and not result.timed_out:
-                named, unnamed = summarize(result.output)
-                found = frozenset(named) if not unnamed else None
+                named, _ = summarize(result.output)
+                found = frozenset(named)
         self._failing[key] = found
         return found
 

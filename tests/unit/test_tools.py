@@ -558,6 +558,22 @@ def test_summaries_of_common_test_runners() -> None:
     assert T.summarize_tests("nothing recognisable").runner == "unknown"
 
 
+def test_pytest_ids_with_spaces_in_their_parameters_are_named() -> None:
+    """sphinx's suite has such ids; unnamed, they kept a whole run from being compared."""
+    output = (
+        "FAILED tests/test_build.py::test_build_all[text] - AssertionError\n"
+        "FAILED tests/test_html.py::test_html5_output[markup.html-expect 65] - assert 0\n"
+        "FAILED tests/test_odd.py::test_p[x] y] - assert 0\n"
+        "========== 3 failed, 2 passed in 0.50s ==========\n"
+    )
+    summary = T.summarize_tests(output)
+    assert summary.failing == [
+        "tests/test_build.py::test_build_all[text]",
+        "tests/test_html.py::test_html5_output[markup.html-expect 65]",
+    ]
+    assert summary.unnamed() == 1  # a `]` inside the parameters is still not read
+
+
 # Django's runner at verbosity 2: unittest output, with headers in the format before Python
 # 3.11 (`test (module.Class)`) and after it (`test (module.Class.test)`).
 UNITTEST_OUTPUT = """\
