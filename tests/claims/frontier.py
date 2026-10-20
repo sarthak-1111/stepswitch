@@ -181,6 +181,17 @@ def roles_of(limits: Mapping[str, Any]) -> tuple[dict[str, str], dict[str, Mappi
     return roles, baselines
 
 
+def bench_commands(limits: Mapping[str, Any]) -> list[str]:
+    """The command that produces new runs for a claim's contestants; each run's run.json records
+    the command it ran. The evidence's own command, `ssw prove --claim <id>`, recomputes every
+    number from the committed runs, as for C-011."""
+    roles, _ = roles_of(limits)
+    return [
+        f"uv run ssw bench run --suite <suite> --workers {','.join(roles.values())}"
+        f" --seeds {limits['min_seeds']} --router-pool <local workers> ..."
+    ]
+
+
 def parity(limits: Mapping[str, Any]) -> tuple[dict[str, Any], list[str]]:
     """C-021 and C-023: the Stepswitch contestant passes at least as many shared task runs as
     each baseline, both suites together, and sends at most `hosted_tokens_max` tokens to hosted
@@ -196,6 +207,7 @@ def parity(limits: Mapping[str, Any]) -> tuple[dict[str, Any], list[str]]:
         "confidence": confidence,
         "roles": roles,
         "runs": comp.runs,
+        "bench_commands": bench_commands(limits),
         "task_runs": len(comp.shared),
         "excluded": excluded_list(comp),
     }
@@ -286,6 +298,7 @@ def tokens_comparison(limits: Mapping[str, Any]) -> tuple[dict[str, Any], list[s
         "measure": measure_name,
         "roles": roles,
         "runs": comp.runs,
+        "bench_commands": bench_commands(limits),
         "task_runs": len(comp.shared),
         "excluded": excluded_list(comp),
     }

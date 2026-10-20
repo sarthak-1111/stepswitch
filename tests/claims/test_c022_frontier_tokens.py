@@ -24,10 +24,5 @@ pytestmark = [pytest.mark.claim("C-022")]
 
 def test_local_router_processes_fewer_tokens_than_claude_code() -> None:
     report, problems = frontier.tokens_comparison(evidence.thresholds("C-022"))
-    evidence.write(
-        "C-022",
-        "comparison",
-        report,
-        command="the runs of C-021; uv run ssw prove --claim C-022",
-    )
+    evidence.write("C-022", "comparison", report)
     assert not problems, problems

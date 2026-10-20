@@ -18,12 +18,5 @@ pytestmark = [pytest.mark.claim("C-023")]
 
 def test_claude_code_on_local_models_passes_as_many_task_runs() -> None:
     report, problems = frontier.parity(evidence.thresholds("C-023"))
-    evidence.write(
-        "C-023",
-        "comparison",
-        report,
-        command="uv run ssw bench run --suite <suite> --workers harness:claude-code,"
-        "native:claude-code:claude-sonnet-5-5,native:claude-code:claude-opus-5-5 --seeds 2"
-        " --router-pool <local workers> ... (each run's run.json); uv run ssw prove --claim C-023",
-    )
+    evidence.write("C-023", "comparison", report)
     assert not problems, problems
