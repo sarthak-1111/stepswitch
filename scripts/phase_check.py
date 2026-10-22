@@ -2059,11 +2059,26 @@ def _p13_results() -> tuple[bool, str]:
         return False, "no gold check or confirmatory run under bench/results/"
     rows = [json.loads(line) for line in runs[-1].read_text("utf-8").splitlines() if line]
     contestants = {row.get("contestant") for row in rows}
-    graded = [row for row in rows if not row.get("infra_error")]
+    # A run with an infrastructure error has no grade, and C-026 leaves its instance out for
+    # both contestants, within the share of the suite the claim allows (ADR 0042, item 11).
+    registry = YAML(typ="safe", pure=True).load(read("claims/claims.yaml") or "{}") or {}
+    c026 = next((c for c in registry.get("claims", []) if c.get("id") == "C-026"), {})
+    allowed = float((c026.get("thresholds") or {}).get("max_excluded_share", 0))
+    left_out = sorted({str(row.get("task")) for row in rows if row.get("infra_error")})
+    ids = _swebench_ids(SWEBENCH_TEST)
+    suite = len(ids) or 1
+    covered = all(
+        sorted(str(row.get("task")) for row in rows if row.get("contestant") == name) == sorted(ids)
+        for name in contestants
+    )
     return combine(
         (len(runs) == 1, f"{len(runs)} confirmatory runs: the test set runs once"),
         (len(contestants) == 2, f"contestants in the run: {sorted(map(str, contestants))}"),
-        (len(graded) == len(rows), f"{len(rows) - len(graded)} runs were not graded"),
+        (covered, "each contestant needs one run of every instance"),
+        (
+            len(left_out) / suite <= allowed,
+            f"{len(left_out)} instances have a run without a grade: {', '.join(left_out)}",
+        ),
     )
 
 
