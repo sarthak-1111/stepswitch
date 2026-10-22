@@ -34,6 +34,10 @@ several model families share a name with the organization that publishes them.
    scratch shell and append the digest.
 6. Commit messages follow the same rule. Automatic co-author trailers that carry a company
    e-mail domain are left out of commits in this repository.
+7. Added by ADR 0042, item 11: the patch of a committed SWE-bench prediction is not scanned.
+   It is an agent's diff against a third-party repository, kept byte for byte so that the
+   official harness can grade it again, and its text is that repository's with the agent's
+   changes. Every other field of a prediction, and every other file, is scanned as before.
 
 ## Consequences
 

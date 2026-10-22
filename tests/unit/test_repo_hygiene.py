@@ -15,6 +15,7 @@ from __future__ import annotations
 import getpass
 import hashlib
 import ipaddress
+import json
 import re
 import shutil
 import socket
@@ -179,6 +180,10 @@ ALLOWED_IDENTIFIERS = (
 # Keys in .stepswitch/local.toml whose values are machine-specific by definition.
 SENSITIVE_KEYS = {"url", "api_key", "key", "token", "secret", "password", "model_dir", "host"}
 
+# A SWE-bench prediction's patch is an agent's diff against a third-party repository, committed
+# byte for byte so that the official harness can grade it again (ADR 0042, item 11). Its text is
+# the repository's and the agent's, so the company-name scan reads a prediction's other fields.
+PREDICTIONS_RE = re.compile(r"^bench/results/[^/]+/predictions/[^/]+\.jsonl$")
 URL_RE = re.compile(r"https?://\S+")
 ORG_ID_RE = re.compile(r"\b[\w.-]+/[\w.-]+")
 WORD_RE = re.compile(r"[a-z0-9]+")
@@ -267,12 +272,31 @@ def _redact(value: str) -> str:
     return value[:4] + "…" if len(value) > 4 else value
 
 
+def company_scan_text(rel: str, text: str) -> str:
+    """The text the company-name scan reads: all of it, except a prediction's patch."""
+    if not PREDICTIONS_RE.match(rel):
+        return text
+    lines = []
+    for line in text.splitlines():
+        try:
+            record = json.loads(line)
+        except ValueError:
+            record = None
+        if isinstance(record, dict):
+            record.pop("model_patch", None)
+            line = json.dumps(record, ensure_ascii=False)
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def test_no_company_names_in_repository_text() -> None:
     problems: dict[str, list[str]] = {}
     for path in repo_text_files():
-        hits = company_name_hits(path.read_text(encoding="utf-8", errors="replace"))
+        rel = path.relative_to(ROOT).as_posix()
+        text = path.read_text(encoding="utf-8", errors="replace")
+        hits = company_name_hits(company_scan_text(rel, text))
         if hits:
-            problems[path.relative_to(ROOT).as_posix()] = sorted(set(hits))
+            problems[rel] = sorted(set(hits))
     assert not problems, f"company names found (working rule 4): {problems}"
 
 
@@ -321,6 +345,22 @@ FICTIONAL = frozenset(
 )
 def test_company_name_check_on_samples(text: str, expected: list[str]) -> None:
     assert company_name_hits(text, FICTIONAL) == expected
+
+
+def test_only_a_predictions_patch_is_left_out_of_the_company_name_scan() -> None:
+    prediction = {
+        "instance_id": "repo__repo-1",
+        "model_name_or_path": "router",
+        "model_patch": "+// AcmeCorp wrote this vendored file\n",
+    }
+    rel = "bench/results/2026-01-01-swebench-mini-confirmatory/predictions/router-s0.jsonl"
+    text = json.dumps(prediction) + "\n"
+    assert company_name_hits(company_scan_text(rel, text), FICTIONAL) == []
+    named = json.dumps(prediction | {"model_name_or_path": "AcmeCorp agent"})
+    assert company_name_hits(company_scan_text(rel, named), FICTIONAL) == ["acmecorp"]
+    assert company_name_hits(company_scan_text(rel, "AcmeCorp notes"), FICTIONAL) == ["acmecorp"]
+    elsewhere = "bench/results/2026-01-01-swebench-mini-confirmatory/results.jsonl"
+    assert company_name_hits(company_scan_text(elsewhere, text), FICTIONAL) == ["acmecorp"]
 
 
 def test_sensitive_values_from_local_config() -> None:
