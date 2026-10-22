@@ -108,12 +108,26 @@ results_tables:
       - "Stepswitch, `gpt-oss:120b`"
       - "mini-SWE-agent, `gpt-oss:120b`"
     rows:
+      - label: Instances compared
+        cells:
+          - C-026:sections.swebench.results.stepswitch.instances
+          - C-026:sections.swebench.results.mini_swe_agent.instances
       - label: Instances resolved
         unit: "%"
         digits: 1
         cells:
           - C-026:sections.swebench.results.stepswitch.resolved_percent
           - C-026:sections.swebench.results.mini_swe_agent.resolved_percent
+      - label: Runs that a model server error ended
+        cells:
+          - C-026:sections.swebench.results.stepswitch.server_errors
+          - C-026:sections.swebench.results.mini_swe_agent.server_errors
+      - label: Resolved where no server error ended either run
+        unit: "%"
+        digits: 1
+        cells:
+          - C-026:sections.swebench.paired.no_server_error.resolved_percent.stepswitch
+          - C-026:sections.swebench.paired.no_server_error.resolved_percent.mini_swe_agent
       - label: Tokens per instance, cached included
         cells:
           - C-026:sections.swebench.results.stepswitch.per_instance.tokens

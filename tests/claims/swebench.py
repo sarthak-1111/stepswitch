@@ -37,6 +37,22 @@ GOLD = "-swebench-gold"
 OURS = "stepswitch"
 THEIRS = "mini_swe_agent"
 MINI_PREFIX = "mini-swe-agent:"
+# The stop reasons of a run that the model server ended by answering with an error: Stepswitch's
+# `model_error`, and the exceptions mini-SWE-agent's model client (litellm 1.106.0) raises for a
+# server's error answer, whose class name its SWE-bench runner records as the exit status.
+SERVER_ERRORS = frozenset(
+    {
+        "model_error",
+        "InternalServerError",
+        "ServiceUnavailableError",
+        "BadGatewayError",
+        "MidStreamFallbackError",
+        "APIError",
+        "APIConnectionError",
+        "Timeout",
+        "RateLimitError",
+    }
+)
 Row = dict[str, Any]
 
 
@@ -138,6 +154,11 @@ def _per_instance(rows: list[Row], measure: Callable[[Row], float]) -> float:
     return round(sum(measure(row) for row in rows) / len(rows), 1) if rows else 0.0
 
 
+def server_error(row: Row) -> bool:
+    """Whether the model server ended the run by answering with an error."""
+    return str(row.get("stop_reason") or "") in SERVER_ERRORS
+
+
 def measured(comp: Swebench) -> dict[str, Any]:
     """Each contestant's resolve rate and means per instance, and the paired comparison: what
     the README's SWE-bench table shows, whatever a claim asserts."""
@@ -179,9 +200,15 @@ def measured(comp: Swebench) -> dict[str, Any]:
             "stop_reasons": dict(
                 sorted(Counter(str(r.get("stop_reason") or r.get("status")) for r in rows).items())
             ),
+            "server_errors": sum(server_error(row) for row in rows),
         }
     ours, theirs = comp.resolved(OURS), comp.resolved(THEIRS)
     both = [i for i in comp.instances if ours[i] and theirs[i]]
+    # Descriptive, added during the confirmatory run (ADR 0042, item 11): no claim reads it.
+    clean = [
+        i for i in comp.instances if not any(server_error(comp.rows[r][i]) for r in comp.roles)
+    ]
+    clean_resolved = {role: sum(comp.resolved(role)[i] for i in clean) for role in comp.roles}
     only_ours = sum(ours[i] and not theirs[i] for i in comp.instances)
     only_theirs = sum(theirs[i] and not ours[i] for i in comp.instances)
     groups = [[float(ours[i]) - float(theirs[i])] for i in comp.instances]
@@ -206,6 +233,16 @@ def measured(comp: Swebench) -> dict[str, Any]:
             for role in comp.roles
         }
         if both
+        else None,
+        # The instances where no model server error ended either run, and what each resolved.
+        "no_server_error": {
+            "instances": len(clean),
+            "resolved": clean_resolved,
+            "resolved_percent": {
+                role: round(100 * count / len(clean), 1) for role, count in clean_resolved.items()
+            },
+        }
+        if clean
         else None,
     }
     return {"results": results, "paired": paired}

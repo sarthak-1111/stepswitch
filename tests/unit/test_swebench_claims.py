@@ -106,9 +106,41 @@ def test_the_comparison_leaves_out_gold_failures_and_infrastructure_errors(resul
     assert paired["mcnemar_p"] < 0.05
     assert paired["both_resolved_tokens"] == {"stepswitch": 51_000, "mini_swe_agent": 102_000}
     assert ours["stop_reasons"] == {"done": 48}
+    assert ours["server_errors"] == 0 and paired["no_server_error"]["instances"] == 48
     assert data["tokens"]["tokens"]["percent"] == 50.0
     assert data["tokens"]["uncached"]["percent"] < 0  # more uncached tokens than mini-SWE-agent
     assert data["hosted_tokens"] == 0
+
+
+def test_runs_a_server_error_ended_are_counted_and_the_other_instances_compared(
+    results: Path,
+) -> None:
+    rows = []
+    for index, task in enumerate(IDS):
+        broken = index % 4 == 1  # mini-SWE-agent's run ends on the server's error answer
+        ours = row("router", task, index % 2 == 0)
+        ours["stop_reason"] = "model_error" if index == 2 else None
+        theirs = row(MINI, task, not broken and index % 3 == 0)
+        theirs["stop_reason"] = "InternalServerError" if broken else "Submitted"
+        rows += [ours, theirs]
+    confirmatory = results / "2026-01-02-swebench-mini-confirmatory" / "results.jsonl"
+    confirmatory.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    data = swebench.report(swebench.load(LIMITS))
+    kept = range(1, 50)  # the first instance's reference patch fails
+    clean = [i for i in kept if i != 2 and i % 4 != 1]
+    ours_found, theirs_found = data["results"]["stepswitch"], data["results"]["mini_swe_agent"]
+    assert ours_found["server_errors"] == 1
+    assert theirs_found["server_errors"] == sum(i % 4 == 1 for i in kept)
+    assert theirs_found["stop_reasons"]["InternalServerError"] == theirs_found["server_errors"]
+    found = data["paired"]["no_server_error"]
+    resolved = {
+        "stepswitch": sum(i % 2 == 0 for i in clean),
+        "mini_swe_agent": sum(i % 3 == 0 for i in clean),
+    }
+    assert found["instances"] == len(clean) and found["resolved"] == resolved
+    assert found["resolved_percent"] == {
+        role: round(100 * count / len(clean), 1) for role, count in resolved.items()
+    }
 
 
 def test_only_one_confirmatory_run_counts(results: Path) -> None:

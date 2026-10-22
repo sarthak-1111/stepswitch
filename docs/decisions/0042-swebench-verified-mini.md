@@ -134,6 +134,32 @@ server and the same instances, the difference between the two is the orchestrato
       it missed), and `2026-10-21-swebench-dev-check` (the router with these settings, 2 of 2;
       mini-SWE-agent with its text-action configuration, 0 of 2, both on
       `RepeatedFormatError`).
+11. **Found during the confirmatory run.** Written while it ran, after part of its results
+    were in. None of these changes a claim's rule or any code the run used.
+    - **The bench's time cap.** The bench stops a mini-SWE-agent run that has not ended after
+      four hours and records an infrastructure error, so C-026 leaves the instance out for both
+      contestants. The cap was in the code the run started from, but this record did not name
+      it. mini-SWE-agent's instance container lives two hours, so a run past the cap can no
+      longer submit a patch: leaving the instance out, instead of counting it as unresolved for
+      mini-SWE-agent, takes nothing from mini-SWE-agent. The phase check first asked for a grade
+      for every run. It now asks what C-026 asks: a run of each contestant on every instance,
+      and the instances without a grade within the share the claim allows.
+    - **Server errors, counted.** Many of mini-SWE-agent's runs ended on the model server's
+      error answer to a tool call it could not parse, after mini-SWE-agent's own retries. The
+      evidence now also counts, for each contestant, the runs that a model server error ended
+      (Stepswitch's `model_error`; for mini-SWE-agent, the exit statuses that name its model
+      client's server-error exceptions), and what each resolved on the instances where no such
+      error ended either run. The README table shows both. They were added after part of the
+      results were seen and are descriptive: no claim reads them.
+    - **Committed predictions.** One of Stepswitch's task branches held a docs build's output,
+      which a command the agent ran wrote into the repository: sphinx-doc__sphinx-9698, whose
+      prediction has 75 files and was resolved. The harness grades the whole branch, so the
+      committed prediction keeps that output byte for byte, and the output includes a vendored
+      script whose comments name a company. The repository hygiene scan (working rule 4, ADR
+      0007) therefore reads every field of a committed prediction except its patch: the patch
+      is a third-party repository's text with the agent's changes, kept so that the harness can
+      grade it again. A task branch should not take in files that commands wrote; that is an
+      open issue (PROGRESS.md, Phase 13).
 
 ## Consequences
 

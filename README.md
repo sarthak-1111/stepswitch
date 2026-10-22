@@ -59,7 +59,10 @@ yourself. `ssw prove --render-readme` writes this table from the evidence of pas
 <!-- results:swebench:start -->
 | | Stepswitch, `gpt-oss:120b` | mini-SWE-agent, `gpt-oss:120b` |
 |---|---|---|
+| Instances compared | — | — |
 | Instances resolved | — | — |
+| Runs that a model server error ended | — | — |
+| Resolved where no server error ended either run | — | — |
 | Tokens per instance, cached included | — | — |
 | Uncached tokens per instance | — | — |
 | Tokens per instance that both resolved, cached included | — | — |
@@ -69,9 +72,16 @@ yourself. `ssw prove --render-readme` writes this table from the evidence of pas
 A — marks a value with no passing claim behind it.
 <!-- results:swebench:end -->
 
-mini-SWE-agent ran with its default SWE-bench configuration and its own step limit, and
-Stepswitch with the limits in the command below. The evidence lists how each contestant's runs
-ended (see [the benchmark's decision record](docs/decisions/0042-swebench-verified-mini.md)).
+mini-SWE-agent ran with its default SWE-bench configuration, which acts through tool calls, and
+its own step limit; Stepswitch ran with the limits in the command below. When the model server
+could not parse a tool call the model wrote, it answered with an error. After its own retries,
+that ended mini-SWE-agent's run without a submission; Stepswitch asked for the same step again
+through its fallback tool protocol. The table counts the runs that a server error ended, and
+compares the two on the instances where none did. Stepswitch is graded on its task branch
+however its run ended, mini-SWE-agent on its submission, and an instance where either run hit an
+infrastructure error is left out for both. The evidence lists how each contestant's runs ended
+and which instances were left out (see
+[the benchmark's decision record](docs/decisions/0042-swebench-verified-mini.md)).
 
 To run it yourself you need Docker and a model server:
 
