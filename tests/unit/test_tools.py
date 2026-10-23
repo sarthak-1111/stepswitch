@@ -369,7 +369,9 @@ def test_run_uses_a_minimal_environment(root: Path, monkeypatch: pytest.MonkeyPa
 
 def test_run_timeout_stops_the_whole_process_tree(root: Path) -> None:
     marker = root / "late.txt"
-    child = f"import time; time.sleep(1.5); open({str(marker)!r}, 'w').close()"
+    # The grandchild writes well after the timeout: stopping a tree on Windows (taskkill /T)
+    # takes over half a second, and the test is about the grandchild surviving, not about speed.
+    child = f"import time; time.sleep(4); open({str(marker)!r}, 'w').close()"
     parent = (
         "import subprocess, sys, time; "
         f"subprocess.Popen([sys.executable, '-c', {child!r}]); time.sleep(30)"
@@ -379,7 +381,7 @@ def test_run_timeout_stops_the_whole_process_tree(root: Path) -> None:
     done = box.execute("run", {"command": [sys.executable, "-c", parent], "timeout": 60})
     assert done.data["timed_out"] is True and "timed out after 1 s" in done.text
     assert time.monotonic() - started < 10
-    time.sleep(max(0.0, 2.5 - (time.monotonic() - started)))
+    time.sleep(max(0.0, 5.0 - (time.monotonic() - started)))
     assert not marker.exists()  # the grandchild was stopped with its parent
 
 
