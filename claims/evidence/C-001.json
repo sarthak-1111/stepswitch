@@ -10,7 +10,7 @@
   },
   "command": "uv run ssw prove --claim C-001",
   "mode": "quick",
-  "source_digest": "1a1889373b3089574c3f3bc6d4338676861782dd30108d96dfe61ec82710bba1",
+  "source_digest": "925055d813e993384cdbfee42b627d8931e498398201709fc805c775986111df",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -22,10 +22,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-20T05:58:02+00:00",
+  "updated": "2026-10-23T05:56:20+00:00",
   "sections": {
     "container": {
-      "recorded": "2026-10-20T05:58:02+00:00",
+      "recorded": "2026-10-23T05:56:20+00:00",
       "image": "python:3.12-slim",
       "image_digests": [
         "python@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1"
@@ -57,10 +57,10 @@
       "gpu_devices_visible": 0,
       "final_status": "done",
       "stop_reason": null,
-      "steps": 11,
+      "steps": 16,
       "budget": {
-        "tokens": 18696.0,
-        "wall_seconds": 111.373,
+        "tokens": 37015.0,
+        "wall_seconds": 137.481,
         "gpu_seconds": 0.0,
         "escalations": 0.0
       },

@@ -4,6 +4,185 @@ Newest phase first. Each phase records what was done, what research changed, ope
 actions that only the maintainer can take. Phase checks: `uv run python scripts/phase_check.py N`
 (one phase) or `--upto N` (phases 0 to N).
 
+## Phase 13: Public benchmark
+
+Status: done on 2026-10-23. `scripts/phase_check.py 13` passes 7 of 7 checks. `uv run pytest
+-q`: 2157 passed, 9 skipped (C-016 pending CI, the three withdrawn claims, and five tests that
+need ripgrep, POSIX file modes, the live model hub or a small model on a local Ollama).
+`ssw prove --quick` (975 s): twenty-four claims passing, C-016 pending CI, and
+C-021, C-024 and C-025 withdrawn (ADR 0041).
+
+This phase was added after Phase 12, at the maintainer's request to make the repository's
+results comparable with published ones (ADR 0042). It runs Stepswitch and mini-SWE-agent on
+SWE-bench Verified Mini with the same open-weight model on this workstation's model server,
+graded by the official harness. The claims and the run's settings were registered before the
+one confirmatory run.
+
+### Done
+
+- **SWE-bench suites (ADR 0042).** `swebench-verified-mini` is the test set: the 50 instances
+  of SWE-bench Verified Mini (25 django, 25 sphinx). `swebench-dev` is the dev set: six
+  Verified instances outside Mini, three per repository, for tuning only. Each task run
+  happens in a container of the instance's own image and sees only the problem statement;
+  hints, test names, the test patch and the gold patch never reach an agent. A container gets
+  only local endpoints that need no credentials. Dataset rows are cached in the state
+  directory and never committed.
+- **Grading.** The official harness (swebench 5.0.2) grades each prediction in a Linux
+  container, never under Windows Python. Stepswitch's prediction is the diff of its task
+  branch, however the run ended; mini-SWE-agent's is its own submission.
+- **The mini-SWE-agent contestant.** mini-SWE-agent 2.4.6 from a pinned harness volume, with
+  its default SWE-bench configuration (tool calls through its `litellm` client) on the same
+  endpoint and model. Its text-action configuration was tried on the dev set and rejected
+  (below).
+- **Gold check.** The harness resolved every reference patch on this machine: all 50 Mini
+  instances and all 6 dev instances (`bench/results/2026-10-20-swebench-gold`,
+  `...-swebench-dev-gold`).
+- **Resume.** `ssw bench run --resume --out <dir>` continues an interrupted SWE-bench run with
+  the same manifest. It keeps every graded run, runs again the ones that were cut short before
+  their grade, and removes the run's leftover containers by label. The confirmatory run did
+  not need it.
+- **General agent fixes from the dev set (ADR 0042, item 7).** Each has its own tests and none
+  is specific to SWE-bench:
+  - editable flat-layout installs import the worktree; conda environments go on `PATH`;
+  - test summaries read unittest output;
+  - the search index reads the repository map once per refresh (627 s to 9.6 s on django),
+    takes a path scope, puts exact matches first for code-shaped queries, and lists source
+    files before tests and everything else;
+  - after a failed test run, the `test` tool and the test gates run the same command at the
+    base commit and list the failures that happen there apart, and never pass because of
+    them. While no file differs from the base commit, every failure is reported as old with
+    no second run. Named failures are compared even when some cannot be named;
+  - `test` without a selector runs only the test files that import the change in a suite
+    with more than 200 test files;
+  - patches: the read view's hash prefixes are dropped, a hunk goes to a unique near match
+    that differs only in removed lines (with a note), and a refusal names the closest place;
+  - the transcript budget: a worker with more than 65,536 tokens of context gets half of it,
+    at most 65,536 (amends ADR 0024). On the dev set, 28 compactions became 10;
+  - stuck detection: a read or search counts as progress once more after a compaction or
+    handoff.
+- **Claims.** C-026 to C-028 were registered before the confirmatory run (f22004a), and its
+  settings in ADR 0042, item 10 (1daf12f).
+- **Found during the run (ADR 0042, item 11).** The evidence also counts the runs that a
+  model server error ended, and compares the contestants on the instances where none did;
+  the README table shows both. The phase check now asks for a run of each contestant on every
+  instance and allows runs without a grade only within C-026's share. The company-name scan
+  reads every field of a committed prediction except its patch (ADR 0007, item 7).
+- **A flaky test.** `test_run_timeout_stops_the_whole_process_tree` failed 2 of 5 runs even
+  alone: stopping a process tree with taskkill takes about 0.6 s on this host, and the
+  grandchild wrote its marker 0.75 s after the timeout. It now writes after 4 s, so the test
+  still fails if the grandchild survives the kill.
+
+### Dev runs (tuning only)
+
+Six dev instances, one seed. Tokens include cached input; uncached tokens are the input the
+server did not serve from its prompt cache, plus output.
+
+| Run | Resolved | Tokens/instance | Uncached/instance | min/instance |
+|---|---:|---:|---:|---:|
+| router, before the item 7 fixes (`2026-10-20-swebench-dev`) | 2/6 | 840,892 | 123,760 | 8.7 |
+| mini-SWE-agent, default configuration (same run) | 1/6 | 2,856,709 | 52,454 | 44.3 |
+| router, after them (`2026-10-20-swebench-dev-router`) | 2/6 | 1,559,310 | 145,254 | 12.7 |
+| router, registered settings (`2026-10-21-swebench-dev-check`, 2 instances) | 2/2 | 1,924,836 | 149,110 | 10.5 |
+| mini-SWE-agent, text actions (same run, 2 instances) | 0/2 | 388,199 | 67,084 | 23.9 |
+
+- mini-SWE-agent's default runs ended on `LimitsExceeded` once (250 steps, 88 minutes and 8.3
+  million tokens), `Submitted` once, `RepeatedFormatError` once and `InternalServerError`
+  three times: the model server answered HTTP 500 to tool calls it could not parse, and
+  mini-SWE-agent's own ten retries got the same answer.
+- Its text-action configuration ended both dev runs on `RepeatedFormatError` (gpt-oss wrote
+  several commands in one reply), one of them on an instance that the default resolved, so
+  the default stayed the baseline (ADR 0042, item 2).
+- The router's fixes did not change its count, but its misses got further: on three of the
+  four it missed, it reached the right file. The larger transcript budget costs about twice
+  the tokens per step.
+
+### Confirmatory run
+
+`bench/results/2026-10-21-swebench-mini-confirmatory`, from commit 98bc395, ran from
+2026-10-21 01:26 to 2026-10-23 14:02: 12.9 hours for the router's 50 runs and 47.7 hours for
+mini-SWE-agent's. The canary passed and no token went to a hosted model. mini-SWE-agent's run
+on sphinx-doc__sphinx-10673 reached the bench's four-hour cap without a grade, so that
+instance is left out for both (Stepswitch had resolved it), and 49 instances are compared.
+
+| | Stepswitch | mini-SWE-agent |
+|---|---:|---:|
+| Resolved, of 49 | 24 (49.0%) | 7 (14.3%) |
+| django, sphinx | 16 of 25, 8 of 24 | 6 of 25, 1 of 24 |
+| Runs that a model server error ended | 1 | 24 |
+| Resolved where no server error ended either run (24 instances) | 7 | 6 |
+| Tokens per instance, cached included | 1,606,949 | 2,372,257 |
+| Uncached tokens per instance | 142,135 | 46,220 |
+| Tokens per instance on the 7 both resolved | 1,529,179 | 2,738,146 |
+| Minutes per instance, mean and median | 15.5, 13.4 | 53.5, 36.3 |
+
+- **Paired.** Both resolved 7 instances, Stepswitch alone 17, mini-SWE-agent alone none, and
+  neither 25. Exact McNemar p < 0.0001; the difference is 34.7 points (95% interval 22.4 to
+  49.0).
+- **Server errors decide most of the gap.** Stepswitch met the server's tool-call parse error
+  23 times in 16 of its runs and each time asked again through the fallback protocol (ADR
+  0035). One of its runs ended on the server's repeat-limit abort (django__django-12155), and
+  that branch was resolved anyway. mini-SWE-agent's runs ended on `InternalServerError` 24
+  times, after its own retries and without a submission; the others ended on `Submitted` 15
+  times, `RepeatedFormatError` 6 and `LimitsExceeded` 4. Where no server error ended either
+  run, the two resolved about as many (7 and 6 of 24). On this server, the difference lies in
+  how each agent handles the server's errors more than in what it does with a good reply.
+- **Stepswitch's stop reasons.** done 13, max_steps 31, gates_failed 3, model_error 1, stuck
+  1. Of its 24 resolved runs, 10 ended as done, 11 at the step limit, and one each on a
+  failed gate, the server's abort and stuck detection, all with a branch that was already
+  right. 11 of its runs left no change.
+- **An unrelated change in django patches.** 11 of Stepswitch's 25 django patches also
+  change `django/template/loaders/filesystem.py`. In the instance containers the agent runs
+  as root, so django's `test_permissions_error` fails at the base commit: root can read a
+  file without permissions. The impacted-tests gate never passes because of such failures
+  (ADR 0042, item 7), so the agent made the loader raise the error for root too. The harness
+  does not run that test, and 9 of the 11 were resolved, so no grade changed, but a
+  maintainer would not merge those patches as they are. The same-model review flagged the
+  change as unrelated, and the agent spent steps on it.
+- **Tokens.** Stepswitch used 32.3% fewer tokens with cached ones included (95% interval 2.1%
+  to 49.0%), but 3.1 times the uncached tokens (95% interval 2.4 to 4.1 times).
+  mini-SWE-agent's transcript only grows, so the server's prompt cache serves almost all of
+  its input; Stepswitch's compactions and briefs rewrite the prompt.
+- **Time.** mini-SWE-agent took 3.5 times as long per instance. Its sphinx runs averaged
+  about 90 minutes, and several outlived its instance container's two hours.
+- **Claims.** C-026, C-027 and C-028 pass. The README's SWE-bench table is written from
+  C-026's evidence, with the runs that a server error ended and the comparison where none did
+  beside the resolve rates and the uncached tokens.
+
+### Open issues
+
+- **Failures the environment causes.** A test that fails at the base commit for a reason the
+  task has nothing to do with (here, running as root) blocks the impacted-tests gate until
+  the agent changes unrelated code. The gate must keep failing on an old failure that the
+  task is about, so it needs a way to tell the two apart: a test outside everything the
+  change touches, failing the same way at the base commit, could be reported instead of
+  blocking. The SWE-bench containers could also run the agent as a user other than root.
+- **A task branch takes in files that commands wrote.** sphinx-doc__sphinx-9698's branch held
+  a docs build's `_build/` directory (75 files) beside the fix. A task branch should hold the
+  agent's changes, not a command's output.
+- **Uncached tokens.** Three times mini-SWE-agent's. Keeping the transcript append-only until
+  it nears the window, and compacting so that the prompt's start stays the same, would let
+  the server's cache serve more of it.
+- **The step limit.** 11 resolved runs reached it; some found the fix in their last steps
+  (sphinx-doc__sphinx-7757 edited at step 97), others went on after a review asked for more
+  (django__django-11848). Search-heavy runs need a nudge toward an edit sooner.
+- **A server abort ends a one-model run.** The repeat-limit abort ended one run; asking for the
+  step once more, as for a tool-call parse error, could save it.
+- **Test runs on django.** `test` without a selector ran up to 502 test files that import a
+  change in `django/contrib/auth`; a narrower first selection would save time.
+- **The bench's time cap.** A run that reaches the four-hour cap leaves no trajectory or
+  token count; the bench should keep its standard error and partial output.
+- **Another server.** On a server whose tool-call parser does not answer an error, the two
+  agents' results would show their solving apart from their error handling.
+- The evidence rounds the McNemar p-value to four places, so it shows 0.0 here.
+
+### Waiting on the maintainer
+
+- The company-name scan now skips a committed prediction's patch (ADR 0007, item 7). If you
+  prefer no exception, the predictions can move to a release asset, with C-026's scope
+  narrowed by an ADR.
+- As before: the public repository and CI for C-016, the package index and the first tag
+  (Phase 10).
+
 ## Phase 12: Launch readiness
 
 Status: done on 2026-10-20. `scripts/phase_check.py 12` passes 8 of 8 checks. `uv run pytest
@@ -1151,6 +1330,8 @@ Details are in the SPEC change table and the ADRs. The main points:
 
 ## Next
 
-All ten phases of SPEC §23 are done. What is left needs the maintainer (Phase 10, Waiting on
-the maintainer): a public repository with CI, whose prove workflow records C-016; the package
-index's trusted publisher; and the first tag.
+All ten phases of SPEC §23 are done, and so are the three added after them (11 to 13). What is
+left needs the maintainer (Phase 10, Waiting on the maintainer): a public repository with CI,
+whose prove workflow records C-016; the package index's trusted publisher; and the first tag.
+The agent work most worth doing next is in Phase 13's open issues, first the test failures
+that the environment causes.

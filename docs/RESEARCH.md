@@ -4181,6 +4181,10 @@ Sources: `docker run` of the django and sphinx images of the dev and Mini instan
   With the smoke task's change applied, its whole suite took 398 s: 12,598 tests passed, 3
   failed, 2 errored and 1,048 were skipped. The import map chose 11 test files for that
   change's two files, in 2.7 s.
+- The images run as root (checked 2026-10-23: `id -u` is 0 in the django images). django's
+  `template_tests.test_loaders.FileSystemLoaderTests.test_permissions_error` therefore fails
+  at the base commit with `PermissionError not raised`: root can read a file without
+  permissions. The instances' PASS_TO_PASS lists leave it out (PROGRESS.md, Phase 13).
 
 ### mini-SWE-agent (2.4.6, checked 2026-10-20)
 
@@ -4220,6 +4224,17 @@ Sources: the package installed from PyPI (`minisweagent/config/benchmarks/sweben
   abort exceptions; HTTP 500 is not one. Sources: the installed package;
   https://raw.githubusercontent.com/SWE-agent/mini-swe-agent/main/docs/advanced/v2_migration.md ;
   https://raw.githubusercontent.com/SWE-agent/mini-swe-agent/main/src/minisweagent/config/benchmarks/swebench_backticks.yaml
+- Exit statuses (checked 2026-10-22 in the harness volume). The SWE-bench runner
+  (`run/benchmarks/swebench.py`) records `type(e).__name__` as the exit status when an
+  exception ends an instance. litellm 1.106.0 (`litellm/exceptions.py`) raises
+  `InternalServerError`, `ServiceUnavailableError`, `BadGatewayError` (and its
+  `MidStreamFallbackError`), `APIError`, `APIConnectionError`, `Timeout` and
+  `RateLimitError` for a server's error answers, which is the set the SWE-bench evidence
+  counts as server errors (ADR 0042, item 11).
+- The instance container mini-SWE-agent starts runs `sleep 2h` (`docker run -d ... --rm
+  <image> sleep 2h`), so a run that lasts longer loses its container. In the confirmatory run
+  (2026-10-21 to 23), several sphinx runs lasted longer than that, and one reached the
+  bench's four-hour cap.
 
 ### Running the bench in Linux containers on a Windows host (checked 2026-10-20)
 

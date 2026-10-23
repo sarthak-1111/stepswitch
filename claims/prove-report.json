@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "mode": "quick",
-  "source_digest": "1a1889373b3089574c3f3bc6d4338676861782dd30108d96dfe61ec82710bba1",
-  "created": "2026-10-20T06:11:46+00:00",
-  "duration_s": 970.82,
+  "source_digest": "925055d813e993384cdbfee42b627d8931e498398201709fc805c775986111df",
+  "created": "2026-10-23T06:09:43+00:00",
+  "duration_s": 974.9,
   "platform": {
     "os": "windows",
     "machine": "amd64",
@@ -15,7 +15,7 @@
     "image_version": null
   },
   "selection": {
-    "phase": null,
+    "phase": 13,
     "claims": [],
     "skip": []
   },
@@ -205,6 +205,30 @@
       },
       "parts": [],
       "notes": {}
+    },
+    "C-026": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c026_swebench_graded.py::test_swebench_results_come_from_one_graded_run_of_each_contestant": "passed"
+      },
+      "parts": [],
+      "notes": {}
+    },
+    "C-027": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c027_swebench_resolved.py::test_stepswitch_resolves_at_least_as_many_instances_as_mini_swe_agent": "passed"
+      },
+      "parts": [],
+      "notes": {}
+    },
+    "C-028": {
+      "status": "passing",
+      "tests": {
+        "tests/claims/test_c028_swebench_tokens.py::test_stepswitch_uses_fewer_tokens_per_instance_than_mini_swe_agent": "passed"
+      },
+      "parts": [],
+      "notes": {}
     }
   },
   "withdrawn": {
@@ -214,7 +238,7 @@
   },
   "summary": {
     "pending": 1,
-    "passing": 21,
+    "passing": 24,
     "failing": 0,
     "withdrawn": 3
   }

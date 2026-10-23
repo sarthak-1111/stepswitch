@@ -1,0 +1,182 @@
+{
+  "claim": "C-026",
+  "text": "On SWE-bench Verified Mini, Stepswitch and mini-SWE-agent each ran once on the same local open-weight model, graded by the official SWE-bench harness, and sent no token to a hosted model.",
+  "scope": "The instances of SWE-bench Verified Mini (`bench/suites/swebench-verified-mini.yaml`), one seed, on one workstation with gpt-oss-120b on a local model server (ADR 0042). Stepswitch is the `router` contestant with a pool of that one model; mini-SWE-agent 2.4.6 runs with its own SWE-bench configuration on the same endpoint. Each task runs in the instance's own image and sees only the problem statement. The official harness (swebench 5.0.2) grades Stepswitch's task branch and mini-SWE-agent's submission. Instances whose reference patch did not resolve on the machine, or whose run hit an infrastructure error, are left out for both and listed, at most a tenth of the suite. The test set ran once, after tuning on the dev set, and each contestant's predictions are committed beside the results.",
+  "thresholds": {
+    "suite": "swebench-verified-mini",
+    "dataset": "SWE-bench/SWE-bench_Verified",
+    "harness": "5.0.2",
+    "model": "gpt-oss:120b",
+    "preflight": true,
+    "hosted_tokens_max": 0,
+    "max_excluded_share": 0.1,
+    "confidence_level": 0.95
+  },
+  "command": "uv run ssw prove --claim C-026",
+  "mode": "quick",
+  "source_digest": "925055d813e993384cdbfee42b627d8931e498398201709fc805c775986111df",
+  "stepswitch_version": "0.1.0.dev0",
+  "environment": {
+    "os": "windows",
+    "machine": "amd64",
+    "release": "11",
+    "python": "3.12.15",
+    "ci": false,
+    "runner_label": null,
+    "image_os": null,
+    "image_version": null
+  },
+  "updated": "2026-10-23T06:09:42+00:00",
+  "sections": {
+    "swebench": {
+      "recorded": "2026-10-23T06:09:42+00:00",
+      "runs": {
+        "confirmatory": "2026-10-21-swebench-mini-confirmatory",
+        "gold": "2026-10-20-swebench-gold"
+      },
+      "roles": {
+        "stepswitch": "router",
+        "mini_swe_agent": "mini-swe-agent:ws-ollama-local/gpt-oss:120b"
+      },
+      "instances": 49,
+      "excluded": {
+        "gold": [],
+        "infra": [
+          "sphinx-doc__sphinx-10673"
+        ]
+      },
+      "bench_command": "ssw bench run --suite swebench-verified-mini --workers router,mini-swe-agent:ws-ollama-local/gpt-oss:120b --seeds 1 --router-pool ws-ollama-local/gpt-oss:120b --max-steps 100 --budget-seconds 3600.0",
+      "dataset": {
+        "name": "SWE-bench/SWE-bench_Verified",
+        "split": "test",
+        "revision": "78f471bf655a3137b2e8a75af1501690ec009ec3",
+        "fetched": "2026-10-20T07:49:32+00:00",
+        "rows_sha256": "705ff871d1979c3680d4f6bfe3f24f709d933af09053991a25c6bdbdd03a0ad8"
+      },
+      "harness": {
+        "swebench": "5.0.2",
+        "mini_swe_agent": "2.4.6",
+        "mini_config": "swebench.yaml",
+        "mini_model_class": "litellm",
+        "litellm": "1.106.0",
+        "volume": "ssw-swe-harness-0a537ac83e08a5b6"
+      },
+      "commit": "98bc3951e16b",
+      "results": {
+        "stepswitch": {
+          "contestant": "router",
+          "resolved": 24,
+          "instances": 49,
+          "resolved_percent": 49.0,
+          "interval_percent": {
+            "low": 35.6,
+            "high": 62.5,
+            "method": "Wilson score interval over runs"
+          },
+          "resolved_done": 10,
+          "empty_patches": 11,
+          "per_instance": {
+            "tokens": 1606949,
+            "uncached_tokens": 142135,
+            "hosted_tokens": 0,
+            "steps": 86.7,
+            "minutes": 15.5
+          },
+          "median_minutes": 13.4,
+          "stop_reasons": {
+            "done": 13,
+            "gates_failed": 3,
+            "max_steps": 31,
+            "model_error": 1,
+            "stuck": 1
+          },
+          "server_errors": 1
+        },
+        "mini_swe_agent": {
+          "contestant": "mini-swe-agent:ws-ollama-local/gpt-oss:120b",
+          "resolved": 7,
+          "instances": 49,
+          "resolved_percent": 14.3,
+          "interval_percent": {
+            "low": 7.1,
+            "high": 26.7,
+            "method": "Wilson score interval over runs"
+          },
+          "resolved_done": 7,
+          "empty_patches": 35,
+          "per_instance": {
+            "tokens": 2372256,
+            "uncached_tokens": 46220,
+            "hosted_tokens": 0,
+            "steps": 93.2,
+            "minutes": 53.5
+          },
+          "median_minutes": 36.3,
+          "stop_reasons": {
+            "InternalServerError": 24,
+            "LimitsExceeded": 4,
+            "RepeatedFormatError": 6,
+            "Submitted": 15
+          },
+          "server_errors": 24
+        }
+      },
+      "paired": {
+        "both": 7,
+        "stepswitch_only": 17,
+        "mini_swe_agent_only": 0,
+        "neither": 25,
+        "mcnemar_p": 0.0,
+        "difference_percent": 34.7,
+        "difference_interval_percent": {
+          "low": 22.4,
+          "high": 49.0,
+          "method": "cluster bootstrap over tasks (percentile)"
+        },
+        "both_resolved_tokens": {
+          "stepswitch": 1529179,
+          "mini_swe_agent": 2738146
+        },
+        "no_server_error": {
+          "instances": 24,
+          "resolved": {
+            "stepswitch": 7,
+            "mini_swe_agent": 6
+          },
+          "resolved_percent": {
+            "stepswitch": 29.2,
+            "mini_swe_agent": 25.0
+          }
+        }
+      },
+      "tokens": {
+        "tokens": {
+          "percent": 32.3,
+          "ours": 78740497,
+          "theirs": 116240570,
+          "interval": {
+            "low": 2.1,
+            "high": 49.0,
+            "confidence": 0.95,
+            "method": "cluster bootstrap over tasks (percentile)",
+            "tasks": 49
+          }
+        },
+        "uncached": {
+          "percent": -207.5,
+          "ours": 6964633,
+          "theirs": 2264784,
+          "interval": {
+            "low": -307.8,
+            "high": -142.0,
+            "confidence": 0.95,
+            "method": "cluster bootstrap over tasks (percentile)",
+            "tasks": 49
+          }
+        }
+      },
+      "hosted_tokens": 0,
+      "problems": []
+    }
+  }
+}

@@ -712,7 +712,7 @@ claims:
     readme_numbers:
       - {key: sections.swebench.results.stepswitch.resolved_percent, label: Stepswitch resolved, unit: "%", digits: 1}
       - {key: sections.swebench.results.mini_swe_agent.resolved_percent, label: mini-SWE-agent resolved, unit: "%", digits: 1}
-    status: pending
+    status: passing
 
   - id: C-027
     text: "On SWE-bench Verified Mini, Stepswitch resolves at least as many instances as mini-SWE-agent with the same local model."
@@ -742,7 +742,7 @@ claims:
     readme_numbers:
       - {key: sections.swebench.results.stepswitch.resolved, label: Stepswitch resolved, unit: instances}
       - {key: sections.swebench.results.mini_swe_agent.resolved, label: mini-SWE-agent resolved, unit: instances}
-    status: pending
+    status: passing
 
   - id: C-028
     text: "On SWE-bench Verified Mini, Stepswitch uses fewer tokens per instance than mini-SWE-agent with the same local model, counting cached tokens."
@@ -772,4 +772,4 @@ claims:
     evidence: [claims/evidence/C-028.json]
     readme_numbers:
       - {key: sections.swebench.tokens.tokens.percent, label: fewer tokens than mini-SWE-agent, unit: "%", digits: 1}
-    status: pending
+    status: passing

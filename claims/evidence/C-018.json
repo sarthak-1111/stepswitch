@@ -7,7 +7,7 @@
   },
   "command": "uv run ssw prove --claim C-018",
   "mode": "quick",
-  "source_digest": "1a1889373b3089574c3f3bc6d4338676861782dd30108d96dfe61ec82710bba1",
+  "source_digest": "925055d813e993384cdbfee42b627d8931e498398201709fc805c775986111df",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -19,258 +19,442 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-20T06:08:48+00:00",
+  "updated": "2026-10-23T06:06:18+00:00",
   "sections": {
     "readme": {
-      "recorded": "2026-10-20T06:08:48+00:00",
+      "recorded": "2026-10-23T06:06:18+00:00",
       "numbers": [
+        {
+          "marker": "C-026:sections.swebench.results.stepswitch.instances",
+          "shown": "49",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
+        {
+          "marker": "C-026:sections.swebench.results.mini_swe_agent.instances",
+          "shown": "49",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
+        {
+          "marker": "C-026:sections.swebench.results.stepswitch.resolved_percent",
+          "shown": "49.0",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
+        {
+          "marker": "C-026:sections.swebench.results.mini_swe_agent.resolved_percent",
+          "shown": "14.3",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
+        {
+          "marker": "C-026:sections.swebench.results.stepswitch.server_errors",
+          "shown": "1",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
+        {
+          "marker": "C-026:sections.swebench.results.mini_swe_agent.server_errors",
+          "shown": "24",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
+        {
+          "marker": "C-026:sections.swebench.paired.no_server_error.resolved_percent.stepswitch",
+          "shown": "29.2",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
+        {
+          "marker": "C-026:sections.swebench.paired.no_server_error.resolved_percent.mini_swe_agent",
+          "shown": "25.0",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
+        {
+          "marker": "C-026:sections.swebench.results.stepswitch.per_instance.tokens",
+          "shown": "1,606,949",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
+        {
+          "marker": "C-026:sections.swebench.results.mini_swe_agent.per_instance.tokens",
+          "shown": "2,372,256",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
+        {
+          "marker": "C-026:sections.swebench.results.stepswitch.per_instance.uncached_tokens",
+          "shown": "142,135",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
+        {
+          "marker": "C-026:sections.swebench.results.mini_swe_agent.per_instance.uncached_tokens",
+          "shown": "46,220",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
+        {
+          "marker": "C-026:sections.swebench.paired.both_resolved_tokens.stepswitch",
+          "shown": "1,529,179",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
+        {
+          "marker": "C-026:sections.swebench.paired.both_resolved_tokens.mini_swe_agent",
+          "shown": "2,738,146",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
+        {
+          "marker": "C-026:sections.swebench.results.stepswitch.per_instance.steps",
+          "shown": "86.7",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
+        {
+          "marker": "C-026:sections.swebench.results.mini_swe_agent.per_instance.steps",
+          "shown": "93.2",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
+        {
+          "marker": "C-026:sections.swebench.results.stepswitch.per_instance.minutes",
+          "shown": "15.5",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
+        {
+          "marker": "C-026:sections.swebench.results.mini_swe_agent.per_instance.minutes",
+          "shown": "53.5",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
         {
           "marker": "C-022:sections.comparison.passes.stepswitch.pass_rate_percent",
           "shown": "97.6",
           "evidence": "claims/evidence/C-022.json",
           "command": "uv run ssw prove --claim C-022",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:04+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:02+00:00"
         },
         {
           "marker": "C-023:sections.comparison.passes.stepswitch.pass_rate_percent",
           "shown": "100.0",
           "evidence": "claims/evidence/C-023.json",
           "command": "uv run ssw prove --claim C-023",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:05+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:04+00:00"
         },
         {
           "marker": "C-022:sections.comparison.passes.sonnet.pass_rate_percent",
           "shown": "100.0",
           "evidence": "claims/evidence/C-022.json",
           "command": "uv run ssw prove --claim C-022",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:04+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:02+00:00"
         },
         {
           "marker": "C-022:sections.comparison.passes.opus.pass_rate_percent",
           "shown": "100.0",
           "evidence": "claims/evidence/C-022.json",
           "command": "uv run ssw prove --claim C-022",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:04+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:02+00:00"
         },
         {
           "marker": "C-022:sections.comparison.per_task_run.stepswitch.tokens",
           "shown": "24,793",
           "evidence": "claims/evidence/C-022.json",
           "command": "uv run ssw prove --claim C-022",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:04+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:02+00:00"
         },
         {
           "marker": "C-023:sections.comparison.per_task_run.stepswitch.tokens",
           "shown": "173,130",
           "evidence": "claims/evidence/C-023.json",
           "command": "uv run ssw prove --claim C-023",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:05+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:04+00:00"
         },
         {
           "marker": "C-022:sections.comparison.per_task_run.sonnet.tokens",
           "shown": "73,390",
           "evidence": "claims/evidence/C-022.json",
           "command": "uv run ssw prove --claim C-022",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:04+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:02+00:00"
         },
         {
           "marker": "C-022:sections.comparison.per_task_run.opus.tokens",
           "shown": "93,920",
           "evidence": "claims/evidence/C-022.json",
           "command": "uv run ssw prove --claim C-022",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:04+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:02+00:00"
         },
         {
           "marker": "C-022:sections.comparison.per_task_run.stepswitch.uncached_tokens",
           "shown": "7,049",
           "evidence": "claims/evidence/C-022.json",
           "command": "uv run ssw prove --claim C-022",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:04+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:02+00:00"
         },
         {
           "marker": "C-023:sections.comparison.per_task_run.stepswitch.uncached_tokens",
           "shown": "48,200",
           "evidence": "claims/evidence/C-023.json",
           "command": "uv run ssw prove --claim C-023",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:05+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:04+00:00"
         },
         {
           "marker": "C-022:sections.comparison.per_task_run.sonnet.uncached_tokens",
           "shown": "7,798",
           "evidence": "claims/evidence/C-022.json",
           "command": "uv run ssw prove --claim C-022",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:04+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:02+00:00"
         },
         {
           "marker": "C-022:sections.comparison.per_task_run.opus.uncached_tokens",
           "shown": "9,386",
           "evidence": "claims/evidence/C-022.json",
           "command": "uv run ssw prove --claim C-022",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:04+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:02+00:00"
         },
         {
           "marker": "C-022:sections.comparison.per_task_run.stepswitch.hosted_tokens",
           "shown": "0",
           "evidence": "claims/evidence/C-022.json",
           "command": "uv run ssw prove --claim C-022",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:04+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:02+00:00"
         },
         {
           "marker": "C-023:sections.comparison.per_task_run.stepswitch.hosted_tokens",
           "shown": "0",
           "evidence": "claims/evidence/C-023.json",
           "command": "uv run ssw prove --claim C-023",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:05+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:04+00:00"
         },
         {
           "marker": "C-022:sections.comparison.per_task_run.sonnet.hosted_tokens",
           "shown": "73,390",
           "evidence": "claims/evidence/C-022.json",
           "command": "uv run ssw prove --claim C-022",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:04+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:02+00:00"
         },
         {
           "marker": "C-022:sections.comparison.per_task_run.opus.hosted_tokens",
           "shown": "93,920",
           "evidence": "claims/evidence/C-022.json",
           "command": "uv run ssw prove --claim C-022",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:04+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:02+00:00"
         },
         {
           "marker": "C-022:sections.comparison.per_task_run.stepswitch.minutes",
           "shown": "0.7",
           "evidence": "claims/evidence/C-022.json",
           "command": "uv run ssw prove --claim C-022",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:04+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:02+00:00"
         },
         {
           "marker": "C-023:sections.comparison.per_task_run.stepswitch.minutes",
           "shown": "2.8",
           "evidence": "claims/evidence/C-023.json",
           "command": "uv run ssw prove --claim C-023",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:05+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:04+00:00"
         },
         {
           "marker": "C-022:sections.comparison.per_task_run.sonnet.minutes",
           "shown": "0.3",
           "evidence": "claims/evidence/C-022.json",
           "command": "uv run ssw prove --claim C-022",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:04+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:02+00:00"
         },
         {
           "marker": "C-022:sections.comparison.per_task_run.opus.minutes",
           "shown": "0.4",
           "evidence": "claims/evidence/C-022.json",
           "command": "uv run ssw prove --claim C-022",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:04+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:02+00:00"
         },
         {
           "marker": "C-001:sections.container.peak_memory_gb",
           "shown": "8.00",
           "evidence": "claims/evidence/C-001.json",
           "command": "uv run ssw prove --claim C-001",
-          "source_digest": "1a1889373b3089574c3f3bc6d4338676861782dd30108d96dfe61ec82710bba1",
-          "updated": "2026-10-20T05:58:02+00:00"
+          "source_digest": "925055d813e993384cdbfee42b627d8931e498398201709fc805c775986111df",
+          "updated": "2026-10-23T05:56:20+00:00"
         },
         {
           "marker": "C-001:sections.container.steps",
-          "shown": "11",
+          "shown": "16",
           "evidence": "claims/evidence/C-001.json",
           "command": "uv run ssw prove --claim C-001",
-          "source_digest": "1a1889373b3089574c3f3bc6d4338676861782dd30108d96dfe61ec82710bba1",
-          "updated": "2026-10-20T05:58:02+00:00"
+          "source_digest": "925055d813e993384cdbfee42b627d8931e498398201709fc805c775986111df",
+          "updated": "2026-10-23T05:56:20+00:00"
         },
         {
           "marker": "C-001:sections.container.budget.wall_seconds",
-          "shown": "111",
+          "shown": "137",
           "evidence": "claims/evidence/C-001.json",
           "command": "uv run ssw prove --claim C-001",
-          "source_digest": "1a1889373b3089574c3f3bc6d4338676861782dd30108d96dfe61ec82710bba1",
-          "updated": "2026-10-20T05:58:02+00:00"
+          "source_digest": "925055d813e993384cdbfee42b627d8931e498398201709fc805c775986111df",
+          "updated": "2026-10-23T05:56:20+00:00"
         },
         {
           "marker": "C-005:sections.matrix.families_passing_count",
           "shown": "4",
           "evidence": "claims/evidence/C-005.json",
           "command": "uv run ssw prove --full --claim C-005",
-          "source_digest": "1a1889373b3089574c3f3bc6d4338676861782dd30108d96dfe61ec82710bba1",
-          "updated": "2026-10-20T06:00:13+00:00"
+          "source_digest": "925055d813e993384cdbfee42b627d8931e498398201709fc805c775986111df",
+          "updated": "2026-10-23T05:58:43+00:00"
         },
         {
           "marker": "C-011:sections.comparison.claimed.percent",
           "shown": "17.8",
           "evidence": "claims/evidence/C-011.json",
           "command": "uv run ssw prove --claim C-011",
-          "source_digest": "1a1889373b3089574c3f3bc6d4338676861782dd30108d96dfe61ec82710bba1",
-          "updated": "2026-10-20T06:01:02+00:00"
+          "source_digest": "925055d813e993384cdbfee42b627d8931e498398201709fc805c775986111df",
+          "updated": "2026-10-23T05:59:19+00:00"
         },
         {
           "marker": "C-019:sections.accounting.max_relative_error_percent",
           "shown": "0.00",
           "evidence": "claims/evidence/C-019.json",
           "command": "uv run ssw prove --claim C-019",
-          "source_digest": "d610d446de2b7cfad7cc09c649cbc5eb142026619c4ff16944eff403ca0625b4",
-          "updated": "2026-10-20T00:00:35+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:20:52+00:00"
         },
         {
           "marker": "C-022:sections.comparison.sonnet.claimed.percent",
           "shown": "66.2",
           "evidence": "claims/evidence/C-022.json",
           "command": "uv run ssw prove --claim C-022",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:04+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:02+00:00"
         },
         {
           "marker": "C-022:sections.comparison.opus.claimed.percent",
           "shown": "73.6",
           "evidence": "claims/evidence/C-022.json",
           "command": "uv run ssw prove --claim C-022",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:04+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:02+00:00"
         },
         {
           "marker": "C-023:sections.comparison.stepswitch.pass_rate_percent",
           "shown": "100.0",
           "evidence": "claims/evidence/C-023.json",
           "command": "uv run ssw prove --claim C-023",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:05+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:04+00:00"
         },
         {
           "marker": "C-023:sections.comparison.sonnet.pass_rate_percent",
           "shown": "100.0",
           "evidence": "claims/evidence/C-023.json",
           "command": "uv run ssw prove --claim C-023",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:05+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:04+00:00"
         },
         {
           "marker": "C-023:sections.comparison.opus.pass_rate_percent",
           "shown": "100.0",
           "evidence": "claims/evidence/C-023.json",
           "command": "uv run ssw prove --claim C-023",
-          "source_digest": "4ee3013d73d8a0cf297abad111ceb52a7ad497b1aa27394b9d2f0762b136a3cd",
-          "updated": "2026-10-20T05:54:05+00:00"
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:04+00:00"
+        },
+        {
+          "marker": "C-026:sections.swebench.results.stepswitch.resolved_percent",
+          "shown": "49.0",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
+        {
+          "marker": "C-026:sections.swebench.results.mini_swe_agent.resolved_percent",
+          "shown": "14.3",
+          "evidence": "claims/evidence/C-026.json",
+          "command": "uv run ssw prove --claim C-026",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:05+00:00"
+        },
+        {
+          "marker": "C-027:sections.swebench.results.stepswitch.resolved",
+          "shown": "24",
+          "evidence": "claims/evidence/C-027.json",
+          "command": "uv run ssw prove --claim C-027",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:06+00:00"
+        },
+        {
+          "marker": "C-027:sections.swebench.results.mini_swe_agent.resolved",
+          "shown": "7",
+          "evidence": "claims/evidence/C-027.json",
+          "command": "uv run ssw prove --claim C-027",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:06+00:00"
+        },
+        {
+          "marker": "C-028:sections.swebench.tokens.tokens.percent",
+          "shown": "32.3",
+          "evidence": "claims/evidence/C-028.json",
+          "command": "uv run ssw prove --claim C-028",
+          "source_digest": "eb0771cb206973d00c597f137a9d00ead18753fd4dea53af028702924f57a7ee",
+          "updated": "2026-10-23T05:21:07+00:00"
         }
       ],
       "unsourced_numbers": 0,

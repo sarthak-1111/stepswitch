@@ -9,7 +9,7 @@
   },
   "command": "uv run ssw prove --claim C-010",
   "mode": "quick",
-  "source_digest": "1a1889373b3089574c3f3bc6d4338676861782dd30108d96dfe61ec82710bba1",
+  "source_digest": "925055d813e993384cdbfee42b627d8931e498398201709fc805c775986111df",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -21,10 +21,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-20T06:01:01+00:00",
+  "updated": "2026-10-23T05:59:18+00:00",
   "sections": {
     "handoffs": {
-      "recorded": "2026-10-20T06:01:01+00:00",
+      "recorded": "2026-10-23T05:59:18+00:00",
       "runs": [
         "2026-10-19-mini-general-best-of-n",
         "2026-10-19-mini-general-local-comparison",

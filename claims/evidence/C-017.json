@@ -10,7 +10,7 @@
   },
   "command": "uv run ssw prove --claim C-017",
   "mode": "quick",
-  "source_digest": "1a1889373b3089574c3f3bc6d4338676861782dd30108d96dfe61ec82710bba1",
+  "source_digest": "925055d813e993384cdbfee42b627d8931e498398201709fc805c775986111df",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -22,10 +22,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-20T06:08:48+00:00",
+  "updated": "2026-10-23T06:06:18+00:00",
   "sections": {
     "quickstart": {
-      "recorded": "2026-10-20T06:08:48+00:00",
+      "recorded": "2026-10-23T06:06:18+00:00",
       "image": "python:3.12-slim",
       "image_digests": [
         "python@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1"
@@ -48,13 +48,13 @@
       "usable_cpus": 8,
       "gpu_devices_visible": 0,
       "steps_seconds": {
-        "install": 27.4,
+        "install": 27.3,
         "init": 0.4,
         "engine_install": 2.8,
-        "first_task": 231.8
+        "first_task": 201.9
       },
-      "total_seconds": 262.4,
-      "total_minutes": 4.37,
+      "total_seconds": 232.3,
+      "total_minutes": 3.87,
       "excluded": {
         "model_pull_seconds": 0.3,
         "model_files": "mounted read-only from the host's verified store",

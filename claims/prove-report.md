@@ -1,8 +1,8 @@
 # Prove report
 
 - Mode: quick
-- Created: 2026-10-20T06:11:46+00:00
-- Source digest: `1a1889373b3089574c3f3bc6d4338676861782dd30108d96dfe61ec82710bba1`
+- Created: 2026-10-23T06:09:43+00:00
+- Source digest: `925055d813e993384cdbfee42b627d8931e498398201709fc805c775986111df`
 - Platform: windows amd64, Python 3.12.15
 
 | Claim | Status | Tests |
@@ -29,6 +29,9 @@
 | C-020 | passing | test_tiny_budgets_stop_with_status_and_bounded_overrun: passed |
 | C-022 | passing | test_local_router_processes_fewer_tokens_than_claude_code: passed |
 | C-023 | passing | test_claude_code_on_local_models_passes_as_many_task_runs: passed |
+| C-026 | passing | test_swebench_results_come_from_one_graded_run_of_each_contestant: passed |
+| C-027 | passing | test_stepswitch_resolves_at_least_as_many_instances_as_mini_swe_agent: passed |
+| C-028 | passing | test_stepswitch_uses_fewer_tokens_per_instance_than_mini_swe_agent: passed |
 | C-021 | withdrawn | not proven: docs/decisions/0041-claims-withdrawn-after-phase-12.md |
 | C-024 | withdrawn | not proven: docs/decisions/0041-claims-withdrawn-after-phase-12.md |
 | C-025 | withdrawn | not proven: docs/decisions/0041-claims-withdrawn-after-phase-12.md |
