@@ -789,6 +789,17 @@ def test_parse_action_errors_carry_a_repair_hint(text: str, hint: str) -> None:
     assert isinstance(caught.value, ValueError)
 
 
+def test_parse_action_nesting_limit_is_the_same_on_every_interpreter() -> None:
+    """Every interpreter's decoder parses 202 levels, so only the parser's own limit refuses
+    them. Python 3.14's decoder alone takes far deeper nesting when the stack is large."""
+    nested = '{"tool": "read", "arguments": {"path": ' + "[" * 200 + "]" * 200 + "}}"
+    with pytest.raises(ActionError, match=r"the JSON is not valid \(it is nested too deeply\)"):
+        parse_action(nested, TOOLS)
+    within = '{"tool": "read", "arguments": {"path": ' + "[" * 198 + "]" * 198 + "}}"
+    with pytest.raises(ActionError, match='"path" must be string, not array'):
+        parse_action(within, TOOLS)
+
+
 def test_parse_action_validates_against_the_full_schema() -> None:
     """The grammar schema drops `pattern`; validation still applies it."""
     good = {"path": "src/a.py", "edits": [{"old": "x", "new": "y"}]}

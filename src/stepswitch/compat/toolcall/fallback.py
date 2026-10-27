@@ -164,6 +164,7 @@ _MAX_REFS = 16  # $ref expansions along one path
 _MAX_COUNT = 4_096  # larger length or item counts make huge grammars; validation keeps them
 _MAX_CANDIDATES = 32  # "{" positions tried per reply
 _MAX_SCAN_CHARS = 200_000
+_MAX_NESTING = 200  # arrays and objects inside each other in one JSON value
 _REJECTION_KINDS = frozenset({"bad_request", "unsupported"})
 
 _MISSING: Final = object()
@@ -905,8 +906,37 @@ def _object_spans(text: str) -> Iterator[tuple[int, int]]:
         start = text.find("{", start + 1)
 
 
+def _too_deep(span: str) -> bool:
+    """Whether arrays and objects in `span` nest more than _MAX_NESTING deep. Brackets inside
+    JSON strings do not count. The limit is set here because the depth at which `json.loads`
+    gives up varies: Python 3.14 bounds it by the thread's stack, not by a fixed count."""
+    if span.count("[") + span.count("{") <= _MAX_NESTING:
+        return False
+    depth = 0
+    in_string = escaped = False
+    for char in span:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char in "[{":
+            depth += 1
+            if depth > _MAX_NESTING:
+                return True
+        elif char in "]}":
+            depth -= 1
+    return False
+
+
 def _load(span: str) -> tuple[Any, str | None]:
     """A JSON value from one candidate span, or the reason it is not one."""
+    if _too_deep(span):
+        return None, "it is nested too deeply"
     try:
         return json.loads(span, strict=False), None
     except json.JSONDecodeError as exc:

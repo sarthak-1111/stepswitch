@@ -2582,6 +2582,15 @@ Checked 2026-10-16; the Windows and CUDA facts were also observed on a Windows 1
   clients always pass one and set `trust_env=False`.
 - On Windows, CPython 3.12 `shutil.which` searches the current directory first, so tool lookup
   in doctor uses absolute `PATH` entries only.
+- How deeply `json.loads` nests before it raises `RecursionError` depends on the interpreter
+  (checked 2026-10-27 with CPython 3.13.16, 3.14.8 and 3.15.0rc3 on Windows, and 3.14 on the
+  Linux CI runner). 3.13 refuses 90,000 levels even in a thread with a 64 MB stack; 3.14 parses
+  them in that thread and on the Linux runner's main thread, but not on the Windows main
+  thread. The fallback parser therefore sets its own limit (`_MAX_NESTING`).
+- Git for Windows' `bin\sh.exe` is a launcher: it puts Git's `mingw64\bin` and `usr\bin`
+  (with a real curl) before the `PATH` it is given; `usr\bin\sh.exe` keeps that `PATH` as it
+  is (checked 2026-10-27). Node on the Windows runner aborts at startup without `SYSTEMROOT`
+  (`ncrypto::CSPRNG` assertion); the local Node 20.12 does not.
 
 ### Model hub API (for `ssw models pull` and `ssw models add`)
 
