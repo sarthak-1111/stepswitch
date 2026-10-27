@@ -5,8 +5,10 @@ Pi and Oh My Pi extensions (whose matcher must agree with this one)."""
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -153,10 +155,15 @@ def test_the_extension_matcher_agrees_with_this_one(tmp_path: Path) -> None:
         str(tmp_path.parent / "data" / "c.csv"),
     ]
     assert NODE is not None
+    env = {"STEPSWITCH_DENY_RULES": json.dumps(deny.extension_rules()), "PATH": ""}
+    if sys.platform == "win32":
+        # Without SYSTEMROOT, Windows cannot seed Node's random number generator, and newer
+        # Node builds abort at startup.
+        env["SYSTEMROOT"] = os.environ.get("SYSTEMROOT", r"C:\Windows")
     proc = subprocess.run(
         [NODE, str(REPO / "adapters" / "test" / "deny_check.js"), *paths],
         cwd=tmp_path,
-        env={"STEPSWITCH_DENY_RULES": json.dumps(deny.extension_rules()), "PATH": ""},
+        env=env,
         capture_output=True,
         text=True,
         encoding="utf-8",
