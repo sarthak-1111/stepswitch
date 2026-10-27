@@ -11,6 +11,7 @@ import json
 import re
 import socket
 import sys
+import threading
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -271,14 +272,23 @@ def test_start_timeout_stops_the_server(world: World, monkeypatch: pytest.Monkey
 
 
 def test_start_without_waiting_then_ensure_waits(
-    world: World, monkeypatch: pytest.MonkeyPatch
+    world: World, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     world.model("tiny-a")
-    monkeypatch.setenv("FAKE_LLAMA_LOAD_SECONDS", "0.8")
+    # The load ends when the test says so. A fixed load time can be over before the first
+    # health check: on Windows a refused connection retries for about 2 s.
+    loaded = tmp_path / "loaded"
+    monkeypatch.setenv("FAKE_LLAMA_READY_FILE", str(loaded))
     manager = world.manager()
     info = manager.start("tiny-a", wait=False)
     assert not world.llamacpp.health(info)
-    ready = manager.ensure("tiny-a")
+    timer = threading.Timer(0.5, loaded.touch)
+    timer.start()
+    try:
+        ready = manager.ensure("tiny-a")
+    finally:
+        timer.cancel()
+    assert loaded.exists()  # ensure returned after the load, not before
     assert ready.pid == info.pid and world.llamacpp.health(ready)
 
 

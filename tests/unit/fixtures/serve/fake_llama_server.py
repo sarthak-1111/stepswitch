@@ -6,6 +6,7 @@ the real server), and requires the API key (`--api-key` or `LLAMA_API_KEY`, sent
 token or `X-Api-Key`) on every other endpoint. Environment variables steer the tests:
 
 * FAKE_LLAMA_LOAD_SECONDS: time spent "loading" before /health turns 200 (default 0.2)
+* FAKE_LLAMA_READY_FILE: when set, "loading" also lasts until this file exists
 * FAKE_LLAMA_FAIL: print this message as an error and exit with status 1 before binding
 """
 
@@ -37,6 +38,11 @@ def parse(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     parser.add_argument("--metrics", action="store_true")
     parser.add_argument("--ctx-size", "-c", type=int, default=0)
     return parser.parse_known_args(argv)
+
+
+def loaded(ready_at: float) -> bool:
+    gate = os.environ.get("FAKE_LLAMA_READY_FILE")
+    return time.monotonic() >= ready_at and (not gate or Path(gate).exists())
 
 
 def make_handler(args: argparse.Namespace, key: str | None, ready_at: float) -> type:
@@ -73,7 +79,7 @@ def make_handler(args: argparse.Namespace, key: str | None, ready_at: float) -> 
         def do_GET(self) -> None:  # noqa: N802
             path = urlparse(self.path).path
             if path in ("/health", "/v1/health"):
-                if time.monotonic() < ready_at:
+                if not loaded(ready_at):
                     self.error(503, "Loading model", "unavailable_error")
                 else:
                     self.reply(200, {"status": "ok"})
