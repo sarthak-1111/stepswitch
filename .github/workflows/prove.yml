@@ -1,6 +1,7 @@
 # Claims verification on pinned hosted runners (SPEC §18.4, claim C-016, ADR 0011).
 # Each platform runs the test suite and `ssw prove --quick`; the aggregation job combines the
-# three prove reports into claims/evidence/C-016.json and validates C-016 against it.
+# three prove reports into claims/evidence/C-016.json and validates C-016 against it. The run
+# summary shows that file and its SHA-256, so it can be read without downloading the artifact.
 # Actions are pinned to commit SHAs (tags verified 2026-10-16).
 name: prove
 
@@ -91,10 +92,24 @@ jobs:
         with:
           path: reports
       - name: Combine platform reports
+        id: combine
         run: >-
           uv run python scripts/platform_evidence.py
           reports/prove-linux reports/prove-macos reports/prove-windows
           --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      - name: Show the evidence in the run summary
+        if: always() && steps.combine.outcome == 'success'
+        shell: bash
+        run: |
+          {
+            echo '### claims/evidence/C-016.json'
+            echo
+            echo "SHA-256: \`$(sha256sum claims/evidence/C-016.json | cut -d' ' -f1)\`"
+            echo
+            echo '```json'
+            cat claims/evidence/C-016.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Validate C-016
         run: uv run ssw prove --quick --claim C-016 --strict
       - if: always()
