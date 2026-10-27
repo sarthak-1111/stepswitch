@@ -32,6 +32,13 @@ param([switch]$DryRun)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2
 
+# PowerShell 7 also runs on Linux and macOS, where install.sh is the installer. Windows
+# PowerShell 5.1 has no $IsWindows, hence the Test-Path first.
+if ((Test-Path variable:IsWindows) -and -not $IsWindows) {
+    Write-Host 'stepswitch-install: this installer is for Windows; on Linux and macOS, use install.sh'
+    exit 1
+}
+
 $UvVersion = '0.13.1'
 # SHA-256 of the uv release archives, from the release's .sha256 files (checked 2026-10-19).
 $UvArchives = @{
@@ -66,7 +73,7 @@ function Find-Uv {
 function Get-UvArchive {
     $machine = $env:PROCESSOR_ARCHITEW6432
     if (-not $machine) { $machine = $env:PROCESSOR_ARCHITECTURE }
-    if (-not $UvArchives.ContainsKey($machine)) {
+    if (-not $machine -or -not $UvArchives.ContainsKey($machine)) {
         throw "no uv build for this CPU ($machine); install uv yourself, then run this again"
     }
     $archive = $UvArchives[$machine]

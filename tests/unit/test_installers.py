@@ -53,11 +53,22 @@ def test_the_installers_use_lf_line_endings() -> None:
 needs_sh = pytest.mark.skipif(SH is None, reason="no POSIX sh on this machine")
 
 
-def sh_env(tmp_path: Path, **extra: str) -> dict[str, str]:
-    """A small environment: `sh` and its neighbours on PATH, no uv, HOME in `tmp_path`."""
+def system_dirs() -> list[str]:
+    """`sh`'s directory and the POSIX system directories, none with a uv in it. On macOS `sh`
+    is in /bin, but `mktemp`, `awk` and `shasum` are in /usr/bin."""
     assert SH is not None
+    dirs = [str(Path(SH).parent)]
+    for name in ("/usr/bin", "/bin"):
+        path = Path(name)
+        if sys.platform != "win32" and path.is_dir() and not (path / "uv").exists():
+            dirs.append(name)
+    return list(dict.fromkeys(dirs))
+
+
+def sh_env(tmp_path: Path, **extra: str) -> dict[str, str]:
+    """A small environment: `sh` and the system tools on PATH, no uv, HOME in `tmp_path`."""
     env = {
-        "PATH": os.pathsep.join([str(tmp_path / "fakebin"), str(Path(SH).parent)]),
+        "PATH": os.pathsep.join([str(tmp_path / "fakebin"), *system_dirs()]),
         "HOME": str(tmp_path / "home"),
     }
     if sys.platform == "win32":
@@ -199,6 +210,17 @@ def test_install_ps1_parses() -> None:
 
 
 @needs_powershell
+def test_install_ps1_points_other_systems_to_install_sh(tmp_path: Path) -> None:
+    if sys.platform == "win32":
+        pytest.skip("install.ps1 runs here; the dry run below covers it")
+    done = run_ps1(tmp_path, "-DryRun")
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert "this installer is for Windows; on Linux and macOS, use install.sh" in done.stdout
+    assert not (tmp_path / "uv-bin").exists()
+
+
+@needs_powershell
+@pytest.mark.skipif(sys.platform != "win32", reason="install.ps1 is the Windows installer")
 def test_install_ps1_dry_run_plans_the_pinned_uv_archive(tmp_path: Path) -> None:
     done = run_ps1(tmp_path, "-DryRun")
     assert done.returncode == 0, done.stdout + done.stderr
