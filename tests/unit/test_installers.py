@@ -17,8 +17,25 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 INSTALL_SH = ROOT / "install.sh"
 INSTALL_PS1 = ROOT / "install.ps1"
-SH = shutil.which("sh")
 POWERSHELL = shutil.which("powershell") or shutil.which("pwsh")
+# Any real download fails: curl and wget send it to a closed port.
+NO_DOWNLOADS = dict.fromkeys(
+    ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"), "http://127.0.0.1:9"
+)
+
+
+def posix_sh() -> str | None:
+    """`sh`. On Windows, Git's bin\\sh.exe is a launcher that puts Git's own directories, with a
+    real curl in them, before the PATH it is given, so take the shell it launches instead."""
+    found = shutil.which("sh")
+    if found and sys.platform == "win32":
+        inner = Path(found).parent.parent / "usr" / "bin" / "sh.exe"
+        if Path(found).parent.name.lower() == "bin" and inner.is_file():
+            return str(inner)
+    return found
+
+
+SH = posix_sh()
 
 
 def pinned(pattern: str, path: Path) -> str:
@@ -66,10 +83,12 @@ def system_dirs() -> list[str]:
 
 
 def sh_env(tmp_path: Path, **extra: str) -> dict[str, str]:
-    """A small environment: `sh` and the system tools on PATH, no uv, HOME in `tmp_path`."""
+    """A small environment: `sh` and the system tools on PATH, no uv, HOME in `tmp_path`, and
+    no way to download anything."""
     env = {
         "PATH": os.pathsep.join([str(tmp_path / "fakebin"), *system_dirs()]),
         "HOME": str(tmp_path / "home"),
+        **NO_DOWNLOADS,
     }
     if sys.platform == "win32":
         env["SYSTEMROOT"] = os.environ.get("SYSTEMROOT", r"C:\Windows")
