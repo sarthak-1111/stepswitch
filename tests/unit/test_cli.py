@@ -34,16 +34,28 @@ SPEC_COMMANDS = [
 ]
 
 runner = CliRunner()
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _plain(text: str) -> str:
+    """Help text without its styles: Typer forces a terminal under GitHub Actions, and the
+    styles split words such as `--track` in two."""
+    return ANSI_RE.sub("", text)
 
 
 def _words(text: str) -> set[str]:
-    return set(re.findall(r"[\w-]+", text))
+    return set(re.findall(r"[\w-]+", _plain(text)))
 
 
 def test_help_lists_every_spec_command() -> None:
     result = runner.invoke(app, ["--help"], env={"COLUMNS": "200"})
     assert result.exit_code == 0, result.output
     assert set(SPEC_COMMANDS) <= _words(result.output)
+
+
+def test_plain_help_text_has_no_styles() -> None:
+    styled = "\x1b[1;36m-\x1b[0m\x1b[1;36m-track\x1b[0m \x1b[1;2;33m<\x1b[0m\x1b[1;33mstr\x1b[0m"
+    assert _plain(styled) == "--track <str" and "--track" in _words(styled)
 
 
 def test_version() -> None:
@@ -62,8 +74,9 @@ def test_version() -> None:
 def test_phase_2_commands_exist_with_their_options(command: str, options: list[str]) -> None:
     result = runner.invoke(app, [command, "--help"], env={"COLUMNS": "200"})
     assert result.exit_code == 0, result.output
-    assert "Phase 2" not in result.output
-    assert all(option in result.output for option in options), result.output
+    text = _plain(result.output)
+    assert "Phase 2" not in text
+    assert all(option in text for option in options), text
 
 
 def test_no_command_is_a_later_phase_stub() -> None:
