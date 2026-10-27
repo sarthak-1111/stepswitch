@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "mode": "quick",
-  "source_digest": "925055d813e993384cdbfee42b627d8931e498398201709fc805c775986111df",
-  "created": "2026-10-23T06:09:43+00:00",
-  "duration_s": 974.9,
+  "source_digest": "2e58ffd74e4b0b55277e050110cd95204d1f58d8c38ad81786e5cee33824f9ef",
+  "created": "2026-10-27T07:50:26+00:00",
+  "duration_s": 1014.06,
   "platform": {
     "os": "windows",
     "machine": "amd64",
@@ -149,14 +149,12 @@
       "notes": {}
     },
     "C-016": {
-      "status": "pending",
+      "status": "passing",
       "tests": {
-        "tests/claims/test_c016_platforms.py::test_prove_quick_passed_on_linux_macos_windows": "skipped"
+        "tests/claims/test_c016_platforms.py::test_prove_quick_passed_on_linux_macos_windows": "passed"
       },
       "parts": [],
-      "notes": {
-        "tests/claims/test_c016_platforms.py::test_prove_quick_passed_on_linux_macos_windows": "pending: no platform evidence yet; the CI workflow writes claims/evidence/C-016.json after `ssw prove --quick` ran on all three platforms"
-      }
+      "notes": {}
     },
     "C-017": {
       "status": "passing",
@@ -237,8 +235,8 @@
     "C-025": "docs/decisions/0041-claims-withdrawn-after-phase-12.md"
   },
   "summary": {
-    "pending": 1,
-    "passing": 24,
+    "pending": 0,
+    "passing": 25,
     "failing": 0,
     "withdrawn": 3
   }

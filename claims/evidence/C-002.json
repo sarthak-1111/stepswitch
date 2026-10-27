@@ -8,7 +8,7 @@
   },
   "command": "uv run ssw prove --claim C-002",
   "mode": "quick",
-  "source_digest": "925055d813e993384cdbfee42b627d8931e498398201709fc805c775986111df",
+  "source_digest": "2e58ffd74e4b0b55277e050110cd95204d1f58d8c38ad81786e5cee33824f9ef",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -20,11 +20,11 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-23T05:56:27+00:00",
+  "updated": "2026-10-27T07:36:39+00:00",
   "sections": {
     "trajectory": {
-      "recorded": "2026-10-23T05:56:27+00:00",
-      "task_id": "t20261023-145621-9fad4c",
+      "recorded": "2026-10-27T07:36:39+00:00",
+      "task_id": "t20261027-163634-d03b92",
       "status": "done",
       "endpoints": [
         "alpha",
@@ -101,7 +101,7 @@
       "switches": [
         {
           "seq": 12,
-          "ts": 1792734982.272,
+          "ts": 1793086595.087,
           "type": "switch",
           "step": 2,
           "step_type": "navigate",
@@ -114,12 +114,12 @@
             "seconds": 0.788,
             "tokens": 1182.0
           },
-          "expected_gain": 55.928,
+          "expected_gain": -34.972,
           "handoff": false
         },
         {
           "seq": 28,
-          "ts": 1792734985.049,
+          "ts": 1793086597.804,
           "type": "switch",
           "step": 7,
           "step_type": "review",
@@ -132,7 +132,7 @@
             "seconds": 0.155,
             "tokens": 232.0
           },
-          "expected_gain": -54.985,
+          "expected_gain": 35.915,
           "handoff": false
         }
       ],

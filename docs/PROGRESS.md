@@ -4,6 +4,39 @@ Newest phase first. Each phase records what was done, what research changed, ope
 actions that only the maintainer can take. Phase checks: `uv run python scripts/phase_check.py N`
 (one phase) or `--upto N` (phases 0 to N).
 
+## After Phase 13: public repository and CI
+
+Status: 2026-10-27. The repository is public, and its three workflows pass on commit caa502b:
+unit tests on Python 3.11 to 3.15; the full test suite and `ssw prove --quick` on the Linux,
+macOS and Windows runners; the dashboard build with its browser smoke test; and the docs.
+C-016 passes with the evidence from that run. `scripts/phase_check.py --upto 13` passes 101 of
+101 checks. `ssw prove --quick --phase 13` (1014 s): twenty-five claims passing, and C-021,
+C-024 and C-025 withdrawn (ADR 0041).
+
+### Done
+
+- The first CI runs found problems that local runs could not show. Each fix has a test:
+  - Under CI, Typer styles help text, which split option names in two CLI tests; the tests
+    read the text without its styles.
+  - `install.ps1` stops under PowerShell 7 on Linux and macOS and points to `install.sh`.
+  - The macOS install.sh tests had no `/usr/bin` on PATH (mktemp, awk, shasum).
+  - On the Windows runner, Git's `bin\sh.exe` launcher put a real curl before the test's
+    stand-in, so the hash test downloaded the real uv installer. The tests run the shell it
+    launches, and any real download goes to a closed local port.
+  - Node aborts at startup on the Windows runner when SYSTEMROOT is missing.
+  - A refused loopback connection retries for about 2 s on Windows, so a fixed fake-server
+    load time could end before the first health check; the test now ends the load itself.
+  - Python 3.14 bounds JSON nesting by the thread's stack, so the fallback parser now sets
+    its own limit (200 levels) on every interpreter.
+- The prove workflow shows the C-016 evidence file and its SHA-256 in the run summary. The
+  committed copy was rebuilt from that summary and matches the hash.
+
+### Waiting on the maintainer
+
+- The package index's trusted publisher and the first tag (Phase 10).
+- The company-name scan skips committed prediction patches (ADR 0007, item 7) unless you
+  prefer to move the predictions to a release asset.
+
 ## Phase 13: Public benchmark
 
 Status: done on 2026-10-23. `scripts/phase_check.py 13` passes 7 of 7 checks. `uv run pytest

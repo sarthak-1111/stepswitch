@@ -427,7 +427,7 @@ claims:
       - tests/claims/test_c016_platforms.py::test_prove_quick_passed_on_linux_macos_windows
     thresholds: {operating_systems: [linux, macos, windows]}
     evidence: [claims/evidence/C-016.json]
-    status: pending
+    status: passing
 
   - id: C-017
     text: "Goes from install to first completed task in under 5 minutes on a CPU-only machine."

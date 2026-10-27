@@ -1,0 +1,169 @@
+{
+  "claim": "C-016",
+  "text": "Runs on macOS, Linux and Windows.",
+  "scope": "`ssw prove --quick` on pinned hosted CI runner labels for Linux x86-64, macOS arm64 and Windows x86-64; the prove report records each runner label and image version (ADR 0011).",
+  "thresholds": {
+    "operating_systems": [
+      "linux",
+      "macos",
+      "windows"
+    ]
+  },
+  "command": "CI workflow `prove` (.github/workflows/prove.yml), then `uv run python scripts/platform_evidence.py <report dirs>`",
+  "mode": "quick",
+  "source_digest": "2e58ffd74e4b0b55277e050110cd95204d1f58d8c38ad81786e5cee33824f9ef",
+  "environment": {
+    "os": "linux",
+    "machine": "x86_64",
+    "release": "6.17.0-1022-azure",
+    "python": "3.12.16",
+    "ci": true,
+    "runner_label": null,
+    "image_os": "ubuntu24",
+    "image_version": "20261023.334.3"
+  },
+  "updated": "2026-10-27T07:29:38+00:00",
+  "sections": {
+    "platforms": {
+      "recorded": "2026-10-27T07:29:38+00:00",
+      "run_url": "https://github.com/sarthak-1111/stepswitch/actions/runs/40465602769",
+      "runs": [
+        {
+          "report_dir": "prove-linux",
+          "report_found": true,
+          "os": "linux",
+          "machine": "x86_64",
+          "python": "3.12.16",
+          "runner_label": "ubuntu-24.04",
+          "image_os": "ubuntu24",
+          "image_version": "20261023.334.3",
+          "mode": "quick",
+          "source_digest": "2e58ffd74e4b0b55277e050110cd95204d1f58d8c38ad81786e5cee33824f9ef",
+          "created": "2026-10-27T07:16:48+00:00",
+          "passing": 20,
+          "failing": 0,
+          "pending": 4,
+          "skipped_claims": [
+            "C-016"
+          ],
+          "claims": {
+            "C-001": "pending",
+            "C-002": "passing",
+            "C-003": "passing",
+            "C-004": "passing",
+            "C-005": "pending",
+            "C-006": "passing",
+            "C-007": "passing",
+            "C-008": "passing",
+            "C-009": "passing",
+            "C-010": "passing",
+            "C-011": "passing",
+            "C-012": "passing",
+            "C-013": "passing",
+            "C-014": "passing",
+            "C-015": "passing",
+            "C-017": "pending",
+            "C-018": "passing",
+            "C-019": "pending",
+            "C-020": "passing",
+            "C-022": "passing",
+            "C-023": "passing",
+            "C-026": "passing",
+            "C-027": "passing",
+            "C-028": "passing"
+          }
+        },
+        {
+          "report_dir": "prove-macos",
+          "report_found": true,
+          "os": "macos",
+          "machine": "arm64",
+          "python": "3.12.16",
+          "runner_label": "macos-26",
+          "image_os": "macos26",
+          "image_version": "20261013.0424.1",
+          "mode": "quick",
+          "source_digest": "2e58ffd74e4b0b55277e050110cd95204d1f58d8c38ad81786e5cee33824f9ef",
+          "created": "2026-10-27T07:19:44+00:00",
+          "passing": 20,
+          "failing": 0,
+          "pending": 4,
+          "skipped_claims": [
+            "C-016"
+          ],
+          "claims": {
+            "C-001": "pending",
+            "C-002": "passing",
+            "C-003": "passing",
+            "C-004": "passing",
+            "C-005": "pending",
+            "C-006": "passing",
+            "C-007": "passing",
+            "C-008": "passing",
+            "C-009": "passing",
+            "C-010": "passing",
+            "C-011": "passing",
+            "C-012": "passing",
+            "C-013": "passing",
+            "C-014": "passing",
+            "C-015": "passing",
+            "C-017": "pending",
+            "C-018": "passing",
+            "C-019": "pending",
+            "C-020": "passing",
+            "C-022": "passing",
+            "C-023": "passing",
+            "C-026": "passing",
+            "C-027": "passing",
+            "C-028": "passing"
+          }
+        },
+        {
+          "report_dir": "prove-windows",
+          "report_found": true,
+          "os": "windows",
+          "machine": "amd64",
+          "python": "3.12.16",
+          "runner_label": "windows-2025",
+          "image_os": "win25-vs2026",
+          "image_version": "20261021.278.1",
+          "mode": "quick",
+          "source_digest": "2e58ffd74e4b0b55277e050110cd95204d1f58d8c38ad81786e5cee33824f9ef",
+          "created": "2026-10-27T07:29:19+00:00",
+          "passing": 20,
+          "failing": 0,
+          "pending": 4,
+          "skipped_claims": [
+            "C-016"
+          ],
+          "claims": {
+            "C-001": "pending",
+            "C-002": "passing",
+            "C-003": "passing",
+            "C-004": "passing",
+            "C-005": "pending",
+            "C-006": "passing",
+            "C-007": "passing",
+            "C-008": "passing",
+            "C-009": "passing",
+            "C-010": "passing",
+            "C-011": "passing",
+            "C-012": "passing",
+            "C-013": "passing",
+            "C-014": "passing",
+            "C-015": "passing",
+            "C-017": "pending",
+            "C-018": "passing",
+            "C-019": "pending",
+            "C-020": "passing",
+            "C-022": "passing",
+            "C-023": "passing",
+            "C-026": "passing",
+            "C-027": "passing",
+            "C-028": "passing"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,8 +1,8 @@
 # Prove report
 
 - Mode: quick
-- Created: 2026-10-23T06:09:43+00:00
-- Source digest: `925055d813e993384cdbfee42b627d8931e498398201709fc805c775986111df`
+- Created: 2026-10-27T07:50:26+00:00
+- Source digest: `2e58ffd74e4b0b55277e050110cd95204d1f58d8c38ad81786e5cee33824f9ef`
 - Platform: windows amd64, Python 3.12.15
 
 | Claim | Status | Tests |
@@ -22,7 +22,7 @@
 | C-013 | passing | test_ambiguous_tasks_flagged_unambiguous_not: passed |
 | C-014 | passing | test_replay_reproduces_diffs_and_gate_results: passed |
 | C-015 | passing | test_bandit_regret_below_random_and_fixed_policies: passed |
-| C-016 | pending | test_prove_quick_passed_on_linux_macos_windows: skipped |
+| C-016 | passing | test_prove_quick_passed_on_linux_macos_windows: passed |
 | C-017 | passing | test_install_to_first_task_under_five_minutes: passed |
 | C-018 | passing | test_every_readme_number_has_evidence_and_command: passed |
 | C-019 | passing | test_ledger_matches_server_usage_within_one_percent: passed |

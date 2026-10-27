@@ -7,7 +7,7 @@
   },
   "command": "uv run ssw prove --claim C-007",
   "mode": "quick",
-  "source_digest": "925055d813e993384cdbfee42b627d8931e498398201709fc805c775986111df",
+  "source_digest": "2e58ffd74e4b0b55277e050110cd95204d1f58d8c38ad81786e5cee33824f9ef",
   "stepswitch_version": "0.1.0.dev0",
   "environment": {
     "os": "windows",
@@ -19,10 +19,10 @@
     "image_os": null,
     "image_version": null
   },
-  "updated": "2026-10-23T05:58:54+00:00",
+  "updated": "2026-10-27T07:39:09+00:00",
   "sections": {
     "default_flow": {
-      "recorded": "2026-10-23T05:58:54+00:00",
+      "recorded": "2026-10-27T07:39:09+00:00",
       "flow": [
         {
           "argv": [
@@ -30,7 +30,7 @@
             "--help"
           ],
           "exit_code": 0,
-          "seconds": 0.39,
+          "seconds": 0.49,
           "stderr_tail": []
         },
         {
@@ -40,7 +40,7 @@
             "--json"
           ],
           "exit_code": 0,
-          "seconds": 0.91,
+          "seconds": 0.9,
           "stderr_tail": []
         },
         {
@@ -50,7 +50,7 @@
             "--json"
           ],
           "exit_code": 0,
-          "seconds": 0.87,
+          "seconds": 0.89,
           "stderr_tail": []
         },
         {
@@ -63,7 +63,7 @@
             "--json"
           ],
           "exit_code": 0,
-          "seconds": 0.55,
+          "seconds": 0.54,
           "stderr_tail": []
         },
         {
@@ -74,7 +74,7 @@
             "--json"
           ],
           "exit_code": 0,
-          "seconds": 0.52,
+          "seconds": 0.59,
           "stderr_tail": []
         },
         {
@@ -84,7 +84,7 @@
             "--json"
           ],
           "exit_code": 0,
-          "seconds": 0.29,
+          "seconds": 0.28,
           "stderr_tail": []
         }
       ],
@@ -134,9 +134,9 @@
           "command": "ssw init --json",
           "kind": "process",
           "event": "subprocess.Popen",
-          "executable": "C:\\WINDOWS\\system32\\wsl.EXE --version",
+          "executable": "C:\\WINDOWS\\system32\\nvidia-smi.EXE --query-gpu=index,name,memory.total,memory.free,driver_version,compute_cap --format=csv,noheader,nounits",
           "argv": [
-            "C:\\WINDOWS\\system32\\wsl.EXE --version"
+            "C:\\WINDOWS\\system32\\nvidia-smi.EXE --query-gpu=index,name,memory.total,memory.free,driver_version,compute_cap --format=csv,noheader,nounits"
           ],
           "outbound": false
         },
@@ -144,9 +144,9 @@
           "command": "ssw init --json",
           "kind": "process",
           "event": "subprocess.Popen",
-          "executable": "C:\\WINDOWS\\system32\\nvidia-smi.EXE --query-gpu=index,name,memory.total,memory.free,driver_version,compute_cap --format=csv,noheader,nounits",
+          "executable": "C:\\WINDOWS\\system32\\wsl.EXE --version",
           "argv": [
-            "C:\\WINDOWS\\system32\\nvidia-smi.EXE --query-gpu=index,name,memory.total,memory.free,driver_version,compute_cap --format=csv,noheader,nounits"
+            "C:\\WINDOWS\\system32\\wsl.EXE --version"
           ],
           "outbound": false
         },
@@ -174,9 +174,9 @@
           "command": "ssw init --json",
           "kind": "process",
           "event": "subprocess.Popen",
-          "executable": "\"C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.EXE\" version --format {{.Server.Version}}",
+          "executable": "C:\\WINDOWS\\system32\\nvidia-smi.EXE --version",
           "argv": [
-            "\"C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.EXE\" version --format {{.Server.Version}}"
+            "C:\\WINDOWS\\system32\\nvidia-smi.EXE --version"
           ],
           "outbound": false
         },
@@ -184,9 +184,9 @@
           "command": "ssw init --json",
           "kind": "process",
           "event": "subprocess.Popen",
-          "executable": "C:\\WINDOWS\\system32\\nvidia-smi.EXE --version",
+          "executable": "\"C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.EXE\" version --format {{.Server.Version}}",
           "argv": [
-            "C:\\WINDOWS\\system32\\nvidia-smi.EXE --version"
+            "\"C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.EXE\" version --format {{.Server.Version}}"
           ],
           "outbound": false
         },
@@ -254,9 +254,9 @@
           "command": "ssw doctor --json",
           "kind": "process",
           "event": "subprocess.Popen",
-          "executable": "C:\\WINDOWS\\system32\\nvidia-smi.EXE --version",
+          "executable": "~\\AppData\\Local\\Programs\\Ollama\\ollama.EXE --version",
           "argv": [
-            "C:\\WINDOWS\\system32\\nvidia-smi.EXE --version"
+            "~\\AppData\\Local\\Programs\\Ollama\\ollama.EXE --version"
           ],
           "outbound": false
         },
@@ -264,9 +264,9 @@
           "command": "ssw doctor --json",
           "kind": "process",
           "event": "subprocess.Popen",
-          "executable": "~\\AppData\\Local\\Programs\\Ollama\\ollama.EXE --version",
+          "executable": "C:\\WINDOWS\\system32\\nvidia-smi.EXE --version",
           "argv": [
-            "~\\AppData\\Local\\Programs\\Ollama\\ollama.EXE --version"
+            "C:\\WINDOWS\\system32\\nvidia-smi.EXE --version"
           ],
           "outbound": false
         }
