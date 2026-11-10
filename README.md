@@ -142,6 +142,11 @@ and engine by engine, from the probe results in [probes/](probes/).
 
 ## How it works
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/architecture-dark.svg">
+  <img src="docs/assets/architecture-light.svg" alt="Architecture: a task goes to the router, which picks a worker for each step (plan, navigate, read, edit, run, triage, review, summarize). Workers sit on a ladder of tiers, from CPU-only machines up to remote endpoints. Changes pass gates in a separate git worktree: format, lint, type check, impacted tests, full suite and review by another model family. If the gates still fail after retries, the task moves up the ladder. Underneath are the compatibility layer and the model plane, beside context services, the ledger, the egress layer and ssw proxy.">
+</picture>
+
 <!-- how-it-works:start -->
 - **Workers and the ladder.** A worker is a model behind a harness. Workers sit on tiers, from
   tiny local models up to large local or remote ones.
